@@ -1,0 +1,35 @@
+ensureSingleton:
+INSERT OR IGNORE INTO capture_config(id, updated_at) VALUES ('singleton', ?);
+
+getConfig:
+SELECT * FROM capture_config WHERE id = 'singleton' LIMIT 1;
+
+observeConfig:
+SELECT * FROM capture_config WHERE id = 'singleton' LIMIT 1;
+
+setEngineMode:
+UPDATE capture_config SET engine_mode = ?, updated_at = ? WHERE id = 'singleton';
+
+setCloudProvider:
+UPDATE capture_config SET cloud_provider = ?, cloud_model = ?, updated_at = ? WHERE id = 'singleton';
+
+setRedaction:
+UPDATE capture_config SET redaction_enabled = ?, updated_at = ? WHERE id = 'singleton';
+
+setAlwaysReview:
+UPDATE capture_config SET always_review = ?, updated_at = ? WHERE id = 'singleton';
+
+setAutoPostThreshold:
+UPDATE capture_config SET auto_post_threshold = ?, updated_at = ? WHERE id = 'singleton';
+
+setCaptureEnabled:
+UPDATE capture_config SET capture_enabled = ?, updated_at = ? WHERE id = 'singleton';
+
+recordConsent:
+UPDATE capture_config SET cloud_consent_at = ?, updated_at = ? WHERE id = 'singleton';
+
+clearConsent:
+UPDATE capture_config SET cloud_consent_at = NULL, updated_at = ? WHERE id = 'singleton';
+
+setCursor:
+UPDATE capture_config SET last_sms_cursor = ?, updated_at = ? WHERE id = 'singleton';
