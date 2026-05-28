@@ -1,0 +1,21 @@
+findBySenderId:
+SELECT * FROM sender_registry WHERE sender_id = ? LIMIT 1;
+
+observeAll:
+SELECT * FROM sender_registry ORDER BY display_name ASC;
+
+insertSenderIfNotExists:
+INSERT OR IGNORE INTO sender_registry(
+    id, sender_id, display_name, bank_type, is_financial, template_key, account_id, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+updateSenderFields:
+UPDATE sender_registry SET
+    display_name = ?,
+    bank_type = ?,
+    is_financial = ?,
+    template_key = ?
+WHERE sender_id = ?;
+
+setAccount:
+UPDATE sender_registry SET account_id = ? WHERE sender_id = ?;
