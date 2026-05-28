@@ -22,9 +22,17 @@ class CryptoService {
     fun deriveDbKey(masterSecret: ByteArray): ByteArray {
         require(masterSecret.size == 32) { "master_secret must be 32 bytes" }
         val salt = hkdf(masterSecret, "hisaab.db.salt".encodeToByteArray(), 16)
+        // Hex-encode the random secret before passing to pwhash. The pwhash API
+        // accepts a String, but masterSecret is uniformly-random bytes — UTF-8
+        // decoding would silently replace invalid byte sequences with U+FFFD,
+        // losing entropy. Hex encoding preserves all 256 bits deterministically
+        // as a 64-character ASCII string.
+        val passwordHex = masterSecret.joinToString("") {
+            (it.toInt() and 0xFF).toString(16).padStart(2, '0')
+        }
         return PasswordHash.pwhash(
             outputLength = 32,
-            password = masterSecret.decodeToString(),
+            password = passwordHex,
             salt = salt.toUByteArray(),
             opsLimit = crypto_pwhash_OPSLIMIT_MODERATE,
             memLimit = crypto_pwhash_MEMLIMIT_MODERATE,
