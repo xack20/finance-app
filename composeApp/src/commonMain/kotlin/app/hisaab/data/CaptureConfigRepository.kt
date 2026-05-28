@@ -8,8 +8,10 @@ import app.hisaab.domain.CloudProvider
 import app.hisaab.domain.EngineMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 
 class CaptureConfigRepository(private val db: HisaabDatabase) {
@@ -18,29 +20,28 @@ class CaptureConfigRepository(private val db: HisaabDatabase) {
 
     private fun now(): Long = Clock.System.now().toEpochMilliseconds()
 
-    private fun ensure() {
-        queries.ensureSingleton(now())
-    }
+    // on_device_model setter deferred to M3-4
 
-    fun observe(): Flow<CaptureConfig> =
-        queries.observeConfig().asFlow()
-            .onStart { ensure() }
-            .mapToOne(Dispatchers.Default)
-            .map { it.toDomain() }
+    private suspend fun ensure() = withContext(Dispatchers.Default) { queries.ensureSingleton(now()) }
+
+    fun observe(): Flow<CaptureConfig> = flow {
+        ensure()
+        emitAll(queries.observeConfig().asFlow().mapToOne(Dispatchers.Default).map { it.toDomain() })
+    }
 
     suspend fun get(): CaptureConfig {
         ensure()
         return queries.getConfig().executeAsOne().toDomain()
     }
 
-    suspend fun setEngineMode(m: EngineMode) {
+    suspend fun setEngineMode(mode: EngineMode) {
         ensure()
-        queries.setEngineMode(m.name, now())
+        queries.setEngineMode(mode.name, now())
     }
 
-    suspend fun setCloudProvider(p: CloudProvider?, model: String?) {
+    suspend fun setCloudProvider(provider: CloudProvider?, model: String?) {
         ensure()
-        queries.setCloudProvider(p?.name, model, now())
+        queries.setCloudProvider(provider?.name, model, now())
     }
 
     suspend fun setRedaction(enabled: Boolean) {
@@ -53,9 +54,9 @@ class CaptureConfigRepository(private val db: HisaabDatabase) {
         queries.setAlwaysReview(if (enabled) 1L else 0L, now())
     }
 
-    suspend fun setAutoPostThreshold(t: Double) {
+    suspend fun setAutoPostThreshold(threshold: Double) {
         ensure()
-        queries.setAutoPostThreshold(t, now())
+        queries.setAutoPostThreshold(threshold, now())
     }
 
     suspend fun setCaptureEnabled(enabled: Boolean) {

@@ -23,5 +23,6 @@ SELECT COUNT(*) FROM capture_inbox WHERE status = 'PENDING';
 updateStatus:
 UPDATE capture_inbox SET status = ? WHERE id = ?;
 
+-- Blanks only the SMS body content; sender (bank shortcode) is retained for provenance.
 purgeRaw:
 UPDATE capture_inbox SET raw_body = '' WHERE id = ?;

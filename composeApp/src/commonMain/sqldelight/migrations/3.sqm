@@ -59,4 +59,4 @@ CREATE TABLE capture_config (
 );
 
 -- 4. Provenance link (one FK, one direction). null = manual / non-captured.
-ALTER TABLE txn ADD COLUMN capture_id TEXT;
+ALTER TABLE txn ADD COLUMN capture_id TEXT REFERENCES capture_inbox(id) ON DELETE SET NULL;

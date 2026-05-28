@@ -3,7 +3,12 @@ package app.hisaab.data
 import app.hisaab.data.support.TestDatabase
 import app.hisaab.domain.CloudProvider
 import app.hisaab.domain.EngineMode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -87,10 +92,26 @@ class CaptureConfigRepositoryTest {
     }
 
     @Test
-    fun `observe reflects updates`() = runTest {
+    fun `observe reflects updates`() = runBlocking<Unit> {
         val db = TestDatabase.create()
         val repo = CaptureConfigRepository(db)
+
+        // Start an active collector BEFORE the mutation.
+        // The collector is already subscribed and receives the initial default emission.
+        val job: Job = launch(Dispatchers.Default) {
+            // Verify the flow emits ON_DEVICE first, then CLOUD after mutation.
+            // filter waits until a CLOUD emission arrives from the already-active collector.
+            val afterMutation = repo.observe().filter { it.engineMode == EngineMode.CLOUD }.first()
+            assertEquals(EngineMode.CLOUD, afterMutation.engineMode)
+        }
+
+        // Give the collector coroutine a moment to subscribe before mutating.
+        kotlinx.coroutines.yield()
+
+        // Mutate while the collector is already active.
         repo.setEngineMode(EngineMode.CLOUD)
-        assertEquals(EngineMode.CLOUD, repo.observe().first().engineMode)
+
+        // Wait for the collector's assertion to complete.
+        job.join()
     }
 }

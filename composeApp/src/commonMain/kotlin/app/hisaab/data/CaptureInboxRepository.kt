@@ -17,28 +17,28 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
 
     private val queries get() = db.captureInboxQueriesQueries
 
-    suspend fun insertCandidate(c: CandidateTransaction) {
+    suspend fun insertCandidate(candidate: CandidateTransaction) {
         queries.insertCandidate(
-            id = c.id,
-            received_at = c.receivedAt,
-            channel = c.channel.name,
-            sender = c.sender,
-            raw_body = c.rawBody,
-            dedup_hash = c.dedupHash,
-            status = c.status.name,
-            confidence = c.confidence,
-            parsed_by = c.parsedBy?.name,
-            model = c.model,
-            parse_error = c.parseError,
-            amount = c.amount,
-            direction = c.direction?.name,
-            currency = c.currency,
-            balance_after = c.balanceAfter,
-            ref_no = c.refNo,
-            proposed_account_id = c.proposedAccountId,
-            proposed_category_id = c.proposedCategoryId,
-            proposed_merchant = c.proposedMerchant,
-            created_at = c.createdAt,
+            id = candidate.id,
+            received_at = candidate.receivedAt,
+            channel = candidate.channel.name,
+            sender = candidate.sender,
+            raw_body = candidate.rawBody,
+            dedup_hash = candidate.dedupHash,
+            status = candidate.status.name,
+            confidence = candidate.confidence,
+            parsed_by = candidate.parsedBy?.name,
+            model = candidate.model,
+            parse_error = candidate.parseError,
+            amount = candidate.amount,
+            direction = candidate.direction?.name,
+            currency = candidate.currency,
+            balance_after = candidate.balanceAfter,
+            ref_no = candidate.refNo,
+            proposed_account_id = candidate.proposedAccountId,
+            proposed_category_id = candidate.proposedCategoryId,
+            proposed_merchant = candidate.proposedMerchant,
+            created_at = candidate.createdAt,
         )
     }
 

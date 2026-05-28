@@ -23,27 +23,34 @@ class SenderRepository(private val db: HisaabDatabase) {
             .mapToList(Dispatchers.Default)
             .map { rows -> rows.map { it.toDomain() } }
 
+    /**
+     * Inserts a new sender (writing all fields incl. account_id) or, if the sender_id already
+     * exists, refreshes only the descriptive fields (display_name, bank_type, is_financial,
+     * template_key) — it deliberately does NOT overwrite account_id on an existing row.
+     * Use setAccount() to change an existing mapping's account.
+     */
     suspend fun upsert(m: SenderMapping) {
         // Two-step upsert for SQLite 3.18 compat (no ON CONFLICT ... DO UPDATE support).
-        // INSERT OR IGNORE ensures the row exists; UPDATE then patches descriptive fields
-        // without touching account_id (preserving user mappings).
-        queries.insertSenderIfNotExists(
-            id = m.id.ifBlank { randomId() },
-            sender_id = m.senderId,
-            display_name = m.displayName,
-            bank_type = m.bankType.name,
-            is_financial = if (m.isFinancial) 1L else 0L,
-            template_key = m.templateKey,
-            account_id = m.accountId,
-            created_at = if (m.createdAt > 0L) m.createdAt else now(),
-        )
-        queries.updateSenderFields(
-            display_name = m.displayName,
-            bank_type = m.bankType.name,
-            is_financial = if (m.isFinancial) 1L else 0L,
-            template_key = m.templateKey,
-            sender_id = m.senderId,
-        )
+        // Wrapped in a transaction so both statements are atomic.
+        db.transaction {
+            queries.insertSenderIfNotExists(
+                id = m.id.ifBlank { randomId() },
+                sender_id = m.senderId,
+                display_name = m.displayName,
+                bank_type = m.bankType.name,
+                is_financial = if (m.isFinancial) 1L else 0L,
+                template_key = m.templateKey,
+                account_id = m.accountId,
+                created_at = if (m.createdAt > 0L) m.createdAt else now(),
+            )
+            queries.updateSenderFields(
+                display_name = m.displayName,
+                bank_type = m.bankType.name,
+                is_financial = if (m.isFinancial) 1L else 0L,
+                template_key = m.templateKey,
+                sender_id = m.senderId,
+            )
+        }
     }
 
     suspend fun setAccount(senderId: String, accountId: String) {
@@ -52,18 +59,16 @@ class SenderRepository(private val db: HisaabDatabase) {
 
     suspend fun seedKnownSenders() {
         SEED.forEach { seed ->
-            if (queries.findBySenderId(seed.senderId).executeAsOneOrNull() == null) {
-                queries.insertSenderIfNotExists(
-                    id = randomId(),
-                    sender_id = seed.senderId,
-                    display_name = seed.displayName,
-                    bank_type = seed.bankType.name,
-                    is_financial = 1L,
-                    template_key = seed.templateKey,
-                    account_id = null,
-                    created_at = now(),
-                )
-            }
+            queries.insertSenderIfNotExists(
+                id = randomId(),
+                sender_id = seed.senderId,
+                display_name = seed.displayName,
+                bank_type = seed.bankType.name,
+                is_financial = 1L,
+                template_key = seed.templateKey,
+                account_id = null,
+                created_at = now(),
+            )
         }
     }
 
