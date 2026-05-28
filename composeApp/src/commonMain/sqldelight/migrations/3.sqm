@@ -1,0 +1,62 @@
+-- M3-1: SMS capture engine — candidate queue, sender registry, engine config.
+-- These tables live in the same SQLCipher-encrypted DB and are excluded from
+-- the sync set (only the ops-log syncs). Raw SMS is encrypted-at-rest, local-only.
+
+-- 1. Candidate queue: every parsed candidate, posted or pending.
+CREATE TABLE capture_inbox (
+    id                    TEXT NOT NULL PRIMARY KEY,
+    received_at           INTEGER NOT NULL,
+    channel               TEXT NOT NULL,
+    sender                TEXT NOT NULL,
+    raw_body              TEXT NOT NULL,
+    dedup_hash            TEXT NOT NULL,
+    status                TEXT NOT NULL,
+    confidence            REAL,
+    parsed_by             TEXT,
+    model                 TEXT,
+    parse_error           TEXT,
+    amount                REAL,
+    direction             TEXT,
+    currency              TEXT NOT NULL DEFAULT 'BDT',
+    balance_after         REAL,
+    ref_no                TEXT,
+    proposed_account_id   TEXT,
+    proposed_category_id  TEXT,
+    proposed_merchant     TEXT,
+    created_at            INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX idx_capture_dedup ON capture_inbox(dedup_hash);
+CREATE INDEX idx_capture_status ON capture_inbox(status, received_at);
+
+-- 2. Known senders → account mapping + pre-filter allowlist (seeded, user-editable).
+CREATE TABLE sender_registry (
+    id            TEXT NOT NULL PRIMARY KEY,
+    sender_id     TEXT NOT NULL,
+    display_name  TEXT NOT NULL,
+    bank_type     TEXT NOT NULL,
+    is_financial  INTEGER NOT NULL DEFAULT 1,
+    template_key  TEXT,
+    account_id    TEXT,
+    created_at    INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX idx_sender_id ON sender_registry(sender_id);
+
+-- 3. Single-row capture/engine config (API key itself stays in SecureStorage).
+CREATE TABLE capture_config (
+    id                  TEXT NOT NULL PRIMARY KEY DEFAULT 'singleton',
+    capture_enabled     INTEGER NOT NULL DEFAULT 0,
+    engine_mode         TEXT NOT NULL DEFAULT 'ON_DEVICE',
+    on_device_model     TEXT NOT NULL DEFAULT 'auto',
+    cloud_provider      TEXT,
+    cloud_model         TEXT,
+    redaction_enabled   INTEGER NOT NULL DEFAULT 1,
+    always_review       INTEGER NOT NULL DEFAULT 0,
+    auto_post_threshold REAL NOT NULL DEFAULT 0.85,
+    cloud_consent_at    INTEGER,
+    retain_raw_body     INTEGER NOT NULL DEFAULT 1,
+    last_sms_cursor     INTEGER NOT NULL DEFAULT 0,
+    updated_at          INTEGER NOT NULL
+);
+
+-- 4. Provenance link (one FK, one direction). null = manual / non-captured.
+ALTER TABLE txn ADD COLUMN capture_id TEXT;
