@@ -1,16 +1,54 @@
 package app.hisaab.platform
 
+import android.provider.ContactsContract
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.FragmentActivity
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 
-/**
- * P0c-1 ships the expect/actual contract and isAvailable() check.
- * The actual launcher integration is wired in P0c-3 Task 21 when PeopleListScreen
- * needs it; pickContact() throws if called before then.
- */
 actual class ContactPicker(private val activity: FragmentActivity) {
+    private val resultFlow = MutableSharedFlow<ContactPick?>(replay = 0, extraBufferCapacity = 1)
+
+    private val launcher: ActivityResultLauncher<Void?> =
+        activity.registerForActivityResult(ActivityResultContracts.PickContact()) { uri ->
+            if (uri == null) {
+                resultFlow.tryEmit(null)
+                return@registerForActivityResult
+            }
+            val resolver = activity.contentResolver
+            var name: String? = null
+            var contactId: String? = null
+            resolver.query(
+                uri,
+                arrayOf(ContactsContract.Contacts.DISPLAY_NAME, ContactsContract.Contacts._ID),
+                null, null, null,
+            )?.use { c ->
+                if (c.moveToFirst()) {
+                    name = c.getString(c.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME))
+                    contactId = c.getString(c.getColumnIndexOrThrow(ContactsContract.Contacts._ID))
+                }
+            }
+            val phone = contactId?.let { id ->
+                resolver.query(
+                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                    arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
+                    "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
+                    arrayOf(id),
+                    null,
+                )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+            }
+            if (name != null) {
+                resultFlow.tryEmit(ContactPick(displayName = name!!, phone = phone))
+            } else {
+                resultFlow.tryEmit(null)
+            }
+        }
+
     actual fun isAvailable(): Boolean = true
 
     actual suspend fun pickContact(): ContactPick? {
-        throw NotImplementedError("ContactPicker.pickContact() is wired in P0c-3 Task 21")
+        launcher.launch(null)
+        return resultFlow.first()
     }
 }

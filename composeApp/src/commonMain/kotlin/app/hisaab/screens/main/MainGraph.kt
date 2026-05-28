@@ -22,6 +22,8 @@ import androidx.navigation.compose.rememberNavController
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.screens.entry.EntryScreen
 import app.hisaab.screens.month.MonthScreen
+import app.hisaab.screens.people.PeopleListScreen
+import app.hisaab.screens.people.PersonDetailScreen
 import app.hisaab.screens.today.TodayScreen
 import app.hisaab.screens.transaction.TransactionDetailScreen
 
@@ -93,7 +95,11 @@ fun MainGraph() {
             }
             composable(MainTab.MONTH.name) { MonthScreen() }
             composable(MainTab.PEOPLE.name) {
-                PlaceholderScreen("People — coming in P0c-3")
+                PeopleListScreen(onPersonClick = { id -> navController.navigate("person/$id") })
+            }
+            composable("person/{id}") { entry ->
+                val id = entry.arguments?.getString("id") ?: return@composable
+                PersonDetailScreen(personId = id, onBack = { navController.popBackStack() })
             }
             composable(MainTab.SETTINGS.name) {
                 PlaceholderScreen("Settings — coming in P0c-3")
