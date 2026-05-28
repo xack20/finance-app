@@ -45,3 +45,7 @@ coverage/
 local.properties
 xcuserdata/
 .cxx/
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md
