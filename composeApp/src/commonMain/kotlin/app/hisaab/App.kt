@@ -12,7 +12,7 @@ import app.hisaab.screens.SplashScreen
 import app.hisaab.screens.onboarding.OnboardingGraph
 import app.hisaab.screens.onboarding.OnboardingViewModel
 import app.hisaab.screens.recovery.RecoveryEntryScreen
-import app.hisaab.screens.today.TodayScreen
+import app.hisaab.screens.main.MainGraph
 
 @Composable
 fun App() {
@@ -50,7 +50,7 @@ fun App() {
             is AppState.Locked -> LockScreen(
                 onUnlock = { appViewModel.onBiometricUnlockSuccess() },
             )
-            is AppState.Authenticated -> TodayScreen()
+            is AppState.Authenticated -> MainGraph()
         }
     }
 }
