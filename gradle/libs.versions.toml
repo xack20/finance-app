@@ -45,6 +45,8 @@ libsodium-kmp             = { module = "com.ionspin.kotlin:multiplatform-crypto-
 # AndroidX
 androidx-security-crypto  = { module = "androidx.security:security-crypto", version = "1.1.0-alpha06" }
 androidx-biometric        = { module = "androidx.biometric:biometric", version = "1.2.0-alpha05" }
+androidx-test-junit       = { module = "androidx.test.ext:junit", version = "1.2.1" }
+androidx-test-runner      = { module = "androidx.test:runner", version = "1.6.2" }
 
 # Navigation
 nav-compose               = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "nav-compose" }
