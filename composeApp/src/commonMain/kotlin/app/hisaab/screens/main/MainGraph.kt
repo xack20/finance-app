@@ -24,6 +24,11 @@ import app.hisaab.screens.entry.EntryScreen
 import app.hisaab.screens.month.MonthScreen
 import app.hisaab.screens.people.PeopleListScreen
 import app.hisaab.screens.people.PersonDetailScreen
+import app.hisaab.screens.settings.AccountsScreen
+import app.hisaab.screens.settings.BudgetsScreen
+import app.hisaab.screens.settings.CategoriesScreen
+import app.hisaab.screens.settings.RecoveryPhraseRevealScreen
+import app.hisaab.screens.settings.SettingsScreen
 import app.hisaab.screens.today.TodayScreen
 import app.hisaab.screens.transaction.TransactionDetailScreen
 
@@ -102,8 +107,18 @@ fun MainGraph() {
                 PersonDetailScreen(personId = id, onBack = { navController.popBackStack() })
             }
             composable(MainTab.SETTINGS.name) {
-                PlaceholderScreen("Settings — coming in P0c-3")
+                SettingsScreen(
+                    onAccounts = { navController.navigate("settings/accounts") },
+                    onCategories = { navController.navigate("settings/categories") },
+                    onBudgets = { navController.navigate("settings/budgets") },
+                    onRecoveryReveal = { navController.navigate("settings/recovery") },
+                    onSignedOut = { /* AppViewModel state change handles redirect via App.kt */ },
+                )
             }
+            composable("settings/accounts") { AccountsScreen(onBack = { navController.popBackStack() }) }
+            composable("settings/categories") { CategoriesScreen(onBack = { navController.popBackStack() }) }
+            composable("settings/budgets") { BudgetsScreen(onBack = { navController.popBackStack() }) }
+            composable("settings/recovery") { RecoveryPhraseRevealScreen(onBack = { navController.popBackStack() }) }
             composable("entry") {
                 EntryScreen(onDone = { navController.popBackStack() })
             }
