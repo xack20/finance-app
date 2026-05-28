@@ -6,6 +6,7 @@ import app.hisaab.crypto.MnemonicService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -55,7 +56,7 @@ class OnboardingViewModel(
     fun generateMasterSecret(onGenerated: (ByteArray) -> Unit) {
         val secret = cryptoService.generateMasterSecret()
         masterSecret = secret
-        onGenerated(secret)
+        onGenerated(secret.copyOf())
     }
 
     fun generateRecoveryPhrase(): List<String> {
@@ -66,13 +67,21 @@ class OnboardingViewModel(
     }
 
     fun acknowledgePhraseWrittenDown() {
-        _state.update { it.copy(phraseAcknowledged = true) }
+        _state.update { it.copy(phraseAcknowledged = true, recoveryPhrase = emptyList()) }
     }
 
     fun getMasterSecretAndClear(): ByteArray? {
         val secret = masterSecret?.copyOf()
         masterSecret?.fill(0)
         masterSecret = null
+        _state.update { it.copy(recoveryPhrase = emptyList()) }
         return secret
+    }
+
+    fun dispose() {
+        masterSecret?.fill(0)
+        masterSecret = null
+        _state.update { it.copy(recoveryPhrase = emptyList()) }
+        scope.cancel()
     }
 }
