@@ -86,8 +86,7 @@ fun MainGraph() {
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             composable(MainTab.TODAY.name) {
-                // TODO Task 18: pass onTxnClick = { id -> navController.navigate("txn/$id") }
-                TodayScreen()
+                TodayScreen(onTxnClick = { id -> navController.navigate("txn/$id") })
             }
             composable(MainTab.MONTH.name) {
                 PlaceholderScreen("Month — coming in P0c-3")
