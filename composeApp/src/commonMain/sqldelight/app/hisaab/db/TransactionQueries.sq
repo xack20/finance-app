@@ -1,0 +1,83 @@
+insertTxn:
+INSERT INTO txn(id, account_id, amount, currency, ts, merchant_id, category_id, source, notes, kind, parent_txn_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateTxn:
+UPDATE txn SET amount = ?, ts = ?, merchant_id = ?, category_id = ?, notes = ?, kind = ?
+WHERE id = ?;
+
+deleteTxn:
+DELETE FROM txn WHERE id = ?;
+
+getTxn:
+SELECT * FROM txn WHERE id = ?;
+
+observeRecentTopLevel:
+SELECT txn.id, txn.account_id, txn.amount, txn.currency, txn.ts, txn.merchant_id,
+       txn.category_id, txn.source, txn.notes, txn.kind, txn.parent_txn_id
+FROM txn
+WHERE txn.parent_txn_id IS NULL
+ORDER BY txn.ts DESC
+LIMIT ?;
+
+observeTxnsForDayRange:
+SELECT * FROM txn
+WHERE parent_txn_id IS NULL AND ts >= ? AND ts < ?
+ORDER BY ts DESC;
+
+observeChildSplits:
+SELECT * FROM txn WHERE parent_txn_id = ? ORDER BY ts ASC;
+
+sumByKindForRange:
+SELECT kind, SUM(amount) AS total
+FROM txn
+WHERE parent_txn_id IS NULL AND ts >= ? AND ts < ?
+GROUP BY kind;
+
+-- Tag queries
+insertTag:
+INSERT INTO tag(id, name, color, created_at) VALUES (?, ?, ?, ?);
+
+observeAllTags:
+SELECT * FROM tag ORDER BY name ASC;
+
+findTagByName:
+SELECT * FROM tag WHERE name = ? LIMIT 1;
+
+linkTxnTag:
+INSERT OR IGNORE INTO txn_tag(txn_id, tag_id) VALUES (?, ?);
+
+unlinkTxnTags:
+DELETE FROM txn_tag WHERE txn_id = ?;
+
+observeTagsForTxn:
+SELECT tag.* FROM tag
+INNER JOIN txn_tag ON tag.id = txn_tag.tag_id
+WHERE txn_tag.txn_id = ?;
+
+-- Merchant queries
+insertMerchant:
+INSERT INTO merchant(id, name, normalized_name, default_category_id) VALUES (?, ?, ?, ?);
+
+observeAllMerchants:
+SELECT * FROM merchant ORDER BY name ASC;
+
+findMerchantByNormalizedName:
+SELECT * FROM merchant WHERE normalized_name = ? LIMIT 1;
+
+searchMerchantsByPrefix:
+SELECT * FROM merchant WHERE normalized_name LIKE ? || '%' ORDER BY name ASC LIMIT 10;
+
+-- Attachment queries
+insertAttachment:
+INSERT INTO attachment(id, txn_id, mime_type, file_path, encrypted_iv, size_bytes, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+observeAttachmentsForTxn:
+SELECT * FROM attachment WHERE txn_id = ?;
+
+getAttachment:
+SELECT * FROM attachment WHERE id = ?;
+
+deleteAttachment:
+DELETE FROM attachment WHERE id = ?;

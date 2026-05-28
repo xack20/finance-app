@@ -1,0 +1,9 @@
+insertBudget:
+INSERT INTO budget(id, category_id, monthly_cap_amount, currency, starts_month, created_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+observeActiveBudgets:
+SELECT * FROM budget WHERE archived_at IS NULL ORDER BY created_at ASC;
+
+archiveBudget:
+UPDATE budget SET archived_at = ? WHERE id = ?;

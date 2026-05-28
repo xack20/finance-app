@@ -1,0 +1,44 @@
+monthlySumByKind:
+SELECT kind, SUM(amount) AS total
+FROM txn
+WHERE parent_txn_id IS NULL AND ts >= ? AND ts < ?
+GROUP BY kind;
+
+categoryBreakdownForRange:
+SELECT category.id AS category_id, category.name AS category_name,
+       category.color AS category_color, SUM(txn.amount) AS total
+FROM txn
+INNER JOIN category ON txn.category_id = category.id
+WHERE txn.parent_txn_id IS NULL AND txn.ts >= ? AND txn.ts < ? AND txn.kind = 'EXPENSE'
+GROUP BY category.id
+ORDER BY total DESC;
+
+perDaySpendForRange:
+SELECT (ts / 86400000) AS epoch_day, SUM(amount) AS total
+FROM txn
+WHERE parent_txn_id IS NULL AND ts >= ? AND ts < ? AND kind = 'EXPENSE'
+GROUP BY epoch_day
+ORDER BY epoch_day ASC;
+
+recurringCandidates:
+SELECT merchant.id AS merchant_id, merchant.name AS merchant_name,
+       COUNT(*) AS occurrence_count, AVG(txn.amount) AS avg_amount,
+       MAX(txn.ts) AS last_seen_ts
+FROM txn
+INNER JOIN merchant ON txn.merchant_id = merchant.id
+WHERE txn.parent_txn_id IS NULL AND txn.ts >= ? AND txn.kind = 'EXPENSE'
+GROUP BY merchant.id
+HAVING occurrence_count >= 3
+ORDER BY occurrence_count DESC;
+
+budgetSpendForCategory:
+SELECT SUM(amount) AS total
+FROM txn
+WHERE parent_txn_id IS NULL AND category_id = ? AND ts >= ? AND ts < ? AND kind = 'EXPENSE';
+
+insertCategoryIfMissing:
+INSERT OR IGNORE INTO category(id, name, parent_id, color, icon, is_default)
+VALUES (?, ?, ?, ?, ?, ?);
+
+observeAllCategories:
+SELECT * FROM category ORDER BY name ASC;

@@ -1,4 +1,7 @@
--- user_profile
+-- Queries split into per-domain *.sq files.
+-- See AccountQueries.sq, TransactionQueries.sq, PersonQueries.sq,
+-- LendBorrowQueries.sq, BudgetQueries.sq, InsightQueries.sq.
+
 insertUserProfile:
 INSERT INTO user_profile(id, supabase_user_id, display_name, locale, theme, created_at)
 VALUES (?, ?, ?, ?, ?, ?);
@@ -8,17 +11,3 @@ SELECT * FROM user_profile LIMIT 1;
 
 hasUserProfile:
 SELECT COUNT(*) FROM user_profile;
-
--- account
-insertAccount:
-INSERT INTO account(id, name, kind, institution, currency, balance_tracking, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?);
-
-getAllAccounts:
-SELECT * FROM account ORDER BY created_at ASC;
-
--- person
-getPersonBalance:
-SELECT COALESCE(SUM(CASE direction WHEN 'LENT' THEN amount ELSE -amount END), 0.0)
-FROM lend_borrow
-WHERE person_id = ? AND status = 'OPEN';

@@ -1,0 +1,41 @@
+CREATE TABLE tag (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    color TEXT,
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE txn_tag (
+    txn_id TEXT NOT NULL REFERENCES txn(id) ON DELETE CASCADE,
+    tag_id TEXT NOT NULL REFERENCES tag(id) ON DELETE CASCADE,
+    PRIMARY KEY (txn_id, tag_id)
+);
+CREATE INDEX idx_txn_tag_tag ON txn_tag(tag_id);
+
+CREATE TABLE attachment (
+    id TEXT NOT NULL PRIMARY KEY,
+    txn_id TEXT NOT NULL REFERENCES txn(id) ON DELETE CASCADE,
+    mime_type TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    encrypted_iv BLOB NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_attachment_txn ON attachment(txn_id);
+
+CREATE TABLE budget (
+    id TEXT NOT NULL PRIMARY KEY,
+    category_id TEXT NOT NULL REFERENCES category(id) ON DELETE CASCADE,
+    monthly_cap_amount REAL NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'BDT',
+    starts_month TEXT NOT NULL,
+    archived_at INTEGER,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_budget_category ON budget(category_id);
+
+ALTER TABLE txn ADD COLUMN parent_txn_id TEXT REFERENCES txn(id) ON DELETE CASCADE;
+ALTER TABLE txn ADD COLUMN kind TEXT NOT NULL DEFAULT 'EXPENSE';
+CREATE INDEX idx_txn_parent ON txn(parent_txn_id);
+
+ALTER TABLE account ADD COLUMN archived_at INTEGER;

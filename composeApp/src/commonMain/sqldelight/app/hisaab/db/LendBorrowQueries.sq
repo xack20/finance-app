@@ -1,0 +1,23 @@
+insertLendBorrow:
+INSERT INTO lend_borrow(id, person_id, amount, direction, purpose, ts, due_date, status)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+updateLendBorrowStatus:
+UPDATE lend_borrow SET status = ? WHERE id = ?;
+
+getLendBorrowById:
+SELECT * FROM lend_borrow WHERE id = ?;
+
+observeLendBorrowForPerson:
+SELECT * FROM lend_borrow WHERE person_id = ? ORDER BY ts DESC;
+
+observeOpenLendBorrow:
+SELECT * FROM lend_borrow WHERE status = 'OPEN' ORDER BY ts DESC;
+
+linkLendBorrowTxn:
+INSERT OR IGNORE INTO lend_borrow_txn(lend_borrow_id, txn_id) VALUES (?, ?);
+
+getPersonBalance:
+SELECT COALESCE(SUM(CASE direction WHEN 'LENT' THEN amount ELSE -amount END), 0.0) AS balance
+FROM lend_borrow
+WHERE person_id = ? AND status != 'SETTLED';

@@ -1,0 +1,18 @@
+insertAccount:
+INSERT INTO account(id, name, kind, institution, currency, balance_tracking, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+observeActiveAccounts:
+SELECT * FROM account WHERE archived_at IS NULL ORDER BY created_at ASC;
+
+getAccountById:
+SELECT * FROM account WHERE id = ?;
+
+renameAccount:
+UPDATE account SET name = ? WHERE id = ?;
+
+archiveAccount:
+UPDATE account SET archived_at = ? WHERE id = ?;
+
+countActiveAccounts:
+SELECT COUNT(*) FROM account WHERE archived_at IS NULL;

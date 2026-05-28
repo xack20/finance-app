@@ -1,0 +1,11 @@
+insertPerson:
+INSERT INTO person(id, name, contact_ref) VALUES (?, ?, ?);
+
+observeAllPersons:
+SELECT * FROM person ORDER BY name ASC;
+
+findPersonByPhone:
+SELECT * FROM person WHERE contact_ref = ? LIMIT 1;
+
+getPerson:
+SELECT * FROM person WHERE id = ?;
