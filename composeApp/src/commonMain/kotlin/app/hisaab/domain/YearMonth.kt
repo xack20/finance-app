@@ -1,5 +1,7 @@
 package app.hisaab.domain
 
+import kotlin.jvm.JvmInline
+
 @JvmInline
 value class YearMonth(val value: String) {
     init {
