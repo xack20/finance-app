@@ -8,6 +8,7 @@ import co.touchlab.sqliter.DatabaseConfiguration
 actual class DatabaseDriverFactory {
     actual fun createDriver(dbKey: ByteArray): SqlDriver {
         val keyHex = dbKey.joinToString("") { "%02x".format(it) }
+        dbKey.fill(0)  // zero caller-supplied key; keyHex String cannot be zeroed (JVM limitation)
         val config = DatabaseConfiguration(
             name = "hisaab.db",
             version = HisaabDatabase.Schema.version.toInt(),
