@@ -37,14 +37,13 @@ fun OnboardingGraph(
             BiometricSetupScreen(
                 isAvailable = true,
                 onEnroll = {
-                    viewModel.generateMasterSecret { _ ->
-                        navController.navigate("recovery_phrase")
-                    }
+                    viewModel.enrollBiometric(
+                        onSuccess = { navController.navigate("recovery_phrase") },
+                        onSkip = { navController.navigate("recovery_phrase") },
+                    )
                 },
                 onSkip = {
-                    viewModel.generateMasterSecret { _ ->
-                        navController.navigate("recovery_phrase")
-                    }
+                    viewModel.skipBiometric { navController.navigate("recovery_phrase") }
                 },
             )
         }
@@ -59,7 +58,9 @@ fun OnboardingGraph(
         }
         composable("profile") {
             ProfileSetupScreen(
-                onComplete = { _, _ -> onComplete() },
+                onComplete = { name, locale ->
+                    viewModel.completeProfile(name, locale) { onComplete() }
+                },
                 isLoading = state.isLoading,
             )
         }
