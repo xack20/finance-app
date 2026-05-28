@@ -5,6 +5,16 @@ import app.hisaab.auth.AuthRepository
 import app.hisaab.crypto.BlobCrypto
 import app.hisaab.crypto.CryptoService
 import app.hisaab.crypto.MnemonicService
+import app.hisaab.data.AccountRepository
+import app.hisaab.data.AttachmentRepository
+import app.hisaab.data.BudgetRepository
+import app.hisaab.data.CategoryRepository
+import app.hisaab.data.InsightRepository
+import app.hisaab.data.LendBorrowRepository
+import app.hisaab.data.MerchantRepository
+import app.hisaab.data.PersonRepository
+import app.hisaab.data.TagRepository
+import app.hisaab.data.TransactionRepository
 import app.hisaab.db.DatabaseDriverFactory
 import app.hisaab.db.HisaabDatabase
 import app.hisaab.platform.AppLifecycle
@@ -38,6 +48,17 @@ expect class AppContainer {
 
     val authRepository: AuthRepository
     val databaseDriverFactory: DatabaseDriverFactory
+
+    val accountRepository: AccountRepository
+    val categoryRepository: CategoryRepository
+    val merchantRepository: MerchantRepository
+    val tagRepository: TagRepository
+    val transactionRepository: TransactionRepository
+    val personRepository: PersonRepository
+    val lendBorrowRepository: LendBorrowRepository
+    val budgetRepository: BudgetRepository
+    val attachmentRepository: AttachmentRepository
+    val insightRepository: InsightRepository
 
     /** Master secret cached in memory while DB is open. null when locked or pre-onboarding. */
     fun masterSecretInMemory(): ByteArray?
