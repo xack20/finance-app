@@ -20,7 +20,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.screens.entry.EntryScreen
 import app.hisaab.screens.today.TodayScreen
+import app.hisaab.screens.transaction.TransactionDetailScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,10 +100,11 @@ fun MainGraph() {
                 PlaceholderScreen("Settings — coming in P0c-3")
             }
             composable("entry") {
-                PlaceholderScreen("Entry — coming in P0c-2 Task 19")
+                EntryScreen(onDone = { navController.popBackStack() })
             }
-            composable("txn/{id}") {
-                PlaceholderScreen("Transaction detail — coming in P0c-2 Task 19")
+            composable("txn/{id}") { entry ->
+                val id = entry.arguments?.getString("id") ?: return@composable
+                TransactionDetailScreen(txnId = id, onDone = { navController.popBackStack() })
             }
         }
     }

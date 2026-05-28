@@ -1,0 +1,55 @@
+package app.hisaab.screens.transaction
+
+import app.hisaab.data.AccountRepository
+import app.hisaab.data.CategoryRepository
+import app.hisaab.data.MerchantRepository
+import app.hisaab.data.TransactionRepository
+import app.hisaab.domain.TransactionRow
+import app.hisaab.screens.today.TransactionRowDisplay
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+class TransactionDetailViewModel(
+    private val txnId: String,
+    private val txnRepo: TransactionRepository,
+    accountRepo: AccountRepository,
+    categoryRepo: CategoryRepository,
+    merchantRepo: MerchantRepository,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+) {
+    val row: StateFlow<TransactionRowDisplay?> = combine(
+        txnRepo.observeRecent(500),
+        accountRepo.observeActive(),
+        categoryRepo.observeAll(),
+        merchantRepo.observeAll(),
+    ) { txns, accounts, cats, merchants ->
+        val txn: TransactionRow? = txns.firstOrNull { it.id == txnId }
+        if (txn == null) {
+            null
+        } else {
+            val account = accounts.firstOrNull { it.id == txn.accountId }
+            val cat = txn.categoryId?.let { id -> cats.firstOrNull { it.id == id } }
+            val mer = txn.merchantId?.let { id -> merchants.firstOrNull { it.id == id } }
+            TransactionRowDisplay(
+                row = txn,
+                accountName = account?.name ?: "?",
+                merchantName = mer?.name,
+                categoryName = cat?.name,
+                categoryColor = cat?.color,
+            )
+        }
+    }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun delete(onDone: () -> Unit) {
+        scope.launch {
+            txnRepo.delete(txnId)
+            onDone()
+        }
+    }
+}
