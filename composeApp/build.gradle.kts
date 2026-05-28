@@ -59,10 +59,8 @@ kotlin {
             implementation(libs.sqldelight.native.driver)
             implementation(libs.ktor.client.darwin)
         }
-        val wasmJsMain by getting {
-            dependencies {
-                implementation(libs.sqldelight.web.driver)
-            }
+        named("wasmJsMain").dependencies {
+            implementation(libs.sqldelight.web.driver)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -89,13 +87,16 @@ android {
     namespace = "app.hisaab"
     compileSdk = 35
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "app.hisaab"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0-p0a"
-        buildFeatures { buildConfig = true }
         val localProps = Properties().apply {
             val f = rootProject.file("local.properties")
             if (f.exists()) load(f.inputStream())

@@ -11,7 +11,7 @@ sqldelight        = "2.0.2"
 sqlcipher-android = "4.5.4"
 supabase          = "3.0.3"
 libsodium         = "0.9.3"
-ktor              = "3.0.0"
+ktor              = "3.0.3"
 nav-compose       = "2.8.0-alpha10"
 
 [libraries]
