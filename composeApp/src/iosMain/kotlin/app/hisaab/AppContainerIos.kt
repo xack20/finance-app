@@ -9,11 +9,14 @@ import app.hisaab.crypto.MnemonicService
 import app.hisaab.data.AccountRepository
 import app.hisaab.data.AttachmentRepository
 import app.hisaab.data.BudgetRepository
+import app.hisaab.data.CaptureConfigRepository
+import app.hisaab.data.CaptureInboxRepository
 import app.hisaab.data.CategoryRepository
 import app.hisaab.data.InsightRepository
 import app.hisaab.data.LendBorrowRepository
 import app.hisaab.data.MerchantRepository
 import app.hisaab.data.PersonRepository
+import app.hisaab.data.SenderRepository
 import app.hisaab.data.TagRepository
 import app.hisaab.data.TransactionRepository
 import app.hisaab.db.DatabaseDriverFactory
@@ -75,6 +78,12 @@ actual class AppContainer {
         )
     actual val insightRepository: InsightRepository
         get() = InsightRepository(requireDb())
+    actual val captureInboxRepository: CaptureInboxRepository
+        get() = CaptureInboxRepository(requireDb())
+    actual val senderRepository: SenderRepository
+        get() = SenderRepository(requireDb())
+    actual val captureConfigRepository: CaptureConfigRepository
+        get() = CaptureConfigRepository(requireDb())
 
     actual fun openDatabase(masterSecret: ByteArray): HisaabDatabase {
         cachedDatabase?.let { return it }

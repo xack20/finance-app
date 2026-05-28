@@ -8,11 +8,14 @@ import app.hisaab.crypto.MnemonicService
 import app.hisaab.data.AccountRepository
 import app.hisaab.data.AttachmentRepository
 import app.hisaab.data.BudgetRepository
+import app.hisaab.data.CaptureConfigRepository
+import app.hisaab.data.CaptureInboxRepository
 import app.hisaab.data.CategoryRepository
 import app.hisaab.data.InsightRepository
 import app.hisaab.data.LendBorrowRepository
 import app.hisaab.data.MerchantRepository
 import app.hisaab.data.PersonRepository
+import app.hisaab.data.SenderRepository
 import app.hisaab.data.TagRepository
 import app.hisaab.data.TransactionRepository
 import app.hisaab.db.DatabaseDriverFactory
@@ -59,6 +62,9 @@ expect class AppContainer {
     val budgetRepository: BudgetRepository
     val attachmentRepository: AttachmentRepository
     val insightRepository: InsightRepository
+    val captureInboxRepository: CaptureInboxRepository
+    val senderRepository: SenderRepository
+    val captureConfigRepository: CaptureConfigRepository
 
     /** Master secret cached in memory while DB is open. null when locked or pre-onboarding. */
     fun masterSecretInMemory(): ByteArray?
