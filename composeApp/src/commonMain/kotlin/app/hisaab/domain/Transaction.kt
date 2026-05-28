@@ -15,6 +15,7 @@ data class NewTransaction(
     val notes: String?,
     val kind: TxnKind,
     val tagNames: List<String> = emptyList(),
+    val captureId: String? = null,
 )
 
 data class NewSplitTransaction(
@@ -49,4 +50,5 @@ data class TransactionRow(
     val notes: String?,
     val kind: TxnKind,
     val parentTxnId: String?,
+    val captureId: String? = null,
 )

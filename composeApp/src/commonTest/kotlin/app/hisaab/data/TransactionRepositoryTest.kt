@@ -6,6 +6,7 @@ import app.hisaab.domain.NewSplitTransaction
 import app.hisaab.domain.NewTransaction
 import app.hisaab.domain.TransactionPatch
 import app.hisaab.domain.TxnKind
+import app.hisaab.domain.TxnSource
 import app.hisaab.util.todayRangeMs
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -169,6 +170,53 @@ class TransactionRepositoryTest {
         val row = txnRepo.observeRecent(50).first()[0]
         assertEquals(200.0, row.amount)
         assertEquals("new", row.notes)
+    }
+
+    @Test
+    fun `manual txn has null captureId`() = runTest {
+        val db = TestDatabase.create()
+        val merchantRepo = MerchantRepository(db)
+        val tagRepo = TagRepository(db)
+        val txnRepo = TransactionRepository(db, merchantRepo, tagRepo)
+        val accountId = seedAccount(db)
+        txnRepo.add(
+            NewTransaction(
+                accountId = accountId,
+                amount = 150.0,
+                ts = 1000L,
+                merchantName = null,
+                categoryId = null,
+                notes = null,
+                kind = TxnKind.EXPENSE,
+            ),
+        )
+        val row = txnRepo.observeRecent(50).first()[0]
+        assertEquals(null, row.captureId)
+    }
+
+    @Test
+    fun `txn added with captureId round-trips via observeRecent`() = runTest {
+        val db = TestDatabase.create()
+        val merchantRepo = MerchantRepository(db)
+        val tagRepo = TagRepository(db)
+        val txnRepo = TransactionRepository(db, merchantRepo, tagRepo)
+        val accountId = seedAccount(db)
+        val id = txnRepo.add(
+            NewTransaction(
+                accountId = accountId,
+                amount = 500.0,
+                ts = 2000L,
+                merchantName = "bKash",
+                categoryId = null,
+                source = TxnSource.SMS,
+                notes = null,
+                kind = TxnKind.INCOME,
+                captureId = "cand-42",
+            ),
+        )
+        val row = txnRepo.observeRecent(50).first().first { it.id == id }
+        assertEquals("cand-42", row.captureId)
+        assertEquals(TxnSource.SMS, row.source)
     }
 
     @Test

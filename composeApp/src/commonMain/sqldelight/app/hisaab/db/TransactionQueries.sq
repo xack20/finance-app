@@ -1,6 +1,6 @@
 insertTxn:
-INSERT INTO txn(id, account_id, amount, currency, ts, merchant_id, category_id, source, notes, kind, parent_txn_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO txn(id, account_id, amount, currency, ts, merchant_id, category_id, source, notes, kind, parent_txn_id, capture_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 updateTxn:
 UPDATE txn SET amount = ?, ts = ?, merchant_id = ?, category_id = ?, notes = ?, kind = ?
@@ -14,7 +14,7 @@ SELECT * FROM txn WHERE id = ?;
 
 observeRecentTopLevel:
 SELECT txn.id, txn.account_id, txn.amount, txn.currency, txn.ts, txn.merchant_id,
-       txn.category_id, txn.source, txn.notes, txn.kind, txn.parent_txn_id
+       txn.category_id, txn.source, txn.notes, txn.kind, txn.parent_txn_id, txn.capture_id
 FROM txn
 WHERE txn.parent_txn_id IS NULL
 ORDER BY txn.ts DESC

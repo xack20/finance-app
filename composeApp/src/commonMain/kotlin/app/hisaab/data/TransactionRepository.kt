@@ -61,6 +61,7 @@ class TransactionRepository(
             notes = input.notes,
             kind = input.kind.name,
             parent_txn_id = null,
+            capture_id = input.captureId,
         )
         if (input.tagNames.isNotEmpty()) {
             val tagIds = input.tagNames.map { tagRepo.upsertByName(it) }
@@ -85,6 +86,7 @@ class TransactionRepository(
                 notes = child.notes,
                 kind = child.kind.name,
                 parent_txn_id = parentId,
+                capture_id = null,
             )
         }
     }
@@ -124,7 +126,7 @@ class TransactionRepository(
 
     // observeRecentTopLevel generates a custom projection: app.hisaab.db.ObserveRecentTopLevel
     // Column order (from generated code): id, account_id, amount, currency, ts, merchant_id,
-    // category_id, source, notes, kind, parent_txn_id
+    // category_id, source, notes, kind, parent_txn_id, capture_id
     private fun ObserveRecentTopLevel.toDomain(): TransactionRow = TransactionRow(
         id = id,
         accountId = account_id,
@@ -141,10 +143,11 @@ class TransactionRepository(
         notes = notes,
         kind = TxnKind.valueOf(kind),
         parentTxnId = parent_txn_id,
+        captureId = capture_id,
     )
 
     // observeTxnsForDayRange is SELECT * so it returns migrations.Txn
-    // Field order: id, account_id, amount, currency, ts, merchant_id, category_id, source, notes, parent_txn_id, kind
+    // Field order: id, account_id, amount, currency, ts, merchant_id, category_id, source, notes, parent_txn_id, kind, capture_id
     private fun migrations.Txn.toFullDomain(): TransactionRow = TransactionRow(
         id = id,
         accountId = account_id,
@@ -161,6 +164,7 @@ class TransactionRepository(
         notes = notes,
         kind = TxnKind.valueOf(kind),
         parentTxnId = parent_txn_id,
+        captureId = capture_id,
     )
 
     private fun randomId(): String {
