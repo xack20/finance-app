@@ -23,6 +23,13 @@ out/
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
 
+# Gradle daemon / cache state in custom GRADLE_USER_HOME=gradle/ setups
+gradle/.tmp/
+gradle/caches/
+gradle/daemon/
+gradle/native/
+gradle/wrapper/dists/
+
 # Dependencies
 node_modules/
 .kotlin/
