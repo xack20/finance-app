@@ -21,6 +21,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.screens.entry.EntryScreen
+import app.hisaab.screens.month.MonthScreen
 import app.hisaab.screens.today.TodayScreen
 import app.hisaab.screens.transaction.TransactionDetailScreen
 
@@ -90,9 +91,7 @@ fun MainGraph() {
             composable(MainTab.TODAY.name) {
                 TodayScreen(onTxnClick = { id -> navController.navigate("txn/$id") })
             }
-            composable(MainTab.MONTH.name) {
-                PlaceholderScreen("Month — coming in P0c-3")
-            }
+            composable(MainTab.MONTH.name) { MonthScreen() }
             composable(MainTab.PEOPLE.name) {
                 PlaceholderScreen("People — coming in P0c-3")
             }
