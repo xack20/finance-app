@@ -54,10 +54,40 @@ class AppViewModelTest {
     @Test
     fun `onAppBackground transitions Authenticated to Locked`() = runTest {
         fakeAuth.signedIn = true
-        val vm = AppViewModel(fakeAuth, hasMasterSecret = { true })
+        val vm = AppViewModel(fakeAuth, hasMasterSecret = { true }, lockTimeoutMs = 1000L)
         vm.init()
         dispatcher.scheduler.advanceUntilIdle()
         vm.onAppBackground()
+        dispatcher.scheduler.advanceUntilIdle()
         assertIs<AppState.Locked>(vm.state.value)
+    }
+
+    @Test
+    fun `onAppBackground starts lock timer and transitions to Locked after timeout`() = runTest {
+        fakeAuth.signedIn = true
+        val vm = AppViewModel(fakeAuth, hasMasterSecret = { true }, lockTimeoutMs = 1000L)
+        vm.init()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertIs<AppState.Authenticated>(vm.state.value)
+
+        vm.onAppBackground()
+        dispatcher.scheduler.advanceTimeBy(999L)
+        assertIs<AppState.Authenticated>(vm.state.value)
+        dispatcher.scheduler.advanceTimeBy(2L)
+        assertIs<AppState.Locked>(vm.state.value)
+    }
+
+    @Test
+    fun `onAppForeground before timeout cancels the lock`() = runTest {
+        fakeAuth.signedIn = true
+        val vm = AppViewModel(fakeAuth, hasMasterSecret = { true }, lockTimeoutMs = 1000L)
+        vm.init()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.onAppBackground()
+        dispatcher.scheduler.advanceTimeBy(500L)
+        vm.onAppForeground()
+        dispatcher.scheduler.advanceTimeBy(1000L)
+        assertIs<AppState.Authenticated>(vm.state.value)
     }
 }

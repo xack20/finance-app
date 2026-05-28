@@ -3,7 +3,9 @@ package app.hisaab
 import app.hisaab.auth.AuthRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -22,10 +24,14 @@ enum class OnboardingStep { WELCOME, OTP, BIOMETRIC, RECOVERY_PHRASE, PROFILE }
 class AppViewModel(
     private val authRepository: AuthRepository,
     private val hasMasterSecret: () -> Boolean,
+    val lockTimeoutMs: Long = 30_000L,
+    private val onLock: () -> Unit = {},
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     private val _state = MutableStateFlow<AppState>(AppState.Loading)
     val state: StateFlow<AppState> = _state
+
+    private var lockJob: Job? = null
 
     fun init() {
         scope.launch {
@@ -40,7 +46,18 @@ class AppViewModel(
     fun onOnboardingComplete() { _state.value = AppState.Authenticated }
 
     fun onAppBackground() {
-        if (_state.value is AppState.Authenticated) _state.value = AppState.Locked
+        if (_state.value !is AppState.Authenticated) return
+        lockJob?.cancel()
+        lockJob = scope.launch {
+            delay(lockTimeoutMs)
+            onLock()
+            _state.value = AppState.Locked
+        }
+    }
+
+    fun onAppForeground() {
+        lockJob?.cancel()
+        lockJob = null
     }
 
     fun onBiometricUnlockSuccess() { _state.value = AppState.Authenticated }
