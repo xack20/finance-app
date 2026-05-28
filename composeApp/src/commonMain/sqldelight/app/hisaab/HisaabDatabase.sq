@@ -1,0 +1,18 @@
+-- user_profile
+insertUserProfile:
+INSERT INTO user_profile(id, supabase_user_id, display_name, locale, theme, created_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+getUserProfile:
+SELECT * FROM user_profile LIMIT 1;
+
+hasUserProfile:
+SELECT COUNT(*) FROM user_profile;
+
+-- account
+insertAccount:
+INSERT INTO account(id, name, kind, institution, currency, balance_tracking, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+getAllAccounts:
+SELECT * FROM account ORDER BY created_at ASC;

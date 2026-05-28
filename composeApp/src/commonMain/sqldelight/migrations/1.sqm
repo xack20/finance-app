@@ -1,0 +1,106 @@
+CREATE TABLE user_profile (
+    id TEXT NOT NULL PRIMARY KEY,
+    supabase_user_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    locale TEXT NOT NULL DEFAULT 'en',
+    theme TEXT NOT NULL DEFAULT 'auto',
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE account (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    institution TEXT,
+    currency TEXT NOT NULL DEFAULT 'BDT',
+    balance_tracking INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE category (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    parent_id TEXT,
+    color TEXT,
+    icon TEXT,
+    is_default INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE merchant (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    normalized_name TEXT NOT NULL,
+    default_category_id TEXT REFERENCES category(id)
+);
+
+CREATE TABLE txn (
+    id TEXT NOT NULL PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES account(id),
+    amount REAL NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'BDT',
+    ts INTEGER NOT NULL,
+    merchant_id TEXT REFERENCES merchant(id),
+    category_id TEXT REFERENCES category(id),
+    source TEXT NOT NULL,
+    notes TEXT
+);
+
+CREATE TABLE person (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    contact_ref TEXT,
+    balance REAL NOT NULL DEFAULT 0.0
+);
+
+CREATE TABLE lend_borrow (
+    id TEXT NOT NULL PRIMARY KEY,
+    person_id TEXT NOT NULL REFERENCES person(id),
+    amount REAL NOT NULL,
+    direction TEXT NOT NULL,
+    purpose TEXT,
+    ts INTEGER NOT NULL,
+    due_date INTEGER,
+    status TEXT NOT NULL DEFAULT 'OPEN'
+);
+
+CREATE TABLE lend_borrow_txn (
+    lend_borrow_id TEXT NOT NULL REFERENCES lend_borrow(id),
+    txn_id TEXT NOT NULL REFERENCES txn(id),
+    PRIMARY KEY (lend_borrow_id, txn_id)
+);
+
+CREATE TABLE goal (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    target_amount REAL NOT NULL,
+    current_amount REAL NOT NULL DEFAULT 0.0,
+    deadline INTEGER,
+    account_id TEXT REFERENCES account(id)
+);
+
+CREATE TABLE recurring_rule (
+    id TEXT NOT NULL PRIMARY KEY,
+    kind TEXT NOT NULL,
+    amount REAL NOT NULL,
+    schedule TEXT NOT NULL,
+    account_id TEXT REFERENCES account(id),
+    category_id TEXT REFERENCES category(id)
+);
+
+CREATE TABLE insight (
+    id TEXT NOT NULL PRIMARY KEY,
+    generated_at INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    surface_state TEXT NOT NULL DEFAULT 'UNSEEN'
+);
+
+CREATE TABLE encrypted_op (
+    id TEXT NOT NULL PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    lamport_ts INTEGER NOT NULL,
+    record_id TEXT NOT NULL,
+    field_name TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);

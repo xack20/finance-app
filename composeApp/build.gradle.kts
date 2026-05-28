@@ -135,6 +135,8 @@ sqldelight {
     databases {
         create("HisaabDatabase") {
             packageName.set("app.hisaab.db")
+            deriveSchemaFromMigrations.set(true)
+            verifyMigrations.set(true)
         }
     }
 }
