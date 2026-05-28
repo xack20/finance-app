@@ -1,0 +1,27 @@
+insertCandidate:
+INSERT OR IGNORE INTO capture_inbox(
+    id, received_at, channel, sender, raw_body, dedup_hash, status, confidence,
+    parsed_by, model, parse_error, amount, direction, currency, balance_after,
+    ref_no, proposed_account_id, proposed_category_id, proposed_merchant, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+findByDedupHash:
+SELECT * FROM capture_inbox WHERE dedup_hash = ? LIMIT 1;
+
+getById:
+SELECT * FROM capture_inbox WHERE id = ? LIMIT 1;
+
+observePending:
+SELECT * FROM capture_inbox WHERE status = 'PENDING' ORDER BY received_at DESC;
+
+observeRecent:
+SELECT * FROM capture_inbox ORDER BY received_at DESC LIMIT ?;
+
+observePendingCount:
+SELECT COUNT(*) FROM capture_inbox WHERE status = 'PENDING';
+
+updateStatus:
+UPDATE capture_inbox SET status = ? WHERE id = ?;
+
+purgeRaw:
+UPDATE capture_inbox SET raw_body = '' WHERE id = ?;
