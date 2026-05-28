@@ -16,3 +16,9 @@ VALUES (?, ?, ?, ?, ?, ?, ?);
 
 getAllAccounts:
 SELECT * FROM account ORDER BY created_at ASC;
+
+-- person
+getPersonBalance:
+SELECT COALESCE(SUM(CASE direction WHEN 'LENT' THEN amount ELSE -amount END), 0.0)
+FROM lend_borrow
+WHERE person_id = ? AND status = 'OPEN';

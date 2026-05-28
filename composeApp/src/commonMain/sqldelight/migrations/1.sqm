@@ -20,7 +20,7 @@ CREATE TABLE account (
 CREATE TABLE category (
     id TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
-    parent_id TEXT,
+    parent_id TEXT REFERENCES category(id),
     color TEXT,
     icon TEXT,
     is_default INTEGER NOT NULL DEFAULT 0
@@ -48,8 +48,7 @@ CREATE TABLE txn (
 CREATE TABLE person (
     id TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
-    contact_ref TEXT,
-    balance REAL NOT NULL DEFAULT 0.0
+    contact_ref TEXT
 );
 
 CREATE TABLE lend_borrow (
@@ -104,3 +103,9 @@ CREATE TABLE encrypted_op (
     payload TEXT NOT NULL,
     created_at INTEGER NOT NULL
 );
+
+CREATE INDEX idx_txn_account_id ON txn(account_id);
+CREATE INDEX idx_txn_ts ON txn(ts);
+CREATE INDEX idx_lend_borrow_person_id ON lend_borrow(person_id);
+CREATE INDEX idx_encrypted_op_record_id ON encrypted_op(record_id);
+CREATE INDEX idx_encrypted_op_lamport_ts ON encrypted_op(lamport_ts);
