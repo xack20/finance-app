@@ -12,7 +12,7 @@ observeLendBorrowForPerson:
 SELECT * FROM lend_borrow WHERE person_id = ? ORDER BY ts DESC;
 
 observeOpenLendBorrow:
-SELECT * FROM lend_borrow WHERE status = 'OPEN' ORDER BY ts DESC;
+SELECT * FROM lend_borrow WHERE status != 'SETTLED' ORDER BY ts DESC;
 
 linkLendBorrowTxn:
 INSERT OR IGNORE INTO lend_borrow_txn(lend_borrow_id, txn_id) VALUES (?, ?);
