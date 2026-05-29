@@ -22,6 +22,7 @@ fun SettingsScreen(
     onCategories: () -> Unit,
     onBudgets: () -> Unit,
     onRecoveryReveal: () -> Unit,
+    onAutoCapture: () -> Unit,
     onSignedOut: () -> Unit,
 ) {
     val palette = LocalHisaabPalette.current
@@ -53,6 +54,10 @@ fun SettingsScreen(
         SettingRow("Accounts", "›", palette, onClick = onAccounts)
         SettingRow("Categories", "›", palette, onClick = onCategories)
         SettingRow("Budgets", "›", palette, onClick = onBudgets)
+
+        Spacer(Modifier.height(24.dp))
+        SectionLabel("Capture", palette)
+        SettingRow("Auto-capture", "›", palette, onClick = onAutoCapture)
 
         Spacer(Modifier.height(24.dp))
         SectionLabel("About", palette)

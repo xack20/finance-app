@@ -1,9 +1,11 @@
 package app.hisaab.screens.entry
 
 import app.hisaab.data.AttachmentRepository
+import app.hisaab.data.CaptureInboxRepository
 import app.hisaab.data.LendBorrowRepository
 import app.hisaab.data.PersonRepository
 import app.hisaab.data.TransactionRepository
+import app.hisaab.domain.Direction
 import app.hisaab.domain.LendBorrowDirection
 import app.hisaab.domain.NewLendBorrow
 import app.hisaab.domain.NewSplitTransaction
@@ -22,10 +24,32 @@ class EntryViewModel(
     private val lendBorrowRepo: LendBorrowRepository,
     private val personRepo: PersonRepository,
     private val attachmentRepo: AttachmentRepository? = null,  // optional in tests
+    private val inboxRepo: CaptureInboxRepository? = null,     // optional; required for candidate prefill
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     private val _state = MutableStateFlow(EntryFormState())
     val state: StateFlow<EntryFormState> = _state
+
+    /** Set when this entry was opened from a pending candidate (Edit flow in Review Inbox). */
+    private var prefilledCandidateId: String? = null
+
+    /** Loads a pending candidate and seeds the entry fields for one-tap confirmation-with-edits. */
+    fun prefillFromCandidate(candidateId: String) {
+        scope.launch {
+            val inbox = inboxRepo ?: return@launch
+            val c = inbox.getById(candidateId) ?: return@launch
+            prefilledCandidateId = candidateId
+            c.amount?.let { setAmount(it.toString()) }
+            c.proposedAccountId?.let { setAccount(it) }
+            c.proposedCategoryId?.let { setCategory(it) }
+            c.proposedMerchant?.let { setMerchant(it) }
+            when (c.direction) {
+                Direction.DEBIT -> setKind(TxnKind.EXPENSE)
+                Direction.CREDIT -> setKind(TxnKind.INCOME)
+                null -> {}
+            }
+        }
+    }
 
     fun setKind(k: TxnKind) {
         _state.update {
@@ -97,6 +121,7 @@ class EntryViewModel(
                         linkedTxnId
                     }
                     else -> {
+                        val capId = prefilledCandidateId
                         val newTxnId = txnRepo.add(NewTransaction(
                             accountId = s.accountId!!,
                             amount = amount,
@@ -106,9 +131,15 @@ class EntryViewModel(
                             notes = s.notes.ifBlank { null },
                             kind = s.kind,
                             tagNames = s.tagNames,
+                            // Link at insert time via captureId (R1: no link method).
+                            captureId = capId,
                         ))
                         if (s.splits.isNotEmpty()) {
                             txnRepo.addSplits(newTxnId, s.splits)
+                        }
+                        // When edit-from-candidate: mark the candidate confirmed after insert.
+                        if (capId != null) {
+                            inboxRepo?.markConfirmed(capId)
                         }
                         newTxnId
                     }

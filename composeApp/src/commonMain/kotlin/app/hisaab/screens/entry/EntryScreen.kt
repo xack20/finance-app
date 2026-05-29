@@ -61,7 +61,7 @@ import kotlinx.datetime.toLocalDateTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EntryScreen(onDone: () -> Unit) {
+fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
     val palette = LocalHisaabPalette.current
     val container = LocalAppContainer.current
     val viewModel = remember {
@@ -70,7 +70,11 @@ fun EntryScreen(onDone: () -> Unit) {
             lendBorrowRepo = container.lendBorrowRepository,
             personRepo = container.personRepository,
             attachmentRepo = container.attachmentRepository,
+            inboxRepo = container.captureInboxRepository,
         )
+    }
+    androidx.compose.runtime.LaunchedEffect(candidateId) {
+        if (candidateId != null) viewModel.prefillFromCandidate(candidateId)
     }
     val state by viewModel.state.collectAsState()
     val accounts by container.accountRepository.observeActive().collectAsState(initial = emptyList())

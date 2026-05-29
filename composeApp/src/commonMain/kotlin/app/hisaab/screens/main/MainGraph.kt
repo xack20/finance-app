@@ -2,6 +2,7 @@ package app.hisaab.screens.main
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -20,13 +21,17 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.screens.capture.AutoPostSnackbarHost
+import app.hisaab.screens.capture.ReviewInboxScreen
 import app.hisaab.screens.entry.EntryScreen
 import app.hisaab.screens.month.MonthScreen
 import app.hisaab.screens.people.PeopleListScreen
 import app.hisaab.screens.people.PersonDetailScreen
 import app.hisaab.screens.settings.AccountsScreen
+import app.hisaab.screens.settings.AutoCaptureScreen
 import app.hisaab.screens.settings.BudgetsScreen
 import app.hisaab.screens.settings.CategoriesScreen
+import app.hisaab.screens.settings.CloudConsentScreen
 import app.hisaab.screens.settings.RecoveryPhraseRevealScreen
 import app.hisaab.screens.settings.SettingsScreen
 import app.hisaab.screens.today.TodayScreen
@@ -90,54 +95,72 @@ fun MainGraph() {
         },
         containerColor = palette.background,
     ) { padding ->
-        NavHost(
-            navController = navController,
-            startDestination = MainTab.TODAY.name,
-            modifier = Modifier.fillMaxSize().padding(padding),
-        ) {
-            composable(MainTab.TODAY.name) {
-                TodayScreen(
-                    onTxnClick = { id -> navController.navigate("txn/$id") },
-                    onReview = { /* wired fully in Task 12 */ },
-                )
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            NavHost(
+                navController = navController,
+                startDestination = MainTab.TODAY.name,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                composable(MainTab.TODAY.name) {
+                    TodayScreen(
+                        onTxnClick = { id -> navController.navigate("txn/$id") },
+                        onReview = { navController.navigate("review") },
+                    )
+                }
+                composable(MainTab.MONTH.name) { MonthScreen() }
+                composable(MainTab.PEOPLE.name) {
+                    PeopleListScreen(onPersonClick = { id -> navController.navigate("person/$id") })
+                }
+                composable("person/{id}") { entry ->
+                    val id = entry.arguments?.getString("id") ?: return@composable
+                    PersonDetailScreen(personId = id, onBack = { navController.popBackStack() })
+                }
+                composable(MainTab.SETTINGS.name) {
+                    SettingsScreen(
+                        onAccounts = { navController.navigate("settings/accounts") },
+                        onCategories = { navController.navigate("settings/categories") },
+                        onBudgets = { navController.navigate("settings/budgets") },
+                        onRecoveryReveal = { navController.navigate("settings/recovery") },
+                        onAutoCapture = { navController.navigate("settings/auto-capture") },
+                        onSignedOut = { /* AppViewModel state change handles redirect via App.kt */ },
+                    )
+                }
+                composable("settings/accounts") { AccountsScreen(onBack = { navController.popBackStack() }) }
+                composable("settings/categories") { CategoriesScreen(onBack = { navController.popBackStack() }) }
+                composable("settings/budgets") { BudgetsScreen(onBack = { navController.popBackStack() }) }
+                composable("settings/recovery") { RecoveryPhraseRevealScreen(onBack = { navController.popBackStack() }) }
+                composable("settings/auto-capture") {
+                    AutoCaptureScreen(
+                        onBack = { navController.popBackStack() },
+                        onConsent = { navController.navigate("settings/auto-capture/consent") },
+                    )
+                }
+                composable("settings/auto-capture/consent") {
+                    CloudConsentScreen(onBack = { navController.popBackStack() })
+                }
+                composable("review") {
+                    ReviewInboxScreen(
+                        onBack = { navController.popBackStack() },
+                        onEdit = { candidateId ->
+                            navController.navigate("entry?candidateId=$candidateId")
+                        },
+                    )
+                }
+                composable("entry") {
+                    EntryScreen(onDone = { navController.popBackStack() })
+                }
+                composable("entry?candidateId={candidateId}") { entry ->
+                    val cId = entry.arguments?.getString("candidateId")
+                    EntryScreen(candidateId = cId, onDone = { navController.popBackStack() })
+                }
+                composable("txn/{id}") { entry ->
+                    val id = entry.arguments?.getString("id") ?: return@composable
+                    TransactionDetailScreen(txnId = id, onDone = { navController.popBackStack() })
+                }
             }
-            composable(MainTab.MONTH.name) { MonthScreen() }
-            composable(MainTab.PEOPLE.name) {
-                PeopleListScreen(onPersonClick = { id -> navController.navigate("person/$id") })
-            }
-            composable("person/{id}") { entry ->
-                val id = entry.arguments?.getString("id") ?: return@composable
-                PersonDetailScreen(personId = id, onBack = { navController.popBackStack() })
-            }
-            composable(MainTab.SETTINGS.name) {
-                SettingsScreen(
-                    onAccounts = { navController.navigate("settings/accounts") },
-                    onCategories = { navController.navigate("settings/categories") },
-                    onBudgets = { navController.navigate("settings/budgets") },
-                    onRecoveryReveal = { navController.navigate("settings/recovery") },
-                    onSignedOut = { /* AppViewModel state change handles redirect via App.kt */ },
-                )
-            }
-            composable("settings/accounts") { AccountsScreen(onBack = { navController.popBackStack() }) }
-            composable("settings/categories") { CategoriesScreen(onBack = { navController.popBackStack() }) }
-            composable("settings/budgets") { BudgetsScreen(onBack = { navController.popBackStack() }) }
-            composable("settings/recovery") { RecoveryPhraseRevealScreen(onBack = { navController.popBackStack() }) }
-            composable("entry") {
-                EntryScreen(onDone = { navController.popBackStack() })
-            }
-            composable("txn/{id}") { entry ->
-                val id = entry.arguments?.getString("id") ?: return@composable
-                TransactionDetailScreen(txnId = id, onDone = { navController.popBackStack() })
-            }
+            // Mount the auto-post snackbar host once; it collects captureEvents and shows Undo snackbars.
+            AutoPostSnackbarHost(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth())
         }
-    }
-}
-
-@Composable
-private fun PlaceholderScreen(text: String) {
-    val palette = LocalHisaabPalette.current
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text, color = palette.muted)
     }
 }
 
