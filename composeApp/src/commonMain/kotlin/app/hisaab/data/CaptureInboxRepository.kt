@@ -42,6 +42,36 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
         )
     }
 
+    /**
+     * Non-suspending variant for use inside a [app.hisaab.db.HisaabDatabase.transaction] block.
+     * Identical to [insertCandidate] but callable synchronously from within a DB transaction.
+     * Called by CapturePipeline's atomic auto-post (R2).
+     */
+    fun insertCandidateBlocking(candidate: CandidateTransaction) {
+        queries.insertCandidate(
+            id = candidate.id,
+            received_at = candidate.receivedAt,
+            channel = candidate.channel.name,
+            sender = candidate.sender,
+            raw_body = candidate.rawBody,
+            dedup_hash = candidate.dedupHash,
+            status = candidate.status.name,
+            confidence = candidate.confidence,
+            parsed_by = candidate.parsedBy?.name,
+            model = candidate.model,
+            parse_error = candidate.parseError,
+            amount = candidate.amount,
+            direction = candidate.direction?.name,
+            currency = candidate.currency,
+            balance_after = candidate.balanceAfter,
+            ref_no = candidate.refNo,
+            proposed_account_id = candidate.proposedAccountId,
+            proposed_category_id = candidate.proposedCategoryId,
+            proposed_merchant = candidate.proposedMerchant,
+            created_at = candidate.createdAt,
+        )
+    }
+
     suspend fun findByDedupHash(hash: String): CandidateTransaction? =
         queries.findByDedupHash(hash).executeAsOneOrNull()?.toDomain()
 

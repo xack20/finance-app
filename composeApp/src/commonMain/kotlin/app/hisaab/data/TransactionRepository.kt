@@ -70,6 +70,31 @@ class TransactionRepository(
         return id
     }
 
+    /**
+     * Non-suspending variant for use inside a [HisaabDatabase.transaction] block.
+     * Performs the same INSERT as [add] but skips async merchant upsert and tag linking — those
+     * are either handled by the pipeline before calling this or irrelevant for auto-post.
+     * Called by CapturePipeline's atomic auto-post (R2).
+     */
+    fun addBlocking(input: NewTransaction): String {
+        val id = randomId()
+        db.transactionQueriesQueries.insertTxn(
+            id = id,
+            account_id = input.accountId,
+            amount = input.amount,
+            currency = input.currency,
+            ts = input.ts,
+            merchant_id = null, // merchant upsert happens outside the transaction
+            category_id = input.categoryId,
+            source = input.source.name,
+            notes = input.notes,
+            kind = input.kind.name,
+            parent_txn_id = null,
+            capture_id = input.captureId,
+        )
+        return id
+    }
+
     suspend fun addSplits(parentId: String, children: List<NewSplitTransaction>) {
         val parent = db.transactionQueriesQueries.getTxn(parentId).executeAsOneOrNull()
             ?: error("Parent txn $parentId not found")
