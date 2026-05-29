@@ -126,8 +126,9 @@ actual class AppContainer(
             override suspend fun currentCursor(): Long = captureConfigRepository.get().lastSmsCursor
             override suspend fun advanceCursor(toMs: Long) { captureConfigRepository.setCursor(toMs) }
         }
-        // M3-2 ships a no-op handler; M3-3 replaces this with CaptureHandler { capturePipeline.process(it) }.
-        val handler = CaptureHandler { /* no-op until M3-3 pipeline lands */ }
+        // M3-3: reference capturePipeline inside the lambda so it resolves FRESH on each invocation
+        // (ensures the pipeline always binds the current open DB after a lock/unlock cycle).
+        val handler = CaptureHandler { capturePipeline.process(it) }
         CaptureCoordinator(captureService, handler, cursorStore)
     }
 
