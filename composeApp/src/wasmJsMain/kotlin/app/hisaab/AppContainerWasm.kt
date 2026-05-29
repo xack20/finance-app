@@ -90,13 +90,11 @@ actual class AppContainer {
     actual val captureConfigRepository: CaptureConfigRepository
         get() = CaptureConfigRepository(requireDb())
 
-    private fun captureConfigRepository(): CaptureConfigRepository = CaptureConfigRepository(requireDb())
-
     actual val captureCoordinator: CaptureCoordinator by lazy {
-        val configRepo = captureConfigRepository()
         val cursorStore = object : CaptureCursorStore {
-            override suspend fun currentCursor(): Long = configRepo.get().lastSmsCursor
-            override suspend fun advanceCursor(toMs: Long) { configRepo.setCursor(toMs) }
+            // resolve the repo FRESH each call so it tracks close/open DB cycles
+            override suspend fun currentCursor(): Long = captureConfigRepository.get().lastSmsCursor
+            override suspend fun advanceCursor(toMs: Long) { captureConfigRepository.setCursor(toMs) }
         }
         val handler = CaptureHandler { /* no-op until M3-3 pipeline lands */ }
         CaptureCoordinator(captureService, handler, cursorStore)
