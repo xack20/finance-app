@@ -21,6 +21,8 @@ import app.hisaab.domain.SenderMapping
 import app.hisaab.llm.LlmParseResult
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -56,8 +58,8 @@ class CapturePipelineTest {
             merchantRepo = merchantRepo,
             txnRepo = TransactionRepository(db, merchantRepo, tagRepo),
             configRepo = CaptureConfigRepository(db),
-            // replay=1 so replayCache.single() works after process() returns without a collector
-            events = MutableSharedFlow(replay = 1, extraBufferCapacity = 15),
+            // replay=0: matches production AppContainer; tests collect via a real subscriber.
+            events = MutableSharedFlow(extraBufferCapacity = 16),
         )
     }
 
@@ -102,35 +104,43 @@ class CapturePipelineTest {
     }
 
     @Test
-    fun `known-template high-confidence message auto-posts atomically, links capture_id, and emits AutoPosted`() = runTest {
-        val f = fixture()
-        seedSender(f, "bKash", BankType.BKASH, templateKey = "bkash")
-        val sample = SmsCorpus.byName("bkash_received_money")
+    fun `known-template high-confidence message auto-posts atomically, links capture_id, and emits AutoPosted`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val f = fixture()
+            seedSender(f, "bKash", BankType.BKASH, templateKey = "bkash")
+            val sample = SmsCorpus.byName("bkash_received_money")
 
-        pipeline(f, FakeLlmRouter(null)).process(raw(sample.sender, sample.body))
+            // Subscribe BEFORE processing so we don't miss the emission (replay=0).
+            val received = mutableListOf<CaptureEvent>()
+            val collectJob = launch { f.events.collect { received += it } }
 
-        val candidate = f.inboxRepo.observeRecent(10).first().single()
-        assertEquals(CaptureStatus.AUTO_POSTED, candidate.status)
-        assertEquals(1500.0, candidate.amount)
-        assertEquals(Direction.CREDIT, candidate.direction)
-        assertNotNull(candidate.proposedAccountId)
+            pipeline(f, FakeLlmRouter(null)).process(raw(sample.sender, sample.body))
 
-        // (iii) atomic auto-post: exactly one ledger txn now exists alongside the AUTO_POSTED candidate.
-        val txns = f.txnRepo.observeRecent(10).first()
-        assertEquals(1, txns.size)
-        // (ii) the txn was created ALREADY LINKED to its candidate (NewTransaction.captureId).
-        assertEquals(candidate.id, txns.single().captureId)
+            val candidate = f.inboxRepo.observeRecent(10).first().single()
+            assertEquals(CaptureStatus.AUTO_POSTED, candidate.status)
+            assertEquals(1500.0, candidate.amount)
+            assertEquals(Direction.CREDIT, candidate.direction)
+            assertNotNull(candidate.proposedAccountId)
 
-        // (i) AutoPosted event emitted into the injected SharedFlow.
-        val event = f.events.replayCache.single()
-        assertTrue(event is CaptureEvent.AutoPosted)
-        val posted = event as CaptureEvent.AutoPosted
-        assertEquals(candidate.id, posted.candidateId)
-        assertEquals(txns.single().id, posted.txnId)
-        assertEquals(1500.0, posted.amount)
-        assertEquals("bKash", posted.sender)
-        assertEquals(Direction.CREDIT, posted.direction)
-    }
+            // (iii) atomic auto-post: exactly one ledger txn now exists alongside the AUTO_POSTED candidate.
+            val txns = f.txnRepo.observeRecent(10).first()
+            assertEquals(1, txns.size)
+            // (ii) the txn was created ALREADY LINKED to its candidate (NewTransaction.captureId).
+            assertEquals(candidate.id, txns.single().captureId)
+
+            // (i) AutoPosted event emitted into the injected SharedFlow.
+            assertEquals(1, received.size)
+            val event = received.single()
+            assertTrue(event is CaptureEvent.AutoPosted)
+            val posted = event as CaptureEvent.AutoPosted
+            assertEquals(candidate.id, posted.candidateId)
+            assertEquals(txns.single().id, posted.txnId)
+            assertEquals(1500.0, posted.amount)
+            assertEquals("bKash", posted.sender)
+            assertEquals(Direction.CREDIT, posted.direction)
+
+            collectJob.cancel()
+        }
 
     @Test
     fun `unknown financial message routes to the LLM`() = runTest {
@@ -158,8 +168,8 @@ class CapturePipelineTest {
         assertEquals(999.0, candidate.amount)
         // LLM-only unknown is capped <= 0.7 -> below 0.85 threshold -> PENDING
         assertEquals(CaptureStatus.PENDING, candidate.status)
-        // No auto-post -> no event.
-        assertTrue(f.events.replayCache.isEmpty())
+        // No auto-post -> no event emitted (no subscribers; buffer stays empty).
+        assertEquals(0, f.events.subscriptionCount.value)
     }
 
     @Test
@@ -209,19 +219,26 @@ class CapturePipelineTest {
     }
 
     @Test
-    fun `alwaysReview forces PENDING even for a high-confidence template`() = runTest {
-        val f = fixture()
-        f.configRepo.setAlwaysReview(true)
-        seedSender(f, "bKash", BankType.BKASH, templateKey = "bkash")
-        val sample = SmsCorpus.byName("bkash_received_money")
+    fun `alwaysReview forces PENDING even for a high-confidence template`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val f = fixture()
+            f.configRepo.setAlwaysReview(true)
+            seedSender(f, "bKash", BankType.BKASH, templateKey = "bkash")
+            val sample = SmsCorpus.byName("bkash_received_money")
 
-        pipeline(f, FakeLlmRouter(null)).process(raw(sample.sender, sample.body))
+            // Subscribe before processing to catch any stray emission.
+            val received = mutableListOf<CaptureEvent>()
+            val collectJob = launch { f.events.collect { received += it } }
 
-        val candidate = f.inboxRepo.observeRecent(10).first().single()
-        assertEquals(CaptureStatus.PENDING, candidate.status)
-        assertEquals(0, f.txnRepo.observeRecent(10).first().size)
-        assertTrue(f.events.replayCache.isEmpty())
-    }
+            pipeline(f, FakeLlmRouter(null)).process(raw(sample.sender, sample.body))
+
+            val candidate = f.inboxRepo.observeRecent(10).first().single()
+            assertEquals(CaptureStatus.PENDING, candidate.status)
+            assertEquals(0, f.txnRepo.observeRecent(10).first().size)
+            assertTrue(received.isEmpty())
+
+            collectJob.cancel()
+        }
 
     @Test
     fun `non-financial promo sender is dropped entirely`() = runTest {

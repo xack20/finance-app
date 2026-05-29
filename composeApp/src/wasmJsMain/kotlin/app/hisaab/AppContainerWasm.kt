@@ -88,8 +88,9 @@ actual class AppContainer {
     actual val llmRouter: app.hisaab.llm.LlmRouter = app.hisaab.llm.NoOpLlmRouter()
 
     // M3-3: backing flow the pipeline emits AutoPosted into; M3-5 collects captureEvents.
+    // replay=0: no stale-event replay when snackbar host subscribes (M3-5 guard).
     private val captureEventsFlow =
-        kotlinx.coroutines.flow.MutableSharedFlow<app.hisaab.capture.CaptureEvent>(replay = 1, extraBufferCapacity = 15)
+        kotlinx.coroutines.flow.MutableSharedFlow<app.hisaab.capture.CaptureEvent>(extraBufferCapacity = 16)
     actual val captureEvents: kotlinx.coroutines.flow.SharedFlow<app.hisaab.capture.CaptureEvent> =
         captureEventsFlow
 
@@ -121,7 +122,9 @@ actual class AppContainer {
             override suspend fun currentCursor(): Long = captureConfigRepository.get().lastSmsCursor
             override suspend fun advanceCursor(toMs: Long) { captureConfigRepository.setCursor(toMs) }
         }
-        val handler = CaptureHandler { /* no-op until M3-3 pipeline lands */ }
+        // M3-3: reference capturePipeline inside the lambda so it resolves FRESH on each invocation
+        // (ensures the pipeline always binds the current open DB after a lock/unlock cycle).
+        val handler = CaptureHandler { capturePipeline.process(it) }
         CaptureCoordinator(captureService, handler, cursorStore)
     }
 

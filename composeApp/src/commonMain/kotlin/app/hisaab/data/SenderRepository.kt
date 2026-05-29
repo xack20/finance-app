@@ -103,8 +103,8 @@ class SenderRepository(private val db: HisaabDatabase) {
             Seed("bKash", "bKash", BankType.BKASH, "bkash"),
             Seed("NAGAD", "Nagad", BankType.NAGAD, "nagad"),
             Seed("Rocket", "Rocket", BankType.ROCKET, "rocket"),
-            Seed("CITY BANK", "City Bank", BankType.BANK, "city"),
-            Seed("BRAC BANK", "BRAC Bank", BankType.BANK, "brac"),
+            Seed("CITY BANK", "City Bank", BankType.BANK, "citybank"),
+            Seed("BRAC BANK", "BRAC Bank", BankType.BANK, "bracbank"),
             Seed("DBBL", "Dutch-Bangla Bank", BankType.BANK, "dbbl"),
         )
     }
