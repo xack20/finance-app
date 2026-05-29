@@ -36,6 +36,30 @@ class AccountRepository(private val db: HisaabDatabase) {
         return id
     }
 
+    /**
+     * Non-suspending variant for use inside a [app.hisaab.db.HisaabDatabase.transaction] block.
+     * Identical to [add] but callable synchronously from within a DB transaction.
+     * Called by AccountMatcher's atomic auto-create path.
+     */
+    fun addBlocking(
+        name: String,
+        kind: AccountKind,
+        institution: String?,
+        currency: String = "BDT",
+    ): String {
+        val id = randomId()
+        db.accountQueriesQueries.insertAccount(
+            id = id,
+            name = name,
+            kind = kind.name,
+            institution = institution,
+            currency = currency,
+            balance_tracking = 1L,
+            created_at = Clock.System.now().toEpochMilliseconds(),
+        )
+        return id
+    }
+
     suspend fun rename(id: String, name: String) {
         db.accountQueriesQueries.renameAccount(name, id)
     }

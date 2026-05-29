@@ -57,6 +57,15 @@ class SenderRepository(private val db: HisaabDatabase) {
         queries.setAccount(accountId, senderId)
     }
 
+    /**
+     * Non-suspending variant for use inside a [app.hisaab.db.HisaabDatabase.transaction] block.
+     * Identical to [setAccount] but callable synchronously within a DB transaction.
+     * Called by AccountMatcher's atomic auto-create path.
+     */
+    fun setAccountBlocking(senderId: String, accountId: String) {
+        queries.setAccount(accountId, senderId)
+    }
+
     suspend fun seedKnownSenders() {
         SEED.forEach { seed ->
             queries.insertSenderIfNotExists(

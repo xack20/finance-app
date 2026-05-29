@@ -70,7 +70,7 @@ class CapturePipelineTest {
         db = f.db,
         inboxRepo = f.inboxRepo,
         senderRepo = f.senderRepo,
-        accountMatcher = AccountMatcher(f.accountRepo, f.senderRepo),
+        accountMatcher = AccountMatcher(f.accountRepo, f.senderRepo, f.db),
         preFilter = SmsPreFilter(f.senderRepo),
         llmRouter = router,
         txnRepo = f.txnRepo,

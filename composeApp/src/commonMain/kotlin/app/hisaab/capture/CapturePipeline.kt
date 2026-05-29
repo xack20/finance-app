@@ -138,7 +138,7 @@ class CapturePipeline(
                 balanceAfter = templatePartial?.balanceAfter,
                 parsedBy = null,
                 model = null,
-                parseError = "llm_error",
+                parseError = if (result == null) "llm_failed" else "llm_not_financial",
             )
             return
         }
@@ -240,7 +240,7 @@ class CapturePipeline(
 
             // R2: one DB transaction — create the ALREADY-LINKED txn (R1) and insert
             // the candidate together, so neither can exist without the other.
-            var txnId = ""
+            lateinit var txnId: String
             db.transaction {
                 txnId = txnRepo.addBlocking(
                     NewTransaction(
@@ -333,10 +333,7 @@ class CapturePipeline(
         llmCategoryId?.takeIf { it in valid }?.let { return it }
         // Template fast-path rule map (no LLM): a few obvious merchants -> category.
         val m = merchant?.lowercase() ?: return null
-        return when {
-            m.contains("shwapno") || m.contains("agora") || m.contains("daraz") -> "shopping"
-            else -> null
-        }
+        return MERCHANT_CATEGORY_HINTS.entries.firstOrNull { m.contains(it.key) }?.value
     }
 
     private fun defaultCategories(): List<Category> = DEFAULT_CATEGORY_IDS.map {
@@ -387,7 +384,7 @@ class CapturePipeline(
         parseError = parseError,
         amount = amount,
         direction = direction,
-        currency = "BDT",
+        currency = CURRENCY_BDT,
         balanceAfter = balanceAfter,
         refNo = refNo,
         proposedAccountId = accountId,
@@ -407,9 +404,18 @@ class CapturePipeline(
     }
 
     private companion object {
+        const val CURRENCY_BDT = "BDT"
+
         val DEFAULT_CATEGORY_IDS = listOf(
             "food", "transport", "bills", "salary", "lend", "borrow",
             "health", "education", "shopping", "entertainment", "other", "transfer",
+        )
+
+        /** Fast-path merchant → category hints used when no LLM result is available. */
+        val MERCHANT_CATEGORY_HINTS = mapOf(
+            "shwapno" to "shopping",
+            "agora" to "shopping",
+            "daraz" to "shopping",
         )
     }
 }

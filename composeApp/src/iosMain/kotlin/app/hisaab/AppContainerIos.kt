@@ -101,7 +101,7 @@ actual class AppContainer {
             db = requireDb(),
             inboxRepo = captureInboxRepository,
             senderRepo = senderRepository,
-            accountMatcher = app.hisaab.capture.AccountMatcher(accountRepository, senderRepository),
+            accountMatcher = app.hisaab.capture.AccountMatcher(accountRepository, senderRepository, requireDb()),
             preFilter = app.hisaab.capture.SmsPreFilter(senderRepository),
             llmRouter = llmRouter,
             txnRepo = transactionRepository,
