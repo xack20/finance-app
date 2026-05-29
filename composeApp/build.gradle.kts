@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.sqldelight)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
@@ -34,7 +35,7 @@ kotlin {
 
     @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
     wasmJs {
-        moduleName = "composeApp"
+        outputModuleName = "composeApp"
         browser {
             commonWebpackConfig {
                 outputFileName = "composeApp.js"
@@ -54,6 +55,9 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.androidx.security.crypto)
             implementation(libs.androidx.biometric)
+            implementation(libs.mediapipe.genai)
+            // play-services-aicore:16.0.0-alpha05 not available in Google Maven;
+            // AICore availability is a runtime class-probe only (no compile dep needed).
         }
         iosMain.dependencies {
             implementation(libs.sqldelight.native.driver)
@@ -76,11 +80,16 @@ kotlin {
             implementation(libs.supabase.realtime)
             implementation(libs.libsodium.kmp)
             implementation(libs.nav.compose)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.sqldelight.sqlite.driver)
+            implementation(libs.ktor.client.mock)
         }
         val androidInstrumentedTest by getting {
             dependencies {
