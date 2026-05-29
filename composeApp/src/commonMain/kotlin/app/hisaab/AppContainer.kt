@@ -70,6 +70,11 @@ expect class AppContainer {
     val captureService: CaptureService
     val captureCoordinator: CaptureCoordinator
 
+    // M3-3: tiered parsing pipeline + LLM router contract + auto-post event stream.
+    val llmRouter: app.hisaab.llm.LlmRouter
+    val capturePipeline: app.hisaab.capture.CapturePipeline
+    val captureEvents: kotlinx.coroutines.flow.SharedFlow<app.hisaab.capture.CaptureEvent>
+
     /** Master secret cached in memory while DB is open. null when locked or pre-onboarding. */
     fun masterSecretInMemory(): ByteArray?
 

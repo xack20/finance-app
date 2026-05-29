@@ -83,6 +83,31 @@ actual class AppContainer {
         )
     actual val insightRepository: InsightRepository
         get() = InsightRepository(requireDb())
+
+    // M3-3: NoOpLlmRouter ships now; M3-4 replaces with DefaultLlmRouter.
+    actual val llmRouter: app.hisaab.llm.LlmRouter = app.hisaab.llm.NoOpLlmRouter()
+
+    // M3-3: backing flow the pipeline emits AutoPosted into; M3-5 collects captureEvents.
+    private val captureEventsFlow =
+        kotlinx.coroutines.flow.MutableSharedFlow<app.hisaab.capture.CaptureEvent>(replay = 1, extraBufferCapacity = 15)
+    actual val captureEvents: kotlinx.coroutines.flow.SharedFlow<app.hisaab.capture.CaptureEvent> =
+        captureEventsFlow
+
+    // M3-3: fresh CapturePipeline built on every access so it always binds the current open DB
+    // (fresh-DB resolution pattern per lock/unlock lifecycle requirement).
+    actual val capturePipeline: app.hisaab.capture.CapturePipeline
+        get() = app.hisaab.capture.CapturePipeline(
+            db = requireDb(),
+            inboxRepo = captureInboxRepository,
+            senderRepo = senderRepository,
+            accountMatcher = app.hisaab.capture.AccountMatcher(accountRepository, senderRepository),
+            preFilter = app.hisaab.capture.SmsPreFilter(senderRepository),
+            llmRouter = llmRouter,
+            txnRepo = transactionRepository,
+            configRepo = captureConfigRepository,
+            captureEvents = captureEventsFlow,
+        )
+
     actual val captureInboxRepository: CaptureInboxRepository
         get() = CaptureInboxRepository(requireDb())
     actual val senderRepository: SenderRepository
