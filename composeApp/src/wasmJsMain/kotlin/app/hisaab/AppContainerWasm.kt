@@ -31,6 +31,13 @@ import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
 import app.hisaab.platform.SecureStorage
+import app.hisaab.llm.DefaultLlmRouter
+import app.hisaab.llm.LlmRouter
+import app.hisaab.llm.cloud.ClaudeProvider
+import app.hisaab.llm.cloud.GeminiProvider
+import app.hisaab.llm.cloud.OpenAiProvider
+import app.hisaab.llm.createOnDeviceProvider
+import io.ktor.client.HttpClient
 
 actual class AppContainer {
     actual val secureStorage: SecureStorage = SecureStorage()
@@ -84,8 +91,21 @@ actual class AppContainer {
     actual val insightRepository: InsightRepository
         get() = InsightRepository(requireDb())
 
-    // M3-3: NoOpLlmRouter ships now; M3-4 replaces with DefaultLlmRouter.
-    actual val llmRouter: app.hisaab.llm.LlmRouter = app.hisaab.llm.NoOpLlmRouter()
+    // wasmJs is a viewer target: no capture, but the router member is required by
+    // the expect. A default HttpClient() picks the available JS engine; it is never
+    // actually called because CaptureService has no capabilities on wasm.
+    private val llmHttpClient: HttpClient = HttpClient()
+
+    // M3-4: DefaultLlmRouter built fresh each access (fresh-DB pattern).
+    actual val llmRouter: LlmRouter
+        get() = DefaultLlmRouter(
+            configRepo = captureConfigRepository,
+            secureStorage = secureStorage,
+            onDeviceProvider = createOnDeviceProvider(),
+            claude = ClaudeProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_CLAUDE") }),
+            gemini = GeminiProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_GEMINI") }),
+            openai = OpenAiProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_OPENAI") }),
+        )
 
     // M3-3: backing flow the pipeline emits AutoPosted into; M3-5 collects captureEvents.
     // replay=0: no stale-event replay when snackbar host subscribes (M3-5 guard).

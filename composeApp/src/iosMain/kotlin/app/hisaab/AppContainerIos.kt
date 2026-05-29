@@ -31,6 +31,14 @@ import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
 import app.hisaab.platform.SecureStorage
+import app.hisaab.llm.DefaultLlmRouter
+import app.hisaab.llm.LlmRouter
+import app.hisaab.llm.cloud.ClaudeProvider
+import app.hisaab.llm.cloud.GeminiProvider
+import app.hisaab.llm.cloud.OpenAiProvider
+import app.hisaab.llm.createOnDeviceProvider
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.darwin.Darwin
 
 actual class AppContainer {
     actual val secureStorage: SecureStorage = SecureStorage()
@@ -84,8 +92,19 @@ actual class AppContainer {
     actual val insightRepository: InsightRepository
         get() = InsightRepository(requireDb())
 
-    // M3-3: NoOpLlmRouter ships now; M3-4 replaces with DefaultLlmRouter.
-    actual val llmRouter: app.hisaab.llm.LlmRouter = app.hisaab.llm.NoOpLlmRouter()
+    // LLM HTTP client — stable singleton; Darwin engine on iOS.
+    private val llmHttpClient: HttpClient = HttpClient(Darwin)
+
+    // M3-4: DefaultLlmRouter built fresh each access (fresh-DB pattern).
+    actual val llmRouter: LlmRouter
+        get() = DefaultLlmRouter(
+            configRepo = captureConfigRepository,
+            secureStorage = secureStorage,
+            onDeviceProvider = createOnDeviceProvider(),
+            claude = ClaudeProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_CLAUDE") }),
+            gemini = GeminiProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_GEMINI") }),
+            openai = OpenAiProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_OPENAI") }),
+        )
 
     // M3-3: backing flow the pipeline emits AutoPosted into; M3-5 collects captureEvents.
     // replay=0: no stale-event replay when snackbar host subscribes (M3-5 guard).

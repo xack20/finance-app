@@ -33,11 +33,24 @@ import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
 import app.hisaab.platform.SecureStorage
+import app.hisaab.llm.AndroidLlmContext
+import app.hisaab.llm.DefaultLlmRouter
+import app.hisaab.llm.LlmRouter
+import app.hisaab.llm.cloud.ClaudeProvider
+import app.hisaab.llm.cloud.GeminiProvider
+import app.hisaab.llm.cloud.OpenAiProvider
+import app.hisaab.llm.createOnDeviceProvider
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 
 actual class AppContainer(
     private val context: Context,
     activity: FragmentActivity,
 ) {
+    init {
+        AndroidLlmContext.appContext = context.applicationContext
+    }
+
     actual val secureStorage: SecureStorage = SecureStorage(context)
     actual val biometricAuth: BiometricAuth = BiometricAuth(activity)
     actual val contactPicker: ContactPicker = ContactPicker(activity)
@@ -89,8 +102,21 @@ actual class AppContainer(
     actual val insightRepository: InsightRepository
         get() = InsightRepository(requireDb())
 
-    // M3-3: NoOpLlmRouter ships now; M3-4 replaces with DefaultLlmRouter.
-    actual val llmRouter: app.hisaab.llm.LlmRouter = app.hisaab.llm.NoOpLlmRouter()
+    // LLM HTTP client — stable singleton (not DB-scoped); cloud providers use OkHttp on Android.
+    private val llmHttpClient: HttpClient = HttpClient(OkHttp)
+
+    // M3-4: DefaultLlmRouter built fresh each access so it always binds the current
+    // captureConfigRepository (fresh-DB accessor) and secureStorage. The HttpClient and
+    // cloud providers are not DB-scoped and are safe to reuse from the shared client.
+    actual val llmRouter: LlmRouter
+        get() = DefaultLlmRouter(
+            configRepo = captureConfigRepository,
+            secureStorage = secureStorage,
+            onDeviceProvider = createOnDeviceProvider(),
+            claude = ClaudeProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_CLAUDE") }),
+            gemini = GeminiProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_GEMINI") }),
+            openai = OpenAiProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_OPENAI") }),
+        )
 
     // M3-3: backing flow the pipeline emits AutoPosted into; M3-5 collects captureEvents.
     // replay=0: no stale-event replay when snackbar host subscribes (M3-5 guard).
