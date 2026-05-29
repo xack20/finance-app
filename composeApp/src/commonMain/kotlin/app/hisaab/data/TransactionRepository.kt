@@ -131,6 +131,10 @@ class TransactionRepository(
         )
     }
 
+    /** Direct one-shot lookup by id (not a Flow), safe to call from a suspend init block. */
+    suspend fun getById(id: String): TransactionRow? =
+        db.transactionQueriesQueries.getTxn(id).executeAsOneOrNull()?.toFullDomain()
+
     suspend fun delete(id: String) {
         // FK ON DELETE CASCADE handles txn_tag, child splits, and attachments.
         db.transactionQueriesQueries.deleteTxn(id)

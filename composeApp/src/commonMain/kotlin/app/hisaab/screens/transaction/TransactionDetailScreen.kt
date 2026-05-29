@@ -1,6 +1,7 @@
 package app.hisaab.screens.transaction
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.HisaabColors
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.domain.ParsedBy
 import app.hisaab.domain.TxnKind
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -48,9 +50,11 @@ fun TransactionDetailScreen(txnId: String, onDone: () -> Unit) {
             accountRepo = container.accountRepository,
             categoryRepo = container.categoryRepository,
             merchantRepo = container.merchantRepository,
+            inboxRepo = container.captureInboxRepository,
         )
     }
     val display by viewModel.row.collectAsState()
+    val provenance by viewModel.provenance.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -111,6 +115,11 @@ fun TransactionDetailScreen(txnId: String, onDone: () -> Unit) {
                 DetailRow("Account", d.accountName, palette)
                 DetailRow("When", formatTs(d.row.ts), palette)
                 d.row.notes?.let { DetailRow("Notes", it, palette) }
+
+                provenance?.let { prov ->
+                    Spacer(Modifier.height(24.dp))
+                    ProvenanceBlock(prov, palette)
+                }
             }
         }
     }
@@ -130,6 +139,40 @@ fun TransactionDetailScreen(txnId: String, onDone: () -> Unit) {
             text = { Text("Delete this transaction? This can't be undone.") },
         )
     }
+}
+
+@Composable
+private fun ProvenanceBlock(
+    candidate: app.hisaab.domain.CandidateTransaction,
+    palette: HisaabColors.Palette,
+) {
+    var rawExpanded by remember { mutableStateOf(false) }
+    Text(
+        "CAPTURED",
+        color = palette.accent,
+        letterSpacing = 2.sp,
+        fontSize = 11.sp,
+    )
+    Spacer(Modifier.height(8.dp))
+    val engine = when (candidate.parsedBy) {
+        ParsedBy.TEMPLATE -> "Template"
+        ParsedBy.ON_DEVICE -> "On-device"
+        ParsedBy.CLOUD_CLAUDE -> "Cloud · Claude"
+        ParsedBy.CLOUD_GEMINI -> "Cloud · Gemini"
+        ParsedBy.CLOUD_OPENAI -> "Cloud · OpenAI"
+        null -> "Unknown"
+    }
+    DetailRow("Parsed by", engine, palette)
+    candidate.model?.let { DetailRow("Model", it, palette) }
+    candidate.confidence?.let { DetailRow("Confidence", "${(it * 100).toInt()}%", palette) }
+    DetailRow("From", candidate.sender, palette)
+    Spacer(Modifier.height(10.dp))
+    Text(
+        if (rawExpanded) candidate.rawBody else "Show original SMS ▾",
+        color = palette.muted,
+        fontSize = 12.sp,
+        modifier = Modifier.clickable { rawExpanded = !rawExpanded },
+    )
 }
 
 @Composable

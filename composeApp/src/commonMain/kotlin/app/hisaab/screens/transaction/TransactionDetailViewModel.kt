@@ -1,17 +1,22 @@
 package app.hisaab.screens.transaction
 
 import app.hisaab.data.AccountRepository
+import app.hisaab.data.CaptureInboxRepository
 import app.hisaab.data.CategoryRepository
 import app.hisaab.data.MerchantRepository
 import app.hisaab.data.TransactionRepository
+import app.hisaab.domain.CandidateTransaction
 import app.hisaab.domain.TransactionRow
 import app.hisaab.screens.today.TransactionRowDisplay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -21,6 +26,7 @@ class TransactionDetailViewModel(
     accountRepo: AccountRepository,
     categoryRepo: CategoryRepository,
     merchantRepo: MerchantRepository,
+    private val inboxRepo: CaptureInboxRepository,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     val row: StateFlow<TransactionRowDisplay?> = combine(
@@ -45,6 +51,20 @@ class TransactionDetailViewModel(
             )
         }
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _provenance = MutableStateFlow<CandidateTransaction?>(null)
+    val provenance: StateFlow<CandidateTransaction?> = _provenance.asStateFlow()
+
+    init {
+        scope.launch {
+            // Load the txn directly (not via the combine Flow) so provenance loads
+            // even before the screen's WhileSubscribed window starts.
+            val txn = txnRepo.getById(txnId) ?: return@launch
+            txn.captureId?.let { capId ->
+                _provenance.value = inboxRepo.getById(capId)
+            }
+        }
+    }
 
     fun delete(onDone: () -> Unit) {
         scope.launch {
