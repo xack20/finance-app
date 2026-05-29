@@ -96,9 +96,14 @@ kotlin {
                 implementation(kotlin("test"))
                 implementation(libs.androidx.test.junit)
                 implementation(libs.androidx.test.runner)
+                implementation(libs.compose.ui.test.junit4)
             }
         }
     }
+}
+
+dependencies {
+    debugImplementation(libs.compose.ui.test.manifest)
 }
 
 android {
