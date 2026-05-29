@@ -63,11 +63,15 @@ fun AutoCaptureScreen(
             accountRepo = container.accountRepository,
             hasSmsPermission = { service.hasSmsPermission() },
             requestSmsPermission = { service.requestSmsPermission() },
-            backfillSince = { cursor -> service.backfillSince(cursor) },
+            // M3-int Fix 4: run backfill through coordinator so each RawCapture is processed.
+            runBackfill = { nowMs -> container.captureCoordinator.runInitialBackfill(nowMs) },
             loadApiKey = { key -> container.secureStorage.loadString(key) },
             storeApiKey = { key, value -> container.secureStorage.storeString(key, value) },
             clearApiKey = { key -> container.secureStorage.storeString(key, "") },
             router = container.llmRouter,
+            // M3-int Fix 3: master toggle gates the coordinator.
+            onStartCapture = { container.startCapture() },
+            onStopCapture = { container.stopCapture() },
         )
     }
     val cfg by viewModel.config.collectAsState()

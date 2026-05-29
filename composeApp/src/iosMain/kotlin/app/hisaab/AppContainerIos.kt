@@ -39,6 +39,7 @@ import app.hisaab.llm.cloud.OpenAiProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.darwin.Darwin
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 actual class AppContainer {
     actual val secureStorage: SecureStorage = SecureStorage()
@@ -219,35 +220,59 @@ actual class AppContainer {
         kotlinx.coroutines.runBlocking {
             categoryRepository.ensureDefaults()
             accountRepository.ensureDefaultCashAccount()
+            senderRepository.seedKnownSenders()
         }
-        // M3-5: start the capture coordinator now that the DB is open (idempotent).
-        if (captureScope == null) {
-            val scope = kotlinx.coroutines.CoroutineScope(
-                kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
-            )
-            captureScope = scope
-            captureCoordinator.start(scope)
-        }
+        // M3-int Fix 3: start capture only when captureEnabled is true.
+        startCapture()
         return db
     }
 
     actual fun databaseOrNull(): HisaabDatabase? = cachedDatabase
 
-    actual fun closeDatabase() {
-        // Drain in-flight process() coroutines before closing the driver to prevent
-        // queries on a closed connection. join() waits for all children to finish, then cancel()
-        // prevents any new work. runBlocking mirrors the established pattern in openDatabase().
-        val scope = captureScope
+    actual fun startCapture() {
+        if (captureScope != null) return
+        if (cachedDatabase == null) return
+        val enabled = kotlinx.coroutines.runBlocking { captureConfigRepository.get().captureEnabled }
+        if (!enabled) return
+        val scope = kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+        )
+        captureScope = scope
+        captureCoordinator.start(scope)
+        // M3-int Fix 2: recover SMS received while DB was locked (no-op on iOS — CaptureService
+        // yields nothing, but the call is symmetric and harmless).
+        scope.launch(kotlinx.coroutines.Dispatchers.Default) { captureCoordinator.catchUp() }
+    }
+
+    actual fun stopCapture() {
+        val scope = captureScope ?: return
         captureScope = null
-        scope?.let {
-            kotlinx.coroutines.runBlocking {
-                (it.coroutineContext[kotlinx.coroutines.Job])?.let { j -> j.cancel(); j.join() }
-            }
+        kotlinx.coroutines.runBlocking {
+            (scope.coroutineContext[kotlinx.coroutines.Job])?.let { j -> j.cancel(); j.join() }
         }
+    }
+
+    actual fun closeDatabase() {
+        // Drain in-flight coroutines before closing the driver.
+        stopCapture()
         cachedDriver?.close()
         cachedDriver = null
         cachedDatabase = null
         cachedMasterSecret?.fill(0)
         cachedMasterSecret = null
+    }
+
+    actual suspend fun confirmCandidateWithEdits(
+        newTxn: app.hisaab.domain.NewTransaction,
+        candidateId: String,
+    ): String {
+        val db = cachedDatabase ?: error("Database not open — cannot confirm candidate with edits")
+        val inbox = CaptureInboxRepository(db)
+        var txnId = ""
+        db.transaction {
+            txnId = transactionRepository.addBlocking(newTxn)
+            inbox.markConfirmedBlocking(candidateId)
+        }
+        return txnId
     }
 }

@@ -86,6 +86,25 @@ expect class AppContainer {
      */
     suspend fun confirmCandidate(candidateId: String): Boolean
 
+    /**
+     * Atomically inserts [newTxn] and marks [candidateId] CONFIRMED in one db.transaction.
+     * Returns the new transaction's ID (for attachment linking). Used by EntryViewModel when
+     * the user edits a candidate before confirming — ensures no orphan PENDING row if the
+     * coroutine is cancelled between the two writes.
+     */
+    suspend fun confirmCandidateWithEdits(newTxn: app.hisaab.domain.NewTransaction, candidateId: String): String
+
+    /**
+     * Starts the capture coordinator if captureEnabled is true and the coordinator is not already
+     * running. No-op when captureEnabled is false or the DB is closed.
+     */
+    fun startCapture()
+
+    /**
+     * Stops and drains the capture coordinator scope. No-op if the coordinator is not running.
+     */
+    fun stopCapture()
+
     /** Master secret cached in memory while DB is open. null when locked or pre-onboarding. */
     fun masterSecretInMemory(): ByteArray?
 

@@ -38,6 +38,7 @@ import app.hisaab.llm.cloud.GeminiProvider
 import app.hisaab.llm.cloud.OpenAiProvider
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 actual class AppContainer {
     actual val secureStorage: SecureStorage = SecureStorage()
@@ -214,31 +215,62 @@ actual class AppContainer {
         cachedDriver = driver
         val db = HisaabDatabase(driver)
         cachedDatabase = db
-        // Idempotent auto-seed of default Cash account + 12 default categories.
+        // Idempotent auto-seed of default Cash account + 12 default categories + known senders.
         kotlinx.coroutines.runBlocking {
             categoryRepository.ensureDefaults()
             accountRepository.ensureDefaultCashAccount()
+            senderRepository.seedKnownSenders()
         }
-        // M3-5: start the capture coordinator (idempotent).
-        if (captureScope == null) {
-            val scope = kotlinx.coroutines.CoroutineScope(
-                kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
-            )
-            captureScope = scope
-            captureCoordinator.start(scope)
-        }
+        // M3-int Fix 3: start capture only when captureEnabled is true.
+        startCapture()
         return db
     }
 
     actual fun databaseOrNull(): HisaabDatabase? = cachedDatabase
 
-    actual fun closeDatabase() {
-        captureScope?.cancel()
+    actual fun startCapture() {
+        if (captureScope != null) return
+        if (cachedDatabase == null) return
+        val enabled = kotlinx.coroutines.runBlocking { captureConfigRepository.get().captureEnabled }
+        if (!enabled) return
+        val scope = kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+        )
+        captureScope = scope
+        captureCoordinator.start(scope)
+        // M3-int Fix 2: recover any pending items (no-op on wasm — CaptureService yields nothing).
+        scope.launch(kotlinx.coroutines.Dispatchers.Default) { captureCoordinator.catchUp() }
+    }
+
+    actual fun stopCapture() {
+        val scope = captureScope ?: return
         captureScope = null
+        // M3-int Fix 6: apply the same cancel+join drain pattern as Android/iOS for consistency.
+        kotlinx.coroutines.runBlocking {
+            (scope.coroutineContext[kotlinx.coroutines.Job])?.let { j -> j.cancel(); j.join() }
+        }
+    }
+
+    actual fun closeDatabase() {
+        stopCapture()
         cachedDriver?.close()
         cachedDriver = null
         cachedDatabase = null
         cachedMasterSecret?.fill(0)
         cachedMasterSecret = null
+    }
+
+    actual suspend fun confirmCandidateWithEdits(
+        newTxn: app.hisaab.domain.NewTransaction,
+        candidateId: String,
+    ): String {
+        val db = cachedDatabase ?: error("Database not open — cannot confirm candidate with edits")
+        val inbox = CaptureInboxRepository(db)
+        var txnId = ""
+        db.transaction {
+            txnId = transactionRepository.addBlocking(newTxn)
+            inbox.markConfirmedBlocking(candidateId)
+        }
+        return txnId
     }
 }

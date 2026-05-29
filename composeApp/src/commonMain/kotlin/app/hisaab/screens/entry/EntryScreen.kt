@@ -71,6 +71,8 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
             personRepo = container.personRepository,
             attachmentRepo = container.attachmentRepository,
             inboxRepo = container.captureInboxRepository,
+            // M3-int Fix 5: atomic insert+confirm via AppContainer to prevent orphan PENDING rows.
+            confirmWithEdits = { newTxn, capId -> container.confirmCandidateWithEdits(newTxn, capId) },
         )
     }
     androidx.compose.runtime.LaunchedEffect(candidateId) {

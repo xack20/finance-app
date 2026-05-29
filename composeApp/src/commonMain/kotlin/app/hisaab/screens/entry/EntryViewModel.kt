@@ -25,6 +25,12 @@ class EntryViewModel(
     private val personRepo: PersonRepository,
     private val attachmentRepo: AttachmentRepository? = null,  // optional in tests
     private val inboxRepo: CaptureInboxRepository? = null,     // optional; required for candidate prefill
+    /**
+     * M3-int Fix 5: atomic insert+confirm seam. When non-null and a candidateId is present,
+     * save() delegates to this lambda instead of calling txnRepo.add + inboxRepo.markConfirmed
+     * separately (which would be non-atomic). Returns the new transaction's ID.
+     */
+    private val confirmWithEdits: (suspend (newTxn: NewTransaction, candidateId: String) -> String)? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     private val _state = MutableStateFlow(EntryFormState())
@@ -122,7 +128,7 @@ class EntryViewModel(
                     }
                     else -> {
                         val capId = prefilledCandidateId
-                        val newTxnId = txnRepo.add(NewTransaction(
+                        val newTxn = NewTransaction(
                             accountId = s.accountId!!,
                             amount = amount,
                             ts = s.whenMs,
@@ -133,13 +139,20 @@ class EntryViewModel(
                             tagNames = s.tagNames,
                             // Link at insert time via captureId (R1: no link method).
                             captureId = capId,
-                        ))
+                        )
+                        val newTxnId: String = if (capId != null && confirmWithEdits != null) {
+                            // M3-int Fix 5: atomic insert + confirm in one db.transaction.
+                            confirmWithEdits(newTxn, capId)
+                        } else {
+                            val id = txnRepo.add(newTxn)
+                            // Non-atomic fallback (no confirmWithEdits seam): mark confirmed separately.
+                            if (capId != null) {
+                                inboxRepo?.markConfirmed(capId)
+                            }
+                            id
+                        }
                         if (s.splits.isNotEmpty()) {
                             txnRepo.addSplits(newTxnId, s.splits)
-                        }
-                        // When edit-from-candidate: mark the candidate confirmed after insert.
-                        if (capId != null) {
-                            inboxRepo?.markConfirmed(capId)
                         }
                         newTxnId
                     }

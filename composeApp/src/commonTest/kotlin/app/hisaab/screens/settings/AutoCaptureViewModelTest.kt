@@ -56,7 +56,12 @@ class AutoCaptureViewModelTest {
             accountRepo = accounts,
             hasSmsPermission = { gateway.hasSmsPermission() },
             requestSmsPermission = { gateway.requestSmsPermission() },
-            backfillSince = { cursor -> gateway.backfillSince(cursor); Unit },
+            // M3-int Fix 4: runBackfill receives nowMs; test shim derives the 90-day cursor so
+            // the `backfill calls gateway with the configured cursor` assertion still passes.
+            runBackfill = { nowMs ->
+                val cursor = (nowMs - 90L * 24L * 60L * 60L * 1000L).coerceAtLeast(0L)
+                gateway.backfillSince(cursor); Unit
+            },
             loadApiKey = keys::load,
             storeApiKey = keys::store,
             clearApiKey = keys::clear,
@@ -233,5 +238,62 @@ class AutoCaptureViewModelTest {
         v.backfillLast90Days(nowMs = 90L * 24 * 60 * 60 * 1000)
         advanceUntilIdle()
         assertEquals(0L, gateway.lastBackfillCursor) // 90 days before "now=90d" == 0
+    }
+
+    // M3-int Fix 3: captureEnabled gates coordinator start/stop via onStartCapture/onStopCapture.
+    @Test
+    fun `setCaptureEnabled false calls onStopCapture and does not call onStartCapture`() = runTest {
+        val db = TestDatabase.create()
+        var startCount = 0
+        var stopCount = 0
+        val gateway = FakeCaptureGateway(permissionGranted = true)
+        val config = CaptureConfigRepository(db)
+        config.setCaptureEnabled(true) // already enabled
+        val senders = SenderRepository(db)
+        val accounts = AccountRepository(db)
+        val v = AutoCaptureViewModel(
+            configRepo = config,
+            senderRepo = senders,
+            accountRepo = accounts,
+            hasSmsPermission = { gateway.hasSmsPermission() },
+            requestSmsPermission = { gateway.requestSmsPermission() },
+            runBackfill = { _ -> },
+            loadApiKey = { null },
+            storeApiKey = { _, _ -> },
+            clearApiKey = { _ -> },
+            router = FakeLlmRouter(),
+            onStartCapture = { startCount++ },
+            onStopCapture = { stopCount++ },
+        )
+        v.setCaptureEnabled(false)
+        advanceUntilIdle()
+        assertEquals(0, startCount, "onStartCapture must NOT be called when disabling")
+        assertEquals(1, stopCount, "onStopCapture must be called when disabling")
+    }
+
+    @Test
+    fun `setCaptureEnabled true calls onStartCapture`() = runTest {
+        val db = TestDatabase.create()
+        var startCount = 0
+        var stopCount = 0
+        val gateway = FakeCaptureGateway(permissionGranted = true)
+        val v = AutoCaptureViewModel(
+            configRepo = CaptureConfigRepository(db),
+            senderRepo = SenderRepository(db),
+            accountRepo = AccountRepository(db),
+            hasSmsPermission = { gateway.hasSmsPermission() },
+            requestSmsPermission = { gateway.requestSmsPermission() },
+            runBackfill = { _ -> },
+            loadApiKey = { null },
+            storeApiKey = { _, _ -> },
+            clearApiKey = { _ -> },
+            router = FakeLlmRouter(),
+            onStartCapture = { startCount++ },
+            onStopCapture = { stopCount++ },
+        )
+        v.setCaptureEnabled(true)
+        advanceUntilIdle()
+        assertEquals(1, startCount, "onStartCapture must be called when enabling")
+        assertEquals(0, stopCount, "onStopCapture must NOT be called when enabling")
     }
 }

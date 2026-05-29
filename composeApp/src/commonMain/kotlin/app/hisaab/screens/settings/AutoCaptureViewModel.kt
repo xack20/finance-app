@@ -42,11 +42,16 @@ class AutoCaptureViewModel(
     private val accountRepo: AccountRepository,
     private val hasSmsPermission: suspend () -> Boolean,
     private val requestSmsPermission: suspend () -> Boolean,
-    private val backfillSince: suspend (cursorMs: Long) -> Unit,
+    /** Runs the coordinator's initial backfill for the given nowMs timestamp. */
+    private val runBackfill: suspend (nowMs: Long) -> Unit,
     private val loadApiKey: (key: String) -> String?,
     private val storeApiKey: (key: String, value: String) -> Unit,
     private val clearApiKey: (key: String) -> Unit,
     private val router: LlmRouter,
+    /** Starts the capture coordinator (called when captureEnabled transitions to true). */
+    private val onStartCapture: () -> Unit = {},
+    /** Stops the capture coordinator (called when captureEnabled transitions to false). */
+    private val onStopCapture: () -> Unit = {},
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     val config: StateFlow<CaptureConfig?> = configRepo.observe()
@@ -75,14 +80,16 @@ class AutoCaptureViewModel(
         scope.launch {
             if (!enabled) {
                 configRepo.setCaptureEnabled(false)
+                onStopCapture()
                 return@launch
             }
             val granted = if (hasSmsPermission()) true else requestSmsPermission()
             if (granted) {
                 configRepo.setCaptureEnabled(true)
                 _permissionDenied.value = false
-                // Initial 90-day backfill on first enable.
-                backfillSince(cursorFor90Days(currentMillis()))
+                onStartCapture()
+                // M3-int Fix 4: route backfill through coordinator so each RawCapture is processed.
+                runBackfill(currentMillis())
             } else {
                 _permissionDenied.value = true
                 configRepo.setCaptureEnabled(false)
@@ -169,7 +176,8 @@ class AutoCaptureViewModel(
     // ---- Backfill ----
 
     fun backfillLast90Days(nowMs: Long = currentMillis()) {
-        scope.launch { backfillSince(cursorFor90Days(nowMs)) }
+        // M3-int Fix 4: route through coordinator's runInitialBackfill so each SMS is processed.
+        scope.launch { runBackfill(nowMs) }
     }
 
     private fun cursorFor90Days(nowMs: Long): Long = (nowMs - BACKFILL_DAYS * MS_PER_DAY).coerceAtLeast(0L)
