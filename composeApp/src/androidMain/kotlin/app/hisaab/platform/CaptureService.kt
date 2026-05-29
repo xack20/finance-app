@@ -19,6 +19,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 actual class CaptureService(
@@ -27,6 +29,7 @@ actual class CaptureService(
 ) : app.hisaab.capture.CaptureSource {
 
     private val permissionResult = MutableSharedFlow<Boolean>(replay = 0, extraBufferCapacity = 1)
+    private val permissionMutex = Mutex()
 
     private val permissionLauncher: ActivityResultLauncher<Array<String>> =
         activity.registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
@@ -41,10 +44,10 @@ actual class CaptureService(
         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
     }
 
-    actual suspend fun requestSmsPermission(): Boolean {
-        if (hasSmsPermission()) return true
+    actual suspend fun requestSmsPermission(): Boolean = permissionMutex.withLock {
+        if (hasSmsPermission()) return@withLock true
         permissionLauncher.launch(REQUIRED_SMS_PERMISSIONS)
-        return permissionResult.first()
+        permissionResult.first()
     }
 
     /** Live stream is the process-global [CaptureBus] populated by the receiver/service. */

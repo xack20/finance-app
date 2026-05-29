@@ -4,7 +4,6 @@ import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.RawCapture
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -23,7 +22,7 @@ class CaptureCoordinatorTest {
         var cursor: Long = initialCursor
             private set
         override suspend fun currentCursor(): Long = cursor
-        override suspend fun advanceCursor(toMs: Long) { if (toMs > cursor) cursor = toMs }
+        override suspend fun advanceCursor(toMs: Long) { cursor = toMs }
     }
 
     private fun sms(body: String, at: Long, sender: String = "bKash") =

@@ -86,7 +86,9 @@ class CaptureCoordinator(
     private suspend fun process(raw: RawCapture) {
         mutex.withLock {
             handler.handle(raw)
-            cursorStore.advanceCursor(raw.receivedAt)
+            if (raw.receivedAt > cursorStore.currentCursor()) {
+                cursorStore.advanceCursor(raw.receivedAt)
+            }
         }
     }
 }

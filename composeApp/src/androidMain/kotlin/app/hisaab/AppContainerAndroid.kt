@@ -97,17 +97,16 @@ actual class AppContainer(
 
     private fun captureConfigRepository(): CaptureConfigRepository = CaptureConfigRepository(requireDb())
 
-    actual val captureCoordinator: CaptureCoordinator
-        get() {
-            val configRepo = captureConfigRepository()
-            val cursorStore = object : CaptureCursorStore {
-                override suspend fun currentCursor(): Long = configRepo.get().lastSmsCursor
-                override suspend fun advanceCursor(toMs: Long) { configRepo.setCursor(toMs) }
-            }
-            // M3-2 ships a no-op handler; M3-3 replaces this with CaptureHandler { capturePipeline.process(it) }.
-            val handler = CaptureHandler { /* no-op until M3-3 pipeline lands */ }
-            return CaptureCoordinator(captureService, handler, cursorStore)
+    actual val captureCoordinator: CaptureCoordinator by lazy {
+        val configRepo = captureConfigRepository()
+        val cursorStore = object : CaptureCursorStore {
+            override suspend fun currentCursor(): Long = configRepo.get().lastSmsCursor
+            override suspend fun advanceCursor(toMs: Long) { configRepo.setCursor(toMs) }
         }
+        // M3-2 ships a no-op handler; M3-3 replaces this with CaptureHandler { capturePipeline.process(it) }.
+        val handler = CaptureHandler { /* no-op until M3-3 pipeline lands */ }
+        CaptureCoordinator(captureService, handler, cursorStore)
+    }
 
     actual fun openDatabase(masterSecret: ByteArray): HisaabDatabase {
         cachedDatabase?.let { return it }
