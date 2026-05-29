@@ -15,12 +15,7 @@ class AgentDecodeException(message: String) : Exception(message)
 )
 
 object AgentJson {
-    private fun isolate(raw: String): String {
-        val c = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-        val s = c.indexOf('{'); val e = c.lastIndexOf('}')
-        return if (s >= 0 && e > s) c.substring(s, e + 1) else c
-    }
     fun decodeEnvelope(raw: String): AgentEnvelope =
-        try { LlmJson.json.decodeFromString(AgentEnvelope.serializer(), isolate(raw)) }
+        try { LlmJson.json.decodeFromString(AgentEnvelope.serializer(), LlmJson.isolateJson(raw)) }
         catch (ex: Exception) { throw AgentDecodeException(ex.message ?: "malformed agent envelope") }
 }

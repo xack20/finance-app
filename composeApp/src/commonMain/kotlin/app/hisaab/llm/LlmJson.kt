@@ -38,7 +38,7 @@ object LlmJson {
     data class CategorizeDto(@SerialName("categoryId") val categoryId: String? = null)
 
     /** Strips ```json fences and isolates the first {...} block. */
-    private fun isolateJson(raw: String): String {
+    internal fun isolateJson(raw: String): String {
         val cleaned = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val start = cleaned.indexOf('{')
         val end = cleaned.lastIndexOf('}')
