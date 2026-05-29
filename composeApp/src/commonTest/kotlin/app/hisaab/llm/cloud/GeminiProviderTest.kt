@@ -28,9 +28,11 @@ class GeminiProviderTest {
     @Test
     fun `parse sends responseSchema and decodes candidate text`() = runTest {
         var capturedBody = ""
+        var capturedApiKeyHeader: String? = null
         var capturedUrl = ""
         val engine = MockEngine { request ->
             capturedBody = (request.body as io.ktor.http.content.TextContent).text
+            capturedApiKeyHeader = request.headers["x-goog-api-key"]
             capturedUrl = request.url.toString()
             respond(
                 content = """
@@ -50,7 +52,9 @@ class GeminiProviderTest {
         assertEquals(50000.0, r.amount)
         assertEquals(Direction.CREDIT, r.direction)
         assertEquals("salary", r.categoryId)
-        assertTrue(capturedUrl.contains("key=g-key"), capturedUrl)
+        // Key must be in the header, not the URL query string.
+        assertEquals("g-key", capturedApiKeyHeader, "API key must be sent via x-goog-api-key header")
+        assertTrue(!capturedUrl.contains("key="), "API key must NOT appear in the URL: $capturedUrl")
         assertTrue(capturedBody.contains("responseSchema"), capturedBody)
         assertTrue(capturedBody.contains("application/json"), capturedBody)
     }

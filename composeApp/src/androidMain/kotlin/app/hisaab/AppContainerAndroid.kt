@@ -39,7 +39,6 @@ import app.hisaab.llm.LlmRouter
 import app.hisaab.llm.cloud.ClaudeProvider
 import app.hisaab.llm.cloud.GeminiProvider
 import app.hisaab.llm.cloud.OpenAiProvider
-import app.hisaab.llm.createOnDeviceProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 
@@ -105,17 +104,46 @@ actual class AppContainer(
     // LLM HTTP client — stable singleton (not DB-scoped); cloud providers use OkHttp on Android.
     private val llmHttpClient: HttpClient = HttpClient(OkHttp)
 
+    // Singleton cloud providers: constructed once, apiKey and redact lambdas read live values
+    // at call time so the providers survive lock/unlock cycles without holding DB references.
+    private val claudeProvider: ClaudeProvider = ClaudeProvider(
+        httpClient = llmHttpClient,
+        apiKey = { secureStorage.loadString("llm_api_key_CLAUDE") },
+        redact = { captureConfigRepository.get().redactionEnabled },
+    )
+    private val geminiProvider: GeminiProvider = GeminiProvider(
+        httpClient = llmHttpClient,
+        apiKey = { secureStorage.loadString("llm_api_key_GEMINI") },
+        redact = { captureConfigRepository.get().redactionEnabled },
+    )
+    private val openAiProvider: OpenAiProvider = OpenAiProvider(
+        httpClient = llmHttpClient,
+        apiKey = { secureStorage.loadString("llm_api_key_OPENAI") },
+        redact = { captureConfigRepository.get().redactionEnabled },
+    )
+    // On-device provider: cached singleton via AndroidLlmContext so MediaPipe engine
+    // (~900MB) is allocated at most once per process life.
+    private val onDeviceProvider = run {
+        val ctx = context.applicationContext
+        val manager = app.hisaab.llm.ModelManager(ctx)
+        if (manager.isAnyModelAvailable()) {
+            AndroidLlmContext.getOrCreateProvider(ctx) {
+                captureConfigRepository.get().redactionEnabled
+            }
+        } else null
+    }
+
     // M3-4: DefaultLlmRouter built fresh each access so it always binds the current
-    // captureConfigRepository (fresh-DB accessor) and secureStorage. The HttpClient and
-    // cloud providers are not DB-scoped and are safe to reuse from the shared client.
+    // captureConfigRepository (fresh-DB accessor). Providers are singletons — no
+    // reallocation per SMS.
     actual val llmRouter: LlmRouter
         get() = DefaultLlmRouter(
             configRepo = captureConfigRepository,
             secureStorage = secureStorage,
-            onDeviceProvider = createOnDeviceProvider(),
-            claude = ClaudeProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_CLAUDE") }),
-            gemini = GeminiProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_GEMINI") }),
-            openai = OpenAiProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_OPENAI") }),
+            onDeviceProvider = onDeviceProvider,
+            claude = claudeProvider,
+            gemini = geminiProvider,
+            openai = openAiProvider,
         )
 
     // M3-3: backing flow the pipeline emits AutoPosted into; M3-5 collects captureEvents.

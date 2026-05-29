@@ -13,6 +13,7 @@ import app.hisaab.llm.Redactor
 import app.hisaab.llm.llmConfigured
 import app.hisaab.llm.mapHttpError
 import io.ktor.client.HttpClient
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -34,8 +35,8 @@ import kotlinx.serialization.json.putJsonObject
  * Gemini generateContent adapter. Uses generationConfig.responseSchema +
  * responseMimeType=application/json so the candidate text IS the structured JSON.
  *
- * API key is passed in the query string (?key=); never logged or stored in a field.
- * Redactor runs before the network call when [redact]=true (default).
+ * API key is passed in the x-goog-api-key request header; never logged or stored in a field.
+ * Redactor runs before the network call when [redact] returns true (evaluated at call time).
  *
  * MODEL: gemini-2.0-flash (v1beta generateContent).
  */
@@ -43,12 +44,12 @@ class GeminiProvider(
     httpClient: HttpClient,
     private val apiKey: () -> String?,
     private val model: String = "gemini-2.0-flash",
-    private val redact: Boolean = true,
+    private val redact: suspend () -> Boolean = { true },
 ) : LlmProvider {
 
     private val client = httpClient.llmConfigured()
-    private fun endpoint(key: String) =
-        "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key"
+    private val endpoint =
+        "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
 
     override val id = ProviderId.CLOUD_GEMINI
 
@@ -56,7 +57,7 @@ class GeminiProvider(
 
     override suspend fun parse(req: ParseRequest): LlmParseResult {
         val key = apiKey() ?: throw LlmException(LlmError.InvalidKey)
-        val text = if (redact) Redactor.redact(req.text) else req.text
+        val text = if (redact()) Redactor.redact(req.text) else req.text
         val prompt = buildString {
             append(Prompts.extractionSystem(req.categories))
             appendLine()
@@ -76,7 +77,8 @@ class GeminiProvider(
             }
         }
 
-        val response = client.post(endpoint(key)) {
+        val response = client.post(endpoint) {
+            header("x-goog-api-key", key)
             contentType(ContentType.Application.Json)
             setBody(LlmJson.json.encodeToString(JsonObject.serializer(), payload))
         }
@@ -98,7 +100,8 @@ class GeminiProvider(
             }
             putJsonObject("generationConfig") { put("responseMimeType", "application/json") }
         }
-        val response = client.post(endpoint(key)) {
+        val response = client.post(endpoint) {
+            header("x-goog-api-key", key)
             contentType(ContentType.Application.Json)
             setBody(LlmJson.json.encodeToString(JsonObject.serializer(), payload))
         }

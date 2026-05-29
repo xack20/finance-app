@@ -6,6 +6,7 @@ import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.Closeable
 
 /**
  * On-device LlmProvider backed by MediaPipe LLM Inference (Gemma 3 1B int4 .task).
@@ -15,13 +16,16 @@ import kotlinx.coroutines.withContext
  * API key is never involved — fully local inference.
  * SMS body is never logged.
  *
+ * Implements [Closeable] so the ~900MB LlmInference engine can be released on cleanup/test teardown.
+ * Redactor runs before inference when [redact] returns true (evaluated at call time).
+ *
  * SDK: tasks-genai 0.10.24.
  */
 class AndroidOnDeviceProvider(
     private val context: Context,
     private val modelManager: ModelManager,
-    private val redact: Boolean = true,
-) : LlmProvider {
+    private val redact: suspend () -> Boolean = { true },
+) : LlmProvider, Closeable {
 
     override val id = ProviderId.ON_DEVICE
 
@@ -45,7 +49,7 @@ class AndroidOnDeviceProvider(
 
     override suspend fun parse(req: ParseRequest): LlmParseResult = withContext(Dispatchers.Default) {
         val inference = engineOrNull() ?: throw LlmException(LlmError.Unavailable)
-        val text = if (redact) Redactor.redact(req.text) else req.text
+        val text = if (redact()) Redactor.redact(req.text) else req.text
         val prompt = buildString {
             append(Prompts.extractionSystemShort(req.categories))
             appendLine()
@@ -64,4 +68,12 @@ class AndroidOnDeviceProvider(
                 .getOrNull() ?: return@withContext null
             LlmJson.decodeCategoryId(raw, categories.map { it.id }.toSet())
         }
+
+    /** Releases the cached LlmInference engine. Safe to call multiple times. */
+    override fun close() {
+        synchronized(this) {
+            engine?.close()
+            engine = null
+        }
+    }
 }

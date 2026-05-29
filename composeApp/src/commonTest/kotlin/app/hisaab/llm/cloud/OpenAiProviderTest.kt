@@ -61,4 +61,32 @@ class OpenAiProviderTest {
         val ex = assertFailsWith<LlmException> { provider.parse(ParseRequest("x", null, categories)) }
         assertTrue(ex.error is LlmError.ProviderError && ex.error.retryable)
     }
+
+    @Test
+    fun `strict json_schema includes null in direction and categoryId enum arrays`() = runTest {
+        var capturedBody = ""
+        val engine = MockEngine { request ->
+            capturedBody = (request.body as io.ktor.http.content.TextContent).text
+            respond(
+                content = """{"choices":[{"message":{"role":"assistant","content":"{\"amount\":null,\"direction\":null,\"merchant\":null,\"categoryId\":null,\"balanceAfter\":null,\"refNo\":null,\"confidence\":0.1,\"isFinancial\":false}"}}]}""",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+        OpenAiProvider(HttpClient(engine), apiKey = { "k" })
+            .parse(ParseRequest("not financial", null, categories))
+
+        // With strict:true, nullable enum fields must include null in their enum array.
+        // Check direction enum array contains null literal.
+        val directionIdx = capturedBody.indexOf("\"direction\"")
+        assertTrue(directionIdx >= 0, "direction property must be present in schema")
+        val directionSection = capturedBody.substring(directionIdx, minOf(directionIdx + 200, capturedBody.length))
+        assertTrue(directionSection.contains("null"), "direction enum must include null: $directionSection")
+
+        // Check categoryId enum array contains null literal.
+        val catIdx = capturedBody.indexOf("\"categoryId\"")
+        assertTrue(catIdx >= 0, "categoryId property must be present in schema")
+        val catSection = capturedBody.substring(catIdx, minOf(catIdx + 300, capturedBody.length))
+        assertTrue(catSection.contains("null"), "categoryId enum must include null: $catSection")
+    }
 }

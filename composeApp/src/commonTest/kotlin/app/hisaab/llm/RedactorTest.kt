@@ -56,4 +56,16 @@ class RedactorTest {
         assertTrue(out.contains("ref 123"), out)
         assertFalse(out.contains("[ACCT"), out)
     }
+
+    /**
+     * Known limitation: an 8+ digit unformatted amount (no decimal/comma separator) is
+     * indistinguishable from an account number by the digit-length heuristic. This test
+     * documents — not fixes — the behavior so regressions are caught if the heuristic changes.
+     */
+    @Test
+    fun `known limitation - unformatted 8+ digit amount is masked as account number`() {
+        val out = Redactor.redact("Salary credited 13500000 BDT")
+        // 13500000 has 8 digits — matches the account-number pattern; masked as [ACCT *0000].
+        assertTrue(out.contains("[ACCT"), "8+ digit unformatted amount is expected to be masked as [ACCT: $out")
+    }
 }

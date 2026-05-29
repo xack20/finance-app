@@ -36,7 +36,6 @@ import app.hisaab.llm.LlmRouter
 import app.hisaab.llm.cloud.ClaudeProvider
 import app.hisaab.llm.cloud.GeminiProvider
 import app.hisaab.llm.cloud.OpenAiProvider
-import app.hisaab.llm.createOnDeviceProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.darwin.Darwin
 
@@ -95,15 +94,35 @@ actual class AppContainer {
     // LLM HTTP client — stable singleton; Darwin engine on iOS.
     private val llmHttpClient: HttpClient = HttpClient(Darwin)
 
-    // M3-4: DefaultLlmRouter built fresh each access (fresh-DB pattern).
+    // Singleton cloud providers: constructed once, apiKey and redact lambdas read live values
+    // at call time so the providers survive lock/unlock cycles without holding DB references.
+    private val claudeProvider: ClaudeProvider = ClaudeProvider(
+        httpClient = llmHttpClient,
+        apiKey = { secureStorage.loadString("llm_api_key_CLAUDE") },
+        redact = { captureConfigRepository.get().redactionEnabled },
+    )
+    private val geminiProvider: GeminiProvider = GeminiProvider(
+        httpClient = llmHttpClient,
+        apiKey = { secureStorage.loadString("llm_api_key_GEMINI") },
+        redact = { captureConfigRepository.get().redactionEnabled },
+    )
+    private val openAiProvider: OpenAiProvider = OpenAiProvider(
+        httpClient = llmHttpClient,
+        apiKey = { secureStorage.loadString("llm_api_key_OPENAI") },
+        redact = { captureConfigRepository.get().redactionEnabled },
+    )
+    // iOS/wasm: createOnDeviceProvider() returns null; no on-device engine on these platforms.
+
+    // M3-4: DefaultLlmRouter built fresh each access (fresh-DB pattern). Providers are
+    // singletons — no reallocation per SMS.
     actual val llmRouter: LlmRouter
         get() = DefaultLlmRouter(
             configRepo = captureConfigRepository,
             secureStorage = secureStorage,
-            onDeviceProvider = createOnDeviceProvider(),
-            claude = ClaudeProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_CLAUDE") }),
-            gemini = GeminiProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_GEMINI") }),
-            openai = OpenAiProvider(llmHttpClient, apiKey = { secureStorage.loadString("llm_api_key_OPENAI") }),
+            onDeviceProvider = null,
+            claude = claudeProvider,
+            gemini = geminiProvider,
+            openai = openAiProvider,
         )
 
     // M3-3: backing flow the pipeline emits AutoPosted into; M3-5 collects captureEvents.

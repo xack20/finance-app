@@ -25,6 +25,7 @@ import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
@@ -34,7 +35,7 @@ import kotlinx.serialization.json.putJsonObject
  * input_schema; reads the tool_use block's `input` object as the LLM JSON.
  *
  * API key is never logged or stored in a field; only read via the lambda at call time.
- * Redactor runs before the network call when [redact]=true (default).
+ * Redactor runs before the network call when [redact] returns true (evaluated at call time).
  *
  * MODEL: claude-3-5-haiku-latest (Messages API anthropic-version: 2023-06-01).
  */
@@ -42,7 +43,7 @@ class ClaudeProvider(
     httpClient: HttpClient,
     private val apiKey: () -> String?,
     private val model: String = "claude-3-5-haiku-latest",
-    private val redact: Boolean = true,
+    private val redact: suspend () -> Boolean = { true },
 ) : LlmProvider {
 
     private val client = httpClient.llmConfigured()
@@ -55,7 +56,7 @@ class ClaudeProvider(
 
     override suspend fun parse(req: ParseRequest): LlmParseResult {
         val key = apiKey() ?: throw LlmException(LlmError.InvalidKey)
-        val text = if (redact) Redactor.redact(req.text) else req.text
+        val text = if (redact()) Redactor.redact(req.text) else req.text
         val system = Prompts.extractionSystem(req.categories)
         val userMsg = buildString {
             req.senderHint?.let { appendLine("Sender: $it") }
@@ -123,7 +124,7 @@ class ClaudeProvider(
         }
         if (!response.status.isSuccess()) return null
         val text = LlmJson.json.parseToJsonElement(response.bodyAsText()).jsonObject["content"]
-            ?.jsonArray?.firstOrNull()?.jsonObject?.get("text")?.toString()?.trim('"') ?: return null
+            ?.jsonArray?.firstOrNull()?.jsonObject?.get("text")?.jsonPrimitive?.content ?: return null
         return LlmJson.decodeCategoryId(text, categories.map { it.id }.toSet())
     }
 

@@ -88,4 +88,31 @@ class ClaudeProviderTest {
         val provider = ClaudeProvider(HttpClient(MockEngine { respond("", HttpStatusCode.OK) }), apiKey = { null })
         assertEquals(false, provider.isAvailable())
     }
+
+    @Test
+    fun `redact false sends raw text and redact true sends masked text`() = runTest {
+        val rawText = "Send 500 to 01712345678 A/C 1234567890"
+        var capturedBodyRaw = ""
+        var capturedBodyRedacted = ""
+
+        val okResponse = """{"content":[{"type":"tool_use","name":"record_transaction","input":{"amount":500.0,"direction":"DEBIT","merchant":null,"categoryId":null,"balanceAfter":null,"refNo":null,"confidence":0.8,"isFinancial":true}}]}"""
+
+        val engineRaw = MockEngine { request ->
+            capturedBodyRaw = (request.body as io.ktor.http.content.TextContent).text
+            respond(okResponse, HttpStatusCode.OK, jsonHeaders())
+        }
+        val engineRedacted = MockEngine { request ->
+            capturedBodyRedacted = (request.body as io.ktor.http.content.TextContent).text
+            respond(okResponse, HttpStatusCode.OK, jsonHeaders())
+        }
+
+        ClaudeProvider(HttpClient(engineRaw), apiKey = { "k" }, redact = { false })
+            .parse(ParseRequest(rawText, null, categories))
+        ClaudeProvider(HttpClient(engineRedacted), apiKey = { "k" }, redact = { true })
+            .parse(ParseRequest(rawText, null, categories))
+
+        assertTrue(capturedBodyRaw.contains("01712345678"), "raw body should contain unmasked phone")
+        assertTrue(!capturedBodyRedacted.contains("01712345678"), "redacted body should not contain raw phone")
+        assertTrue(capturedBodyRedacted.contains("[PHONE"), "redacted body should contain PHONE placeholder")
+    }
 }

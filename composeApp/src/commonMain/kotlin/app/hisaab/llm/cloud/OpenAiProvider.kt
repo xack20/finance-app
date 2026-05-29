@@ -20,6 +20,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
@@ -35,7 +36,7 @@ import kotlinx.serialization.json.putJsonObject
  * OpenAI Chat Completions adapter using response_format json_schema (strict).
  *
  * API key passed as Authorization: Bearer header; never logged or stored in a field.
- * Redactor runs before the network call when [redact]=true (default).
+ * Redactor runs before the network call when [redact] returns true (evaluated at call time).
  *
  * MODEL: gpt-4o-mini (Chat Completions response_format json_schema).
  */
@@ -43,7 +44,7 @@ class OpenAiProvider(
     httpClient: HttpClient,
     private val apiKey: () -> String?,
     private val model: String = "gpt-4o-mini",
-    private val redact: Boolean = true,
+    private val redact: suspend () -> Boolean = { true },
 ) : LlmProvider {
 
     private val client = httpClient.llmConfigured()
@@ -55,7 +56,7 @@ class OpenAiProvider(
 
     override suspend fun parse(req: ParseRequest): LlmParseResult {
         val key = apiKey() ?: throw LlmException(LlmError.InvalidKey)
-        val text = if (redact) Redactor.redact(req.text) else req.text
+        val text = if (redact()) Redactor.redact(req.text) else req.text
         val userMsg = buildString {
             req.senderHint?.let { appendLine("Sender: $it") }
             append("SMS: \"$text\"")
@@ -122,12 +123,12 @@ class OpenAiProvider(
             putJsonObject("amount") { putJsonArray("type") { add("number"); add("null") } }
             putJsonObject("direction") {
                 putJsonArray("type") { add("string"); add("null") }
-                putJsonArray("enum") { add("DEBIT"); add("CREDIT") }
+                putJsonArray("enum") { add("DEBIT"); add("CREDIT"); add(JsonNull) }
             }
             putJsonObject("merchant") { putJsonArray("type") { add("string"); add("null") } }
             putJsonObject("categoryId") {
                 putJsonArray("type") { add("string"); add("null") }
-                putJsonArray("enum") { categories.forEach { add(it.id) } }
+                putJsonArray("enum") { categories.forEach { add(it.id) }; add(JsonNull) }
             }
             putJsonObject("balanceAfter") { putJsonArray("type") { add("number"); add("null") } }
             putJsonObject("refNo") { putJsonArray("type") { add("string"); add("null") } }
