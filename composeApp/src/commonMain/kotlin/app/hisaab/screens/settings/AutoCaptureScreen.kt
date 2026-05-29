@@ -252,8 +252,11 @@ fun AutoCaptureScreen(
 
             Spacer(Modifier.height(24.dp))
             Label("History", palette)
-            TextButton(onClick = { viewModel.backfillLast90Days() }) {
-                Text("Import last 90 days", color = palette.accent)
+            TextButton(
+                onClick = { viewModel.backfillLast90Days() },
+                enabled = c.captureEnabled,
+            ) {
+                Text("Import last 90 days", color = if (c.captureEnabled) palette.accent else palette.muted)
             }
             Spacer(Modifier.height(40.dp))
         }

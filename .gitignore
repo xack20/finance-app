@@ -29,6 +29,7 @@ gradle/caches/
 gradle/daemon/
 gradle/native/
 gradle/wrapper/dists/
+gradle/kotlin-profile/
 
 # Dependencies
 node_modules/

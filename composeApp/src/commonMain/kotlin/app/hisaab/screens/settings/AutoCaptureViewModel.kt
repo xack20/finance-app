@@ -27,10 +27,6 @@ enum class KeyValidation { IDLE, CHECKING, VALID, INVALID }
 /** Default auto-post confidence threshold (CaptureConfig schema default). */
 const val DEFAULT_AUTO_POST_THRESHOLD: Double = 0.85
 
-/** Number of days in the default historical backfill window. */
-private const val BACKFILL_DAYS = 90L
-private const val MS_PER_DAY = 24L * 60 * 60 * 1000
-
 /**
  * Drives the Settings → Auto-capture surface. Pure-Kotlin; platform ops (SMS permission,
  * backfill, secure-storage key I/O) are injected as functional seams so the VM is unit-testable
@@ -179,8 +175,6 @@ class AutoCaptureViewModel(
         // M3-int Fix 4: route through coordinator's runInitialBackfill so each SMS is processed.
         scope.launch { runBackfill(nowMs) }
     }
-
-    private fun cursorFor90Days(nowMs: Long): Long = (nowMs - BACKFILL_DAYS * MS_PER_DAY).coerceAtLeast(0L)
 
     private fun keyName(provider: CloudProvider): String = "llm_api_key_${provider.name}"
 
