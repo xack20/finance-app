@@ -5,6 +5,8 @@ import app.hisaab.domain.Category
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.Closeable
 
@@ -30,6 +32,7 @@ class AndroidOnDeviceProvider(
     override val id = ProviderId.ON_DEVICE
 
     @Volatile private var engine: LlmInference? = null
+    private val inferenceMutex = Mutex()
 
     override suspend fun isAvailable(): Boolean = modelManager.isGemmaPresent()
 
@@ -56,7 +59,7 @@ class AndroidOnDeviceProvider(
             req.senderHint?.let { appendLine("Sender: $it") }
             append("SMS: \"$text\"")
         }
-        val raw = runCatching { inference.generateResponse(prompt) }
+        val raw = runCatching { inferenceMutex.withLock { inference.generateResponse(prompt) } }
             .getOrElse { throw LlmException(LlmError.Decode(it.message ?: "inference failed")) }
         LlmJson.decodeResult(raw)
     }
@@ -64,7 +67,7 @@ class AndroidOnDeviceProvider(
     override suspend fun categorize(merchant: String, categories: List<Category>): String? =
         withContext(Dispatchers.Default) {
             val inference = engineOrNull() ?: return@withContext null
-            val raw = runCatching { inference.generateResponse(Prompts.categorize(merchant, categories)) }
+            val raw = runCatching { inferenceMutex.withLock { inference.generateResponse(Prompts.categorize(merchant, categories)) } }
                 .getOrNull() ?: return@withContext null
             LlmJson.decodeCategoryId(raw, categories.map { it.id }.toSet())
         }
