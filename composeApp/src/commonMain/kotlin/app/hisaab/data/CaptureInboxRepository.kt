@@ -80,6 +80,10 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
             .mapToList(Dispatchers.Default)
             .map { rows -> rows.map { it.toDomain() } }
 
+    /** One-shot synchronous query for pending candidates — use in coroutines/suspend contexts. */
+    suspend fun getPending(): List<CandidateTransaction> =
+        queries.observePending().executeAsList().map { it.toDomain() }
+
     fun observeRecent(limit: Int): Flow<List<CandidateTransaction>> =
         queries.observeRecent(limit.toLong()).asFlow()
             .mapToList(Dispatchers.Default)
