@@ -48,10 +48,11 @@ class CaptureCoordinatorTest {
     @Test
     fun `start forwards live captures to handler and advances cursor`() =
         runTest(UnconfinedTestDispatcher()) {
+            val testDispatcher = UnconfinedTestDispatcher(testScheduler)
             val source = FakeCaptureService()
             val config = FakeCaptureConfigRepository(initialCursor = 0)
             val handler = RecordingHandler()
-            val coordinator = CaptureCoordinator(source, handler, config)
+            val coordinator = CaptureCoordinator(source, handler, config, dispatcher = testDispatcher)
 
             coordinator.start(backgroundScope)
 
@@ -65,10 +66,11 @@ class CaptureCoordinatorTest {
     @Test
     fun `cursor never moves backward when an older capture arrives`() =
         runTest(UnconfinedTestDispatcher()) {
+            val testDispatcher = UnconfinedTestDispatcher(testScheduler)
             val source = FakeCaptureService()
             val config = FakeCaptureConfigRepository(initialCursor = 1000)
             val handler = RecordingHandler()
-            val coordinator = CaptureCoordinator(source, handler, config)
+            val coordinator = CaptureCoordinator(source, handler, config, dispatcher = testDispatcher)
 
             coordinator.start(backgroundScope)
 

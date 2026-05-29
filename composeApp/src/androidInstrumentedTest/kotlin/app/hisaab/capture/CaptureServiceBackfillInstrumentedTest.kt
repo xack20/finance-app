@@ -10,6 +10,7 @@ import android.provider.Telephony
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.hisaab.domain.CaptureChannel
+import app.hisaab.domain.RawCapture
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.test.assertEquals
@@ -52,7 +53,7 @@ class CaptureServiceBackfillInstrumentedTest {
     }
 
     /** Replicates CaptureService.backfillSince's cursor-mapping against an arbitrary URI. */
-    private fun mapInboxCursor(context: Context, uri: Uri, cursorMs: Long) = buildList {
+    private fun mapInboxCursor(context: Context, uri: Uri, cursorMs: Long): List<RawCapture> = buildList {
         context.contentResolver.query(
             uri,
             arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
@@ -67,7 +68,7 @@ class CaptureServiceBackfillInstrumentedTest {
                 val addr = c.getString(a) ?: continue
                 val body = c.getString(b) ?: continue
                 if (body.isBlank()) continue
-                add(Triple(addr, body, c.getLong(d)))
+                add(RawCapture(sender = addr, body = body, receivedAt = c.getLong(d), channel = CaptureChannel.SMS))
             }
         }
     }
@@ -87,10 +88,10 @@ class CaptureServiceBackfillInstrumentedTest {
         assertEquals("${Telephony.Sms.DATE} ASC", FakeSmsProvider.lastSortOrder)
         // Verify mapping + blank-body skip (NAGAD row dropped).
         assertEquals(2, rows.size)
-        assertEquals("bKash", rows[0].first)
-        assertEquals("Tk 100 received", rows[0].second)
-        assertTrue(rows.none { it.first == "NAGAD" })
-        // Channel is always SMS for inbox-mapped rows.
-        assertEquals(CaptureChannel.SMS, CaptureChannel.SMS)
+        assertEquals("bKash", rows[0].sender)
+        assertEquals("Tk 100 received", rows[0].body)
+        assertTrue(rows.none { it.sender == "NAGAD" })
+        // Channel is always SMS for inbox-mapped rows; assert on the actual mapped row.
+        assertEquals(CaptureChannel.SMS, rows[0].channel)
     }
 }

@@ -1,7 +1,9 @@
 package app.hisaab.capture
 
 import app.hisaab.domain.RawCapture
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -34,12 +36,18 @@ class CaptureCoordinator(
     private val source: CaptureSource,
     private val handler: CaptureHandler,
     private val cursorStore: CaptureCursorStore,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     private val mutex = Mutex()
 
-    /** Starts collecting the live stream on [scope]. Each capture is processed under the mutex. */
+    /**
+     * Starts collecting the live stream on [scope] using [dispatcher] (default: [Dispatchers.Default]
+     * so the collection loop and [process] — which includes DB writes via [CaptureCursorStore.advanceCursor]
+     * and the M3-3 pipeline — never run on the main thread). Tests inject an [UnconfinedTestDispatcher]
+     * to subscribe eagerly and drive virtual time deterministically.
+     */
     fun start(scope: CoroutineScope) {
-        scope.launch {
+        scope.launch(dispatcher) {
             source.observeIncoming().collect { raw ->
                 process(raw)
             }
