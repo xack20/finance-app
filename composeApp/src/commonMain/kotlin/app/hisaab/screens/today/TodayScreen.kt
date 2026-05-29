@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,7 +35,7 @@ import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.domain.TxnKind
 
 @Composable
-fun TodayScreen(onTxnClick: (String) -> Unit) {
+fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit) {
     val palette = LocalHisaabPalette.current
     val container = LocalAppContainer.current
     val viewModel = remember {
@@ -41,10 +44,12 @@ fun TodayScreen(onTxnClick: (String) -> Unit) {
             accountRepo = container.accountRepository,
             categoryRepo = container.categoryRepository,
             merchantRepo = container.merchantRepository,
+            inboxRepo = container.captureInboxRepository,
         )
     }
     val net by viewModel.todayNet.collectAsState()
     val recent by viewModel.recent.collectAsState()
+    val pendingCount by viewModel.pendingCount.collectAsState()
 
     Column(
         modifier = Modifier
@@ -53,7 +58,14 @@ fun TodayScreen(onTxnClick: (String) -> Unit) {
             .padding(horizontal = 22.dp),
     ) {
         Spacer(Modifier.height(16.dp))
-        Text("Today", style = MaterialTheme.typography.displaySmall, color = palette.onBackground)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text("Today", style = MaterialTheme.typography.displaySmall, color = palette.onBackground)
+            ReviewBadge(count = pendingCount, palette = palette, onClick = onReview)
+        }
         Spacer(Modifier.height(20.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
@@ -122,17 +134,31 @@ private fun TxnRow(
                 style = MaterialTheme.typography.bodyLarge,
             )
             Spacer(Modifier.height(2.dp))
-            Text(
-                buildString {
-                    append(display.accountName)
-                    if (!display.categoryName.isNullOrBlank() && display.merchantName != null) {
-                        append(" · ")
-                        append(display.categoryName)
-                    }
-                },
-                fontSize = 12.sp,
-                color = palette.muted,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    buildString {
+                        append(display.accountName)
+                        if (!display.categoryName.isNullOrBlank() && display.merchantName != null) {
+                            append(" · ")
+                            append(display.categoryName)
+                        }
+                    },
+                    fontSize = 12.sp,
+                    color = palette.muted,
+                )
+                if (display.row.captureId != null) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "auto",
+                        fontSize = 10.sp,
+                        color = palette.background,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(palette.gold)
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
+                }
+            }
         }
         val (sign, color) = when (display.row.kind) {
             TxnKind.INCOME, TxnKind.LEND, TxnKind.SETTLEMENT -> "+" to palette.positive

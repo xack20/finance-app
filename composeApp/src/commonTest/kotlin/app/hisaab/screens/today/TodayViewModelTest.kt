@@ -43,7 +43,7 @@ class TodayViewModelTest {
         val txn = TransactionRepository(db, merchant, tag)
         val account = AccountRepository(db)
         val category = CategoryRepository(db)
-        val vm = TodayViewModel(txn, account, category, merchant)
+        val vm = TodayViewModel(txn, account, category, merchant, app.hisaab.data.CaptureInboxRepository(db))
         assertEquals(0.0, vm.todayNet.value.income)
         assertEquals(0.0, vm.todayNet.value.expense)
         assertEquals(0.0, vm.todayNet.value.net)
@@ -58,8 +58,32 @@ class TodayViewModelTest {
         val txn = TransactionRepository(db, merchant, tag)
         val account = AccountRepository(db)
         val category = CategoryRepository(db)
-        val vm = TodayViewModel(txn, account, category, merchant)
+        val vm = TodayViewModel(txn, account, category, merchant, app.hisaab.data.CaptureInboxRepository(db))
         assertEquals(0.0, vm.todayNet.value.net)
+    }
+
+    @Test
+    fun `pendingCount reflects inbox pending candidates`() = runTest {
+        val db = TestDatabase.create()
+        val merchant = MerchantRepository(db)
+        val tag = TagRepository(db)
+        val txn = TransactionRepository(db, merchant, tag)
+        val account = AccountRepository(db)
+        val category = CategoryRepository(db)
+        val inbox = app.hisaab.data.CaptureInboxRepository(db)
+        inbox.insertCandidate(
+            app.hisaab.domain.CandidateTransaction(
+                id = "c1", receivedAt = 1L, channel = app.hisaab.domain.CaptureChannel.SMS,
+                sender = "bKash", rawBody = "x", dedupHash = "h1",
+                status = app.hisaab.domain.CaptureStatus.PENDING, confidence = 0.5,
+                parsedBy = app.hisaab.domain.ParsedBy.TEMPLATE, model = null, parseError = null,
+                amount = 1.0, direction = app.hisaab.domain.Direction.DEBIT, currency = "BDT",
+                balanceAfter = null, refNo = null, proposedAccountId = null,
+                proposedCategoryId = null, proposedMerchant = null, createdAt = 1L,
+            ),
+        )
+        val vm = TodayViewModel(txn, account, category, merchant, inbox)
+        assertEquals(1L, inbox.observePendingCount().first())
     }
 
     @Test

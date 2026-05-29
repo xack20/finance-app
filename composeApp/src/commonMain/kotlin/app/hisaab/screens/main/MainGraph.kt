@@ -96,7 +96,10 @@ fun MainGraph() {
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             composable(MainTab.TODAY.name) {
-                TodayScreen(onTxnClick = { id -> navController.navigate("txn/$id") })
+                TodayScreen(
+                    onTxnClick = { id -> navController.navigate("txn/$id") },
+                    onReview = { /* wired fully in Task 12 */ },
+                )
             }
             composable(MainTab.MONTH.name) { MonthScreen() }
             composable(MainTab.PEOPLE.name) {

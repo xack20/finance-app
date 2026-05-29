@@ -1,6 +1,7 @@
 package app.hisaab.screens.today
 
 import app.hisaab.data.AccountRepository
+import app.hisaab.data.CaptureInboxRepository
 import app.hisaab.data.CategoryRepository
 import app.hisaab.data.MerchantRepository
 import app.hisaab.data.TransactionRepository
@@ -27,6 +28,7 @@ class TodayViewModel(
     accountRepo: AccountRepository,
     categoryRepo: CategoryRepository,
     merchantRepo: MerchantRepository,
+    inboxRepo: CaptureInboxRepository,
     scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     val todayNet: StateFlow<MoneyTotals> = txnRepo.observeTodayNet()
@@ -51,4 +53,7 @@ class TodayViewModel(
             )
         }
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val pendingCount: StateFlow<Long> = inboxRepo.observePendingCount()
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), 0L)
 }
