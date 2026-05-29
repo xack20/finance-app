@@ -12,15 +12,21 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import app.hisaab.LocalAppContainer
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.domain.CloudProvider
 import app.hisaab.screens.capture.AutoPostSnackbarHost
 import app.hisaab.screens.capture.ReviewInboxScreen
 import app.hisaab.screens.entry.EntryScreen
@@ -29,6 +35,7 @@ import app.hisaab.screens.people.PeopleListScreen
 import app.hisaab.screens.people.PersonDetailScreen
 import app.hisaab.screens.settings.AccountsScreen
 import app.hisaab.screens.settings.AutoCaptureScreen
+import app.hisaab.screens.settings.AutoCaptureViewModel
 import app.hisaab.screens.settings.BudgetsScreen
 import app.hisaab.screens.settings.CategoriesScreen
 import app.hisaab.screens.settings.CloudConsentScreen
@@ -105,6 +112,7 @@ fun MainGraph() {
                     TodayScreen(
                         onTxnClick = { id -> navController.navigate("txn/$id") },
                         onReview = { navController.navigate("review") },
+                        onAutoCapture = { navController.navigate("settings/auto-capture") },
                     )
                 }
                 composable(MainTab.MONTH.name) { MonthScreen() }
@@ -136,7 +144,38 @@ fun MainGraph() {
                     )
                 }
                 composable("settings/auto-capture/consent") {
-                    CloudConsentScreen(onBack = { navController.popBackStack() })
+                    // Build a minimal AutoCaptureViewModel scoped to this entry so we can read
+                    // the live config (providerName, consentGranted) without duplicating state.
+                    // This is the SAME VM factory used by AutoCaptureScreen — no second copy of
+                    // mutable state is created; the config is read-only here.
+                    val container = LocalAppContainer.current
+                    val consentVm = remember {
+                        val service = container.captureService
+                        AutoCaptureViewModel(
+                            configRepo = container.captureConfigRepository,
+                            senderRepo = container.senderRepository,
+                            accountRepo = container.accountRepository,
+                            hasSmsPermission = { service.hasSmsPermission() },
+                            requestSmsPermission = { service.requestSmsPermission() },
+                            backfillSince = { cursor -> service.backfillSince(cursor) },
+                            loadApiKey = { key -> container.secureStorage.loadString(key) },
+                            storeApiKey = { key, value -> container.secureStorage.storeString(key, value) },
+                            clearApiKey = { key -> container.secureStorage.storeString(key, "") },
+                            router = container.llmRouter,
+                        )
+                    }
+                    val cfg by consentVm.config.collectAsState()
+                    val providerName = cfg?.cloudProvider?.name?.lowercase()
+                        ?.replaceFirstChar { it.uppercase() }
+                        ?: CloudProvider.CLAUDE.name.lowercase().replaceFirstChar { it.uppercase() }
+                    val consentGranted = cfg?.cloudConsentAt != null
+                    CloudConsentScreen(
+                        providerName = providerName,
+                        consentGranted = consentGranted,
+                        onGrant = { consentVm.recordConsent() },
+                        onRevoke = { consentVm.revokeConsent() },
+                        onBack = { navController.popBackStack() },
+                    )
                 }
                 composable("review") {
                     ReviewInboxScreen(
@@ -146,10 +185,16 @@ fun MainGraph() {
                         },
                     )
                 }
-                composable("entry") {
-                    EntryScreen(onDone = { navController.popBackStack() })
-                }
-                composable("entry?candidateId={candidateId}") { entry ->
+                // Single composable handles both "entry" (no candidateId) and
+                // "entry?candidateId={candidateId}" via a nullable argument with a default of null.
+                composable(
+                    route = "entry?candidateId={candidateId}",
+                    arguments = listOf(navArgument("candidateId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }),
+                ) { entry ->
                     val cId = entry.arguments?.getString("candidateId")
                     EntryScreen(candidateId = cId, onDone = { navController.popBackStack() })
                 }

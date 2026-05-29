@@ -150,11 +150,11 @@ fun AutoCaptureScreen(
                             fontSize = 12.sp,
                         )
                     }
-                    SettingRowLocal("Model", c.cloudModel ?: "default", palette) {
+                    SettingRow("Model", c.cloudModel ?: "default", palette) {
                         // Model text entry handled inline; left as a tap target for a future picker.
                     }
                     Spacer(Modifier.height(8.dp))
-                    SettingRowLocal("Cloud consent", if (c.cloudConsentAt != null) "Granted ›" else "Required ›", palette, onConsent)
+                    SettingRow("Cloud consent", if (c.cloudConsentAt != null) "Granted ›" else "Required ›", palette, onConsent)
                 }
             }
 
@@ -341,18 +341,6 @@ private fun RadioRow(label: String, selected: Boolean, palette: HisaabColors.Pal
     ) {
         Text(label, color = palette.onBackground, modifier = Modifier.weight(1f))
         if (selected) Text("✓", color = palette.accent)
-    }
-    HorizontalDivider(color = palette.rule)
-}
-
-@Composable
-private fun SettingRowLocal(label: String, value: String, palette: HisaabColors.Palette, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, color = palette.muted, modifier = Modifier.weight(1f))
-        Text(value, color = palette.onBackground)
     }
     HorizontalDivider(color = palette.rule)
 }

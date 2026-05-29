@@ -12,6 +12,9 @@ DELETE FROM txn WHERE id = ?;
 getTxn:
 SELECT * FROM txn WHERE id = ?;
 
+observeTxnById:
+SELECT * FROM txn WHERE id = ?;
+
 observeRecentTopLevel:
 SELECT txn.id, txn.account_id, txn.amount, txn.currency, txn.ts, txn.merchant_id,
        txn.category_id, txn.source, txn.notes, txn.kind, txn.parent_txn_id, txn.capture_id

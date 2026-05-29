@@ -7,8 +7,10 @@ import app.hisaab.domain.CandidateTransaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -56,11 +58,32 @@ class ReviewInboxViewModel(
         scope.launch { confirmCandidate(candidateId) }
     }
 
+    /**
+     * One-shot message for the UI to display after [confirmAllHighConfidence] completes.
+     * Emits a human-readable summary (e.g. "Confirmed 3, 1 needs an account") and resets to
+     * null after the UI has consumed it. The screen should clear this after showing a snackbar.
+     */
+    private val _bulkResult = MutableStateFlow<String?>(null)
+    val bulkResult: StateFlow<String?> = _bulkResult.asStateFlow()
+
+    /** Clear the bulk-result message after the UI has consumed it (e.g. after snackbar dismiss). */
+    fun clearBulkResult() { _bulkResult.value = null }
+
     fun confirmAllHighConfidence(threshold: Double) {
         scope.launch {
-            inboxRepo.getPending()
+            val candidates = inboxRepo.getPending()
                 .filter { (it.confidence ?: 0.0) >= threshold }
-                .forEach { confirmCandidate(it.id) }
+            var confirmed = 0
+            var skipped = 0
+            candidates.forEach { c ->
+                if (confirmCandidate(c.id)) confirmed++ else skipped++
+            }
+            _bulkResult.value = when {
+                confirmed == 0 && skipped == 0 -> null
+                skipped == 0 -> "Confirmed $confirmed"
+                confirmed == 0 -> "$skipped need an account — edit to post"
+                else -> "Confirmed $confirmed, $skipped need an account"
+            }
         }
     }
 }

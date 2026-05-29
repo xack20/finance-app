@@ -6,7 +6,6 @@ import app.hisaab.data.CategoryRepository
 import app.hisaab.data.MerchantRepository
 import app.hisaab.data.TransactionRepository
 import app.hisaab.domain.CandidateTransaction
-import app.hisaab.domain.TransactionRow
 import app.hisaab.screens.today.TransactionRowDisplay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,7 +15,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -29,13 +27,14 @@ class TransactionDetailViewModel(
     private val inboxRepo: CaptureInboxRepository,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
+    // Use observeById so the detail screen works for ANY transaction regardless of its position
+    // in history, and reacts to deletion (emits null → screen can pop/handle).
     val row: StateFlow<TransactionRowDisplay?> = combine(
-        txnRepo.observeRecent(500),
+        txnRepo.observeById(txnId),
         accountRepo.observeActive(),
         categoryRepo.observeAll(),
         merchantRepo.observeAll(),
-    ) { txns, accounts, cats, merchants ->
-        val txn: TransactionRow? = txns.firstOrNull { it.id == txnId }
+    ) { txn, accounts, cats, merchants ->
         if (txn == null) {
             null
         } else {

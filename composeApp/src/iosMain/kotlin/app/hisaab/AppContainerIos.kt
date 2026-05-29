@@ -234,8 +234,16 @@ actual class AppContainer {
     actual fun databaseOrNull(): HisaabDatabase? = cachedDatabase
 
     actual fun closeDatabase() {
-        captureScope?.cancel()
+        // Drain in-flight process() coroutines before closing the driver to prevent
+        // queries on a closed connection. join() waits for all children to finish, then cancel()
+        // prevents any new work. runBlocking mirrors the established pattern in openDatabase().
+        val scope = captureScope
         captureScope = null
+        scope?.let {
+            kotlinx.coroutines.runBlocking {
+                (it.coroutineContext[kotlinx.coroutines.Job])?.let { j -> j.cancel(); j.join() }
+            }
+        }
         cachedDriver?.close()
         cachedDriver = null
         cachedDatabase = null

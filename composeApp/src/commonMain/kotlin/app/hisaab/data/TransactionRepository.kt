@@ -2,6 +2,7 @@ package app.hisaab.data
 
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
+import app.cash.sqldelight.coroutines.mapToOneOrNull
 import app.hisaab.db.HisaabDatabase
 import app.hisaab.db.ObserveRecentTopLevel
 import app.hisaab.domain.MoneyTotals
@@ -30,6 +31,16 @@ class TransactionRepository(
         db.transactionQueriesQueries.observeRecentTopLevel(limit.toLong()).asFlow()
             .mapToList(Dispatchers.Default)
             .map { rows -> rows.map { it.toDomain() } }
+
+    /**
+     * Reactive single-row lookup by id. Emits the row whenever it changes and emits null if the
+     * transaction is deleted. Used by [app.hisaab.screens.transaction.TransactionDetailViewModel]
+     * so the detail screen works for transactions that fall outside the recent-500 window.
+     */
+    fun observeById(id: String): Flow<TransactionRow?> =
+        db.transactionQueriesQueries.observeTxnById(id).asFlow()
+            .mapToOneOrNull(Dispatchers.Default)
+            .map { row -> row?.toFullDomain() }
 
     fun observeForDay(epochDayMs: Long): Flow<List<TransactionRow>> {
         val (start, end) = dayRangeMs(epochDayMs)

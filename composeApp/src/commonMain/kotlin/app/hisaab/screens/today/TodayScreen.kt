@@ -32,10 +32,12 @@ import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.HisaabColors
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.TxnKind
+import app.hisaab.screens.onboarding.CaptureOptInCard
 
 @Composable
-fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit) {
+fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCapture: () -> Unit) {
     val palette = LocalHisaabPalette.current
     val container = LocalAppContainer.current
     val viewModel = remember {
@@ -45,11 +47,17 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit) {
             categoryRepo = container.categoryRepository,
             merchantRepo = container.merchantRepository,
             inboxRepo = container.captureInboxRepository,
+            loadOptInSeen = { container.secureStorage.loadString("capture_optin_seen") == "true" },
+            saveOptInSeen = { container.secureStorage.storeString("capture_optin_seen", "true") },
+            captureConfigRepo = container.captureConfigRepository,
+            smsCapable = container.captureService.capabilities().contains(CaptureChannel.SMS),
         )
     }
     val net by viewModel.todayNet.collectAsState()
     val recent by viewModel.recent.collectAsState()
     val pendingCount by viewModel.pendingCount.collectAsState()
+    val captureOptInSeen by viewModel.captureOptInSeen.collectAsState()
+    val captureEnabled by viewModel.captureEnabled.collectAsState()
 
     Column(
         modifier = Modifier
@@ -75,6 +83,22 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit) {
         }
 
         Spacer(Modifier.height(28.dp))
+
+        // Show the capture opt-in card between the totals row and the transaction list.
+        // Conditions: capture not yet enabled, user hasn't dismissed the card, SMS is supported.
+        if (!captureEnabled && !captureOptInSeen && viewModel.smsSupported) {
+            CaptureOptInCard(
+                onTurnOn = {
+                    viewModel.dismissOptIn()
+                    onAutoCapture()
+                },
+                onMaybeLater = {
+                    viewModel.dismissOptIn()
+                },
+                modifier = Modifier.padding(bottom = 16.dp),
+            )
+        }
+
         HorizontalDivider(color = palette.rule)
         Spacer(Modifier.height(8.dp))
 

@@ -17,38 +17,30 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import app.hisaab.LocalAppContainer
 import app.hisaab.design.LocalHisaabPalette
-import app.hisaab.domain.CloudProvider
 
+/**
+ * Consent screen for cloud parsing. The caller (AutoCaptureScreen flow in MainGraph) owns the
+ * [AutoCaptureViewModel] and passes plain data / callbacks here so no second VM is instantiated.
+ *
+ * @param providerName  Display name of the selected cloud provider (e.g. "Claude").
+ * @param consentGranted Whether consent has already been granted (cloudConsentAt != null).
+ * @param onGrant  Called when the user taps "I agree". Caller forwards to AutoCaptureViewModel.recordConsent().
+ * @param onRevoke Called when the user taps "Revoke consent". Caller forwards to AutoCaptureViewModel.revokeConsent().
+ * @param onBack   Navigate up.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CloudConsentScreen(onBack: () -> Unit) {
+fun CloudConsentScreen(
+    providerName: String,
+    consentGranted: Boolean,
+    onGrant: () -> Unit,
+    onRevoke: () -> Unit,
+    onBack: () -> Unit,
+) {
     val palette = LocalHisaabPalette.current
-    val container = LocalAppContainer.current
-    val viewModel = remember {
-        val service = container.captureService
-        AutoCaptureViewModel(
-            configRepo = container.captureConfigRepository,
-            senderRepo = container.senderRepository,
-            accountRepo = container.accountRepository,
-            hasSmsPermission = { service.hasSmsPermission() },
-            requestSmsPermission = { service.requestSmsPermission() },
-            backfillSince = { cursor -> service.backfillSince(cursor) },
-            loadApiKey = { key -> container.secureStorage.loadString(key) },
-            storeApiKey = { key, value -> container.secureStorage.storeString(key, value) },
-            clearApiKey = { key -> container.secureStorage.storeString(key, "") },
-            router = container.llmRouter,
-        )
-    }
-    val cfg by viewModel.config.collectAsState()
-    val providerName = cfg?.cloudProvider?.name?.lowercase()?.replaceFirstChar { it.uppercase() }
-        ?: CloudProvider.CLAUDE.name.lowercase().replaceFirstChar { it.uppercase() }
 
     Scaffold(
         topBar = {
@@ -74,16 +66,15 @@ fun CloudConsentScreen(onBack: () -> Unit) {
                 color = palette.muted,
             )
             Spacer(Modifier.height(24.dp))
-            val granted = cfg?.cloudConsentAt != null
-            if (granted) {
+            if (consentGranted) {
                 Text("Consent granted.", color = palette.positive)
                 Spacer(Modifier.height(12.dp))
-                TextButton(onClick = { viewModel.revokeConsent() }) {
+                TextButton(onClick = onRevoke) {
                     Text("Revoke consent", color = palette.negative)
                 }
             } else {
                 Button(
-                    onClick = { viewModel.recordConsent(); onBack() },
+                    onClick = { onGrant(); onBack() },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
                 ) {

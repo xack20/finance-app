@@ -111,26 +111,6 @@ private fun SectionLabel(text: String, palette: HisaabColors.Palette) {
 }
 
 @Composable
-private fun SettingRow(
-    label: String,
-    value: String,
-    palette: HisaabColors.Palette,
-    onClick: (() -> Unit)? = null,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .let { if (onClick != null) it.clickable { onClick() } else it }
-            .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, color = palette.muted, modifier = Modifier.weight(1f))
-        Text(value, color = palette.onBackground)
-    }
-    HorizontalDivider(color = palette.rule)
-}
-
-@Composable
 private fun SettingToggleRow(
     label: String,
     checked: Boolean,

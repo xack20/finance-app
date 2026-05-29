@@ -62,8 +62,8 @@ class CaptureCoordinator(
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e  // always re-throw CancellationException
                 } catch (e: Throwable) {
-                    // Log and continue — a single failing item must not cancel the whole stream.
-                    println("[CaptureCoordinator] per-item failure for sender=${raw.sender} ts=${raw.receivedAt}: $e")
+                    // Swallow per-item failures so the stream stays alive. The cursor does not
+                    // advance for a failed item; it will be retried on the next catchUp/unlock.
                 }
             }
         }
