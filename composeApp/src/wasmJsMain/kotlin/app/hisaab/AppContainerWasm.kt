@@ -19,10 +19,14 @@ import app.hisaab.data.PersonRepository
 import app.hisaab.data.SenderRepository
 import app.hisaab.data.TagRepository
 import app.hisaab.data.TransactionRepository
+import app.hisaab.capture.CaptureCoordinator
+import app.hisaab.capture.CaptureCursorStore
+import app.hisaab.capture.CaptureHandler
 import app.hisaab.db.DatabaseDriverFactory
 import app.hisaab.db.HisaabDatabase
 import app.hisaab.platform.AppLifecycle
 import app.hisaab.platform.BiometricAuth
+import app.hisaab.platform.CaptureService
 import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
@@ -35,6 +39,7 @@ actual class AppContainer {
     actual val imagePicker: ImagePicker = ImagePicker()
     actual val fileStore: PlatformFileStore = PlatformFileStore()
     actual val lifecycle: AppLifecycle = AppLifecycle()
+    actual val captureService: CaptureService = CaptureService()
 
     actual val cryptoService: CryptoService = CryptoService()
     actual val mnemonicService: MnemonicService = MnemonicService()
@@ -84,6 +89,19 @@ actual class AppContainer {
         get() = SenderRepository(requireDb())
     actual val captureConfigRepository: CaptureConfigRepository
         get() = CaptureConfigRepository(requireDb())
+
+    private fun captureConfigRepository(): CaptureConfigRepository = CaptureConfigRepository(requireDb())
+
+    actual val captureCoordinator: CaptureCoordinator
+        get() {
+            val configRepo = captureConfigRepository()
+            val cursorStore = object : CaptureCursorStore {
+                override suspend fun currentCursor(): Long = configRepo.get().lastSmsCursor
+                override suspend fun advanceCursor(toMs: Long) { configRepo.setCursor(toMs) }
+            }
+            val handler = CaptureHandler { /* no-op until M3-3 pipeline lands */ }
+            return CaptureCoordinator(captureService, handler, cursorStore)
+        }
 
     actual fun openDatabase(masterSecret: ByteArray): HisaabDatabase {
         cachedDatabase?.let { return it }

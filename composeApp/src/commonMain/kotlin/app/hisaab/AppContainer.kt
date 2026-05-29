@@ -20,8 +20,10 @@ import app.hisaab.data.TagRepository
 import app.hisaab.data.TransactionRepository
 import app.hisaab.db.DatabaseDriverFactory
 import app.hisaab.db.HisaabDatabase
+import app.hisaab.capture.CaptureCoordinator
 import app.hisaab.platform.AppLifecycle
 import app.hisaab.platform.BiometricAuth
+import app.hisaab.platform.CaptureService
 import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
@@ -65,6 +67,8 @@ expect class AppContainer {
     val captureInboxRepository: CaptureInboxRepository
     val senderRepository: SenderRepository
     val captureConfigRepository: CaptureConfigRepository
+    val captureService: CaptureService
+    val captureCoordinator: CaptureCoordinator
 
     /** Master secret cached in memory while DB is open. null when locked or pre-onboarding. */
     fun masterSecretInMemory(): ByteArray?
