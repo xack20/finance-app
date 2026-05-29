@@ -110,6 +110,29 @@ class CaptureCoordinatorTest {
     }
 
     @Test
+    fun `start - a handler that throws on item 1 still lets item 2 be processed`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+            val source = FakeCaptureService()
+            val config = FakeCaptureConfigRepository(initialCursor = 0)
+            val processed = mutableListOf<String>()
+            var callCount = 0
+            val throwingThenOk = CaptureHandler { raw ->
+                callCount++
+                if (callCount == 1) error("item 1 failed")
+                processed.add(raw.body)
+            }
+            val coordinator = CaptureCoordinator(source, throwingThenOk, config, dispatcher = testDispatcher)
+
+            coordinator.start(backgroundScope)
+
+            source.emit(sms("boom", 500))    // first item throws
+            source.emit(sms("ok", 600))      // second item must still arrive
+
+            assertEquals(listOf("ok"), processed)  // item 2 processed despite item 1 failure
+        }
+
+    @Test
     fun `runInitialBackfill queries source with now minus 90 days when no cursor stored`() = runTest {
         val now = 10_000_000_000L
         val ninetyDaysMs = 90L * 24L * 60L * 60L * 1000L

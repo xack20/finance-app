@@ -41,6 +41,7 @@ import app.hisaab.llm.cloud.GeminiProvider
 import app.hisaab.llm.cloud.OpenAiProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import kotlinx.coroutines.cancel
 
 actual class AppContainer(
     private val context: Context,
@@ -187,6 +188,51 @@ actual class AppContainer(
         CaptureCoordinator(captureService, handler, cursorStore)
     }
 
+    // M3-5: coordinator scope — created on DB open, cancelled on DB close.
+    private var captureScope: kotlinx.coroutines.CoroutineScope? = null
+
+    actual fun captureCoordinatorOrNull(): CaptureCoordinator? =
+        if (cachedDatabase != null) captureCoordinator else null
+
+    /**
+     * Atomically posts a pending candidate to the ledger and marks it CONFIRMED in one db.transaction.
+     * Links the txn at insert time via NewTransaction.captureId (R1: no link method).
+     * Returns false if the candidate is missing required fields (account/amount/direction).
+     */
+    actual suspend fun confirmCandidate(candidateId: String): Boolean {
+        val db = cachedDatabase ?: return false
+        val inbox = CaptureInboxRepository(db)
+        val txnRepo = transactionRepository
+        val c = inbox.getById(candidateId) ?: return false
+        val accountId = c.proposedAccountId ?: return false
+        val amount = c.amount ?: return false
+        val kind = when (c.direction) {
+            app.hisaab.domain.Direction.DEBIT -> app.hisaab.domain.TxnKind.EXPENSE
+            app.hisaab.domain.Direction.CREDIT -> app.hisaab.domain.TxnKind.INCOME
+            null -> return false
+        }
+        db.transaction {
+            // addBlocking is the synchronous variant safe to use inside db.transaction {}
+            txnRepo.addBlocking(
+                app.hisaab.domain.NewTransaction(
+                    accountId = accountId,
+                    amount = amount,
+                    currency = c.currency,
+                    ts = c.receivedAt,
+                    merchantName = c.proposedMerchant,
+                    categoryId = c.proposedCategoryId,
+                    source = app.hisaab.domain.TxnSource.SMS,
+                    notes = null,
+                    kind = kind,
+                    captureId = candidateId,
+                ),
+            )
+            // markConfirmed calls queries.updateStatus synchronously; safe inside db.transaction
+            inbox.markConfirmedBlocking(candidateId)
+        }
+        return true
+    }
+
     actual fun openDatabase(masterSecret: ByteArray): HisaabDatabase {
         cachedDatabase?.let { return it }
         cachedMasterSecret = masterSecret.copyOf()
@@ -203,12 +249,23 @@ actual class AppContainer(
             categoryRepository.ensureDefaults()
             accountRepository.ensureDefaultCashAccount()
         }
+        // M3-5: start the capture coordinator now that the DB is open (idempotent).
+        if (captureScope == null) {
+            val scope = kotlinx.coroutines.CoroutineScope(
+                kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+            )
+            captureScope = scope
+            captureCoordinator.start(scope)
+        }
         return db
     }
 
     actual fun databaseOrNull(): HisaabDatabase? = cachedDatabase
 
     actual fun closeDatabase() {
+        // M3-5: cancel the capture coordinator scope before closing the DB.
+        captureScope?.cancel()
+        captureScope = null
         cachedDriver?.close()
         cachedDriver = null
         cachedDatabase = null

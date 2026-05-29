@@ -75,6 +75,17 @@ expect class AppContainer {
     val capturePipeline: app.hisaab.capture.CapturePipeline
     val captureEvents: kotlinx.coroutines.flow.SharedFlow<app.hisaab.capture.CaptureEvent>
 
+    /** Null until the DB is open; started by openDatabase, cancelled by closeDatabase. */
+    fun captureCoordinatorOrNull(): CaptureCoordinator?
+
+    /**
+     * Posts a pending candidate to the ledger and marks it CONFIRMED in ONE db transaction
+     * (mirrors the auto-post atomicity). Returns false (and leaves the candidate PENDING) if it
+     * can't be posted yet — e.g. no resolved account/amount/direction — so the user can Edit.
+     * The txn is linked at insert time via NewTransaction.captureId; there is no separate link call.
+     */
+    suspend fun confirmCandidate(candidateId: String): Boolean
+
     /** Master secret cached in memory while DB is open. null when locked or pre-onboarding. */
     fun masterSecretInMemory(): ByteArray?
 

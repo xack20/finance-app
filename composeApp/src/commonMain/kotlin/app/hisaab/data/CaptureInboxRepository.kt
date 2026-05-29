@@ -99,6 +99,14 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
         queries.updateStatus(CaptureStatus.CONFIRMED.name, id)
     }
 
+    /**
+     * Non-suspending variant for use inside a [app.hisaab.db.HisaabDatabase.transaction] block.
+     * Called by AppContainer.confirmCandidate atomic helper (M3-5).
+     */
+    fun markConfirmedBlocking(id: String) {
+        queries.updateStatus(CaptureStatus.CONFIRMED.name, id)
+    }
+
     suspend fun markDismissed(id: String) {
         queries.updateStatus(CaptureStatus.DISMISSED.name, id)
     }

@@ -46,10 +46,25 @@ class CaptureCoordinator(
      * and the M3-3 pipeline — never run on the main thread). Tests inject an [UnconfinedTestDispatcher]
      * to subscribe eagerly and drive virtual time deterministically.
      */
+    /**
+     * Starts collecting the live stream on [scope] using [dispatcher].
+     *
+     * Per-item exception guard (M3-5 requirement): a handler failure on any single item is caught
+     * and logged; the cursor does NOT advance for the failed item (it will be retried on next
+     * catchUp/unlock). The collection coroutine itself is NOT cancelled — subsequent items continue
+     * to be processed normally. Only unrecoverable coroutine cancellation propagates.
+     */
     fun start(scope: CoroutineScope) {
         scope.launch(dispatcher) {
             source.observeIncoming().collect { raw ->
-                process(raw)
+                try {
+                    process(raw)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e  // always re-throw CancellationException
+                } catch (e: Throwable) {
+                    // Log and continue — a single failing item must not cancel the whole stream.
+                    println("[CaptureCoordinator] per-item failure for sender=${raw.sender} ts=${raw.receivedAt}: $e")
+                }
             }
         }
     }
