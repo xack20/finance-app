@@ -7,6 +7,8 @@ import app.hisaab.agent.ChatMessage
 import app.hisaab.agent.ProposedWrite
 import app.hisaab.agent.Role
 import app.hisaab.data.ConversationRepository
+import app.hisaab.llm.LlmError
+import app.hisaab.llm.LlmException
 import app.hisaab.domain.AgentMessage
 import app.hisaab.domain.AgentRole
 import kotlinx.coroutines.CoroutineScope
@@ -153,9 +155,9 @@ class AgentViewModel(
                                 inFlight = false,
                             ) }
                         }
-                        .onFailure {
+                        .onFailure { t ->
                             _state.update { it.copy(
-                                error = "Something went wrong — nothing was saved.",
+                                error = userMessageFor(t),
                                 inFlight = false,
                             ) }
                         }
@@ -197,3 +199,18 @@ class AgentViewModel(
         _state.update { it.copy(error = null, confirmation = null) }
     }
 }
+
+/**
+ * Map a failed turn to a specific, actionable user message (M4-7). Provider/transport failures
+ * arrive as [LlmException] carrying an [LlmError]; anything else falls back to a generic line.
+ */
+internal fun userMessageFor(t: Throwable): String =
+    when (val e = (t as? LlmException)?.error) {
+        LlmError.InvalidKey -> "Your API key looks invalid — check it in Settings."
+        LlmError.RateLimited -> "The model is busy (rate-limited) — try again in a moment."
+        LlmError.Unavailable -> "The model provider is unavailable right now — try again later."
+        is LlmError.Network -> "Network problem — check your connection and try again."
+        is LlmError.ProviderError -> "The model returned an error (HTTP ${e.status}) — please try again."
+        is LlmError.Decode -> "The assistant's reply couldn't be read — try rephrasing."
+        null -> "Something went wrong — nothing was saved."
+    }

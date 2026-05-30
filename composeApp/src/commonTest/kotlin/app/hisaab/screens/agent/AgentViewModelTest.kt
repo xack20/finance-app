@@ -19,6 +19,8 @@ import app.hisaab.data.support.TestDatabase
 import app.hisaab.db.HisaabDatabase
 import app.hisaab.domain.AccountKind
 import app.hisaab.domain.AgentRole
+import app.hisaab.llm.LlmError
+import app.hisaab.llm.LlmException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -292,6 +294,18 @@ class AgentViewModelTest {
         advanceUntilIdle()
         assertNull(v.state.value.error, "onDismissBanner should clear error")
         assertNull(v.state.value.confirmation, "onDismissBanner should clear confirmation")
+    }
+
+    @Test
+    fun `userMessageFor maps LlmError variants to specific actionable messages`() {
+        assertTrue(userMessageFor(LlmException(LlmError.InvalidKey)).contains("API key", ignoreCase = true))
+        assertTrue(userMessageFor(LlmException(LlmError.RateLimited)).contains("rate-limited", ignoreCase = true))
+        assertTrue(userMessageFor(LlmException(LlmError.Unavailable)).contains("unavailable", ignoreCase = true))
+        assertTrue(userMessageFor(LlmException(LlmError.Network("dns"))).contains("Network", ignoreCase = true))
+        assertTrue(userMessageFor(LlmException(LlmError.ProviderError(503, "x"))).contains("503"))
+        assertTrue(userMessageFor(LlmException(LlmError.Decode("bad"))).contains("rephrasing", ignoreCase = true))
+        // Non-LLM throwable → generic fallback
+        assertTrue(userMessageFor(RuntimeException("boom")).contains("Something went wrong", ignoreCase = true))
     }
 
     @Test

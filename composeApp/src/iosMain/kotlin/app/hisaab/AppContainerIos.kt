@@ -128,6 +128,12 @@ actual class AppContainer {
                 }
                 if (adapter != null && adapter.isAvailable()) adapter as? AgentProvider else null
             },
+            unavailableReason = {
+                if (captureConfigRepository.get().cloudProvider == null)
+                    "Pick a cloud model in Settings to use the assistant."
+                else
+                    "Add your cloud model's API key in Settings to use the assistant."
+            },
             isConsented = { secureStorage.loadString("agent_consent_at") != null },
             accountNames = { accountRepository.observeActive().first().joinToString(", ") { it.name } },
             categoryNames = { categoryRepository.observeAll().first().joinToString(", ") { it.name } },

@@ -39,6 +39,10 @@ class AgentRuntime(
     private val accountNames: suspend () -> String,
     private val categoryNames: suspend () -> String,
     private val committer: WriteBatchCommitter,
+    /** Distinct, actionable reason shown when no agent provider resolves (M4-7 per-gate message). */
+    private val unavailableReason: suspend () -> String = {
+        "Add a cloud model + API key in Settings to use the assistant."
+    },
     private val todayIso: () -> String = {
         Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
     },
@@ -47,7 +51,7 @@ class AgentRuntime(
 ) {
     suspend fun availability(): AgentAvailability = when {
         !isConsented() -> AgentAvailability.NeedsConsent
-        agentProvider() == null -> AgentAvailability.Unavailable("Add a cloud model + API key in Settings to use the assistant.")
+        agentProvider() == null -> AgentAvailability.Unavailable(unavailableReason())
         else -> AgentAvailability.Ready
     }
 
