@@ -47,7 +47,7 @@ class AutoCaptureViewModelTest {
         router: FakeLlmRouter = FakeLlmRouter(),
         keys: FakeKeyStore = FakeKeyStore(),
     ): AutoCaptureViewModel {
-        val config = CaptureConfigRepository(db)
+        val config = CaptureConfigRepository(db, dispatcher)
         val senders = SenderRepository(db)
         val accounts = AccountRepository(db)
         return AutoCaptureViewModel(
@@ -77,7 +77,7 @@ class AutoCaptureViewModelTest {
         v.setCaptureEnabled(true)
         advanceUntilIdle()
         assertTrue(gateway.requestCalled)
-        assertTrue(CaptureConfigRepository(db).get().captureEnabled)
+        assertTrue(CaptureConfigRepository(db, dispatcher).get().captureEnabled)
     }
 
     @Test
@@ -86,7 +86,7 @@ class AutoCaptureViewModelTest {
         val v = vm(db)
         v.setEngineMode(EngineMode.CLOUD)
         advanceUntilIdle()
-        assertEquals(EngineMode.CLOUD, CaptureConfigRepository(db).get().engineMode)
+        assertEquals(EngineMode.CLOUD, CaptureConfigRepository(db, dispatcher).get().engineMode)
     }
 
     @Test
@@ -95,7 +95,7 @@ class AutoCaptureViewModelTest {
         val v = vm(db)
         v.setCloudProvider(CloudProvider.CLAUDE, "claude-test")
         advanceUntilIdle()
-        val cfg = CaptureConfigRepository(db).get()
+        val cfg = CaptureConfigRepository(db, dispatcher).get()
         assertEquals(CloudProvider.CLAUDE, cfg.cloudProvider)
         assertEquals("claude-test", cfg.cloudModel)
     }
@@ -135,7 +135,7 @@ class AutoCaptureViewModelTest {
         v.setAlwaysReview(true)
         v.setAutoPostThreshold(0.7)
         advanceUntilIdle()
-        val cfg = CaptureConfigRepository(db).get()
+        val cfg = CaptureConfigRepository(db, dispatcher).get()
         assertEquals(false, cfg.redactionEnabled)
         assertEquals(true, cfg.alwaysReview)
         assertEquals(0.7, cfg.autoPostThreshold)
@@ -147,10 +147,10 @@ class AutoCaptureViewModelTest {
         val v = vm(db)
         v.setAutoPostThreshold(0.55)
         advanceUntilIdle()
-        assertEquals(0.55, CaptureConfigRepository(db).get().autoPostThreshold)
+        assertEquals(0.55, CaptureConfigRepository(db, dispatcher).get().autoPostThreshold)
         v.resetThresholdToDefault()
         advanceUntilIdle()
-        assertEquals(DEFAULT_AUTO_POST_THRESHOLD, CaptureConfigRepository(db).get().autoPostThreshold)
+        assertEquals(DEFAULT_AUTO_POST_THRESHOLD, CaptureConfigRepository(db, dispatcher).get().autoPostThreshold)
         assertEquals(0.85, DEFAULT_AUTO_POST_THRESHOLD)
     }
 
@@ -160,10 +160,10 @@ class AutoCaptureViewModelTest {
         val v = vm(db)
         v.recordConsent(nowMs = 123_456L)
         advanceUntilIdle()
-        assertEquals(123_456L, CaptureConfigRepository(db).get().cloudConsentAt)
+        assertEquals(123_456L, CaptureConfigRepository(db, dispatcher).get().cloudConsentAt)
         v.revokeConsent()
         advanceUntilIdle()
-        assertNull(CaptureConfigRepository(db).get().cloudConsentAt)
+        assertNull(CaptureConfigRepository(db, dispatcher).get().cloudConsentAt)
     }
 
     @Test
@@ -247,7 +247,7 @@ class AutoCaptureViewModelTest {
         var startCount = 0
         var stopCount = 0
         val gateway = FakeCaptureGateway(permissionGranted = true)
-        val config = CaptureConfigRepository(db)
+        val config = CaptureConfigRepository(db, dispatcher)
         config.setCaptureEnabled(true) // already enabled
         val senders = SenderRepository(db)
         val accounts = AccountRepository(db)
@@ -278,7 +278,7 @@ class AutoCaptureViewModelTest {
         var stopCount = 0
         val gateway = FakeCaptureGateway(permissionGranted = true)
         val v = AutoCaptureViewModel(
-            configRepo = CaptureConfigRepository(db),
+            configRepo = CaptureConfigRepository(db, dispatcher),
             senderRepo = SenderRepository(db),
             accountRepo = AccountRepository(db),
             hasSmsPermission = { gateway.hasSmsPermission() },

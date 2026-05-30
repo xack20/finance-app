@@ -6,6 +6,7 @@ import app.hisaab.db.HisaabDatabase
 import app.hisaab.domain.CaptureConfig
 import app.hisaab.domain.CloudProvider
 import app.hisaab.domain.EngineMode
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
@@ -14,7 +15,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 
-class CaptureConfigRepository(private val db: HisaabDatabase) {
+class CaptureConfigRepository(
+    private val db: HisaabDatabase,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
+) {
 
     private val queries get() = db.captureConfigQueriesQueries
 
@@ -22,11 +26,11 @@ class CaptureConfigRepository(private val db: HisaabDatabase) {
 
     // on_device_model setter deferred to M3-4
 
-    private suspend fun ensure() = withContext(Dispatchers.Default) { queries.ensureSingleton(now()) }
+    private suspend fun ensure() = withContext(dispatcher) { queries.ensureSingleton(now()) }
 
     fun observe(): Flow<CaptureConfig> = flow {
         ensure()
-        emitAll(queries.observeConfig().asFlow().mapToOne(Dispatchers.Default).map { it.toDomain() })
+        emitAll(queries.observeConfig().asFlow().mapToOne(dispatcher).map { it.toDomain() })
     }
 
     suspend fun get(): CaptureConfig {
