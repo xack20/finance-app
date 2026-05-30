@@ -9,6 +9,7 @@ import app.hisaab.db.HisaabDatabase
 import app.hisaab.domain.AgentConversation
 import app.hisaab.domain.AgentMessage
 import app.hisaab.domain.AgentRole
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -18,6 +19,7 @@ import kotlin.random.Random
 class ConversationRepository(
     private val db: HisaabDatabase,
     private val now: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+    private val flowDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
 
     private val queries get() = db.agentQueriesQueries
@@ -65,12 +67,12 @@ class ConversationRepository(
 
     fun observeMessages(conversationId: String): Flow<List<AgentMessage>> =
         queries.observeMessages(conversationId).asFlow()
-            .mapToList(Dispatchers.Default)
+            .mapToList(flowDispatcher)
             .map { rows -> rows.map { it.toDomain() } }
 
     fun observeConversations(): Flow<List<AgentConversation>> =
         queries.observeConversations().asFlow()
-            .mapToList(Dispatchers.Default)
+            .mapToList(flowDispatcher)
             .map { rows -> rows.map { it.toDomain() } }
 
     suspend fun latestConversationId(): String? =
