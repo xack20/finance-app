@@ -250,6 +250,7 @@ fun MainGraph() {
                                     Clock.System.now().toEpochMilliseconds().toString(),
                                 )
                             },
+                            speechToText = container.speechToText,
                         )
                     }
                     AgentScreen(vm = vm, onClose = { navController.popBackStack() })

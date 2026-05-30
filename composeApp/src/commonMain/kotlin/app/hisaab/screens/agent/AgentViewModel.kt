@@ -11,6 +11,9 @@ import app.hisaab.llm.LlmError
 import app.hisaab.llm.LlmException
 import app.hisaab.domain.AgentMessage
 import app.hisaab.domain.AgentRole
+import app.hisaab.platform.NoSpeechToText
+import app.hisaab.platform.SpeechEvent
+import app.hisaab.platform.SpeechToText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,18 +36,23 @@ data class AgentUiState(
     val gate: AgentAvailability? = null,
     val error: String? = null,
     val confirmation: String? = null,
+    val voiceAvailable: Boolean = false,
+    val listening: Boolean = false,
 )
 
 class AgentViewModel(
     private val conversationRepo: ConversationRepository,
     private val runtime: AgentRuntime,
     private val setConsent: suspend () -> Unit,
+    private val speechToText: SpeechToText = NoSpeechToText,
+    private val locale: String = "en-US",
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     private val _state = MutableStateFlow(AgentUiState())
     val state: StateFlow<AgentUiState> = _state.asStateFlow()
 
     private var messageCollectorJob: Job? = null
+    private var listenJob: Job? = null
 
     init {
         scope.launch {
@@ -52,6 +60,9 @@ class AgentViewModel(
                 ?: conversationRepo.createConversation()
             _state.update { it.copy(conversationId = cid) }
             collectMessages(cid)
+        }
+        scope.launch {
+            _state.update { it.copy(voiceAvailable = speechToText.isAvailable()) }
         }
     }
 
@@ -68,8 +79,35 @@ class AgentViewModel(
         _state.update { it.copy(input = text) }
     }
 
+    /**
+     * Push-to-talk toggle (M4-5). Starts on-device recognition and streams transcripts into the
+     * input field; tapping again (or a Final result / error) stops. Degrades to typing when voice
+     * is unavailable or permission is denied.
+     */
     fun onMicTap() {
-        // mic disabled in M4-6 — no-op
+        if (_state.value.listening) {
+            listenJob?.cancel()
+            _state.update { it.copy(listening = false) }
+            return
+        }
+        listenJob = scope.launch {
+            if (!speechToText.isAvailable()) {
+                _state.update { it.copy(error = "Voice input isn't available on this device.", voiceAvailable = false) }
+                return@launch
+            }
+            _state.update { it.copy(listening = true, error = null) }
+            speechToText.listen(locale).collect { ev ->
+                when (ev) {
+                    is SpeechEvent.Partial -> _state.update { it.copy(input = ev.text) }
+                    is SpeechEvent.Final -> _state.update { it.copy(input = ev.text, listening = false) }
+                    SpeechEvent.PermissionDenied ->
+                        _state.update { it.copy(listening = false, error = "Allow microphone access in Settings to use voice.") }
+                    is SpeechEvent.Failed ->
+                        _state.update { it.copy(listening = false, error = "Couldn't hear that — try again or type.") }
+                }
+            }
+            _state.update { it.copy(listening = false) }
+        }
     }
 
     fun onConsent() {

@@ -21,6 +21,11 @@ import app.hisaab.domain.AccountKind
 import app.hisaab.domain.AgentRole
 import app.hisaab.llm.LlmError
 import app.hisaab.llm.LlmException
+import app.hisaab.platform.NoSpeechToText
+import app.hisaab.platform.SpeechEvent
+import app.hisaab.platform.SpeechToText
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -294,6 +299,52 @@ class AgentViewModelTest {
         advanceUntilIdle()
         assertNull(v.state.value.error, "onDismissBanner should clear error")
         assertNull(v.state.value.confirmation, "onDismissBanner should clear confirmation")
+    }
+
+    @Test
+    fun `onMicTap streams transcripts into the input and stops on the final result`() = runTest {
+        val db = TestDatabase.create()
+        val fakeStt = object : SpeechToText {
+            override suspend fun isAvailable() = true
+            override fun listen(localeTag: String): Flow<SpeechEvent> = flowOf(
+                SpeechEvent.Partial("spent"),
+                SpeechEvent.Partial("spent 500"),
+                SpeechEvent.Final("spent 500 on lunch"),
+            )
+        }
+        val v = AgentViewModel(
+            conversationRepo = ConversationRepository(db, flowDispatcher = dispatcher),
+            runtime = runtime(db, FakeAgentProvider(emptyList()), consented = true),
+            setConsent = {},
+            speechToText = fakeStt,
+        )
+        advanceUntilIdle()
+
+        v.onMicTap()
+        advanceUntilIdle()
+
+        val s = v.state.value
+        assertEquals("spent 500 on lunch", s.input, "final transcript should land in the input")
+        assertEquals(false, s.listening, "listening stops on the final result")
+        assertTrue(s.voiceAvailable)
+    }
+
+    @Test
+    fun `onMicTap degrades to a friendly error when voice is unavailable`() = runTest {
+        val db = TestDatabase.create()
+        val v = AgentViewModel(
+            conversationRepo = ConversationRepository(db, flowDispatcher = dispatcher),
+            runtime = runtime(db, FakeAgentProvider(emptyList()), consented = true),
+            setConsent = {},
+            speechToText = NoSpeechToText,
+        )
+        advanceUntilIdle()
+
+        v.onMicTap()
+        advanceUntilIdle()
+
+        assertNotNull(v.state.value.error, "unavailable voice should surface an error")
+        assertEquals(false, v.state.value.listening)
     }
 
     @Test

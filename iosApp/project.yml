@@ -20,6 +20,8 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         NSFaceIDUsageDescription: "Unlock Hisaab with Face ID."
+        NSMicrophoneUsageDescription: "Hisaab uses the microphone for voice entry to the assistant."
+        NSSpeechRecognitionUsageDescription: "Hisaab transcribes your voice on-device to fill in the assistant."
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
     settings:

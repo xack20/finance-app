@@ -342,18 +342,26 @@ fun AgentScreenContent(
 
                 Spacer(Modifier.width(4.dp))
 
-                // Mic button — DISABLED in M4-6; real STT lands in M4-5.
+                // Mic button (M4-5) — push-to-talk on-device STT; enabled when voice is available,
+                // tinted while listening. Degrades silently to typing when unavailable.
                 IconButton(
                     onClick = onMicTap,
-                    enabled = false,
+                    enabled = state.voiceAvailable,
                     modifier = Modifier
                         .size(44.dp)
                         .testTag("agent_mic")
-                        .semantics { contentDescription = "Voice — coming soon" },
+                        .semantics {
+                            contentDescription = when {
+                                state.listening -> "Listening — tap to stop"
+                                state.voiceAvailable -> "Voice input — tap to dictate"
+                                else -> "Voice input unavailable"
+                            }
+                        },
                 ) {
                     Text(
                         text = "🎤",
                         fontSize = 18.sp,
+                        color = if (state.listening) palette.accent else palette.onBackground,
                     )
                 }
             }

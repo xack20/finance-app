@@ -46,7 +46,7 @@ import app.hisaab.llm.LlmRouter
 import app.hisaab.llm.cloud.ClaudeProvider
 import app.hisaab.llm.cloud.GeminiProvider
 import app.hisaab.llm.cloud.OpenAiProvider
-import app.hisaab.platform.NoSpeechToText
+import app.hisaab.platform.AndroidSpeechToText
 import app.hisaab.platform.SpeechToText
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -119,7 +119,7 @@ actual class AppContainer(
     actual val conversationRepository: ConversationRepository
         get() = ConversationRepository(requireDb())
 
-    actual val speechToText: SpeechToText = NoSpeechToText
+    actual val speechToText: SpeechToText = AndroidSpeechToText(context)
 
     actual fun agentRuntime(): AgentRuntime {
         val db = requireDb()
