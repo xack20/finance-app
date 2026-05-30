@@ -271,4 +271,57 @@ class AgentViewModelTest {
         val msgs = conversationRepo.observeMessages(cid).first()
         assertTrue(msgs.none { it.role == AgentRole.ASSISTANT }, "No assistant message should be persisted on error")
     }
+
+    @Test
+    fun `onDismissBanner clears error and confirmation`() = runTest {
+        val db = TestDatabase.create()
+        // empty queue → first send fails → error set
+        val provider = FakeAgentProvider(emptyList())
+        val rt = runtime(db, provider, consented = true)
+        val v = vm(db, rt)
+        advanceUntilIdle()
+
+        v.onInputChange("spent 500")
+        v.onSend()
+        advanceUntilIdle()
+        assertNotNull(v.state.value.error, "Expected error after a failed send")
+
+        v.onDismissBanner()
+        advanceUntilIdle()
+        assertNull(v.state.value.error, "onDismissBanner should clear error")
+        assertNull(v.state.value.confirmation, "onDismissBanner should clear confirmation")
+    }
+
+    @Test
+    fun `a new send clears a prior Saved confirmation`() = runTest {
+        val db = TestDatabase.create()
+        CategoryRepository(db).ensureDefaults()
+        AccountRepository(db).add("Cash", AccountKind.CASH, null)
+
+        // one good response for the first turn; the queue is exhausted for the second send
+        val provider = FakeAgentProvider(
+            listOf(
+                """{"thought":"t","final":{"message":"logged","proposedWrites":[{"tool":"add_transaction","args":{"account":"Cash","amount":500,"kind":"EXPENSE"}}]}}""",
+            ),
+        )
+        val rt = runtime(db, provider, consented = true)
+        val v = vm(db, rt)
+        advanceUntilIdle()
+
+        // first turn + apply → confirmation = "Saved."
+        v.onInputChange("spent 500")
+        v.onSend()
+        advanceUntilIdle()
+        v.onApply()
+        val saved = v.state.first { it.confirmation == "Saved." }
+        assertEquals("Saved.", saved.confirmation)
+
+        // second send: provider exhausted → run() throws → error set AND the stale confirmation cleared
+        v.onInputChange("again")
+        v.onSend()
+        advanceUntilIdle()
+        val after = v.state.value
+        assertNotNull(after.error, "Expected error on the failed second send")
+        assertNull(after.confirmation, "A new send must clear the prior 'Saved.' confirmation")
+    }
 }

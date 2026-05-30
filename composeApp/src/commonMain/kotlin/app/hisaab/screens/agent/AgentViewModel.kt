@@ -113,7 +113,9 @@ class AgentViewModel(
     fun onSend() {
         val text = _state.value.input.trim()
         if (text.isBlank()) return
-        _state.update { it.copy(input = "") }
+        // Clear any prior banner on every send path (incl. NeedsConsent / Unavailable), so a
+        // stale error/confirmation can't linger or coexist with a new one.
+        _state.update { it.copy(input = "", error = null, confirmation = null) }
 
         scope.launch {
             val avail = runtime.availability()
@@ -166,6 +168,8 @@ class AgentViewModel(
         scope.launch {
             val current = _state.value
             val included = current.review.filterIndexed { i, _ -> i in current.reviewIncluded }
+            // error/confirmation are a single mutually-exclusive status; clear before applying.
+            _state.update { it.copy(error = null, confirmation = null) }
 
             runCatching { runtime.apply(included) }
                 .onSuccess { summary ->
@@ -176,13 +180,20 @@ class AgentViewModel(
                         review = emptyList(),
                         reviewIncluded = emptySet(),
                         confirmation = "Saved.",
+                        error = null,
                     ) }
                 }
                 .onFailure {
                     _state.update { it.copy(
                         error = "Couldn't save — rolled back.",
+                        confirmation = null,
                     ) }
                 }
         }
+    }
+
+    /** Dismiss the transient error/confirmation banner (wired to the banner's dismiss action). */
+    fun onDismissBanner() {
+        _state.update { it.copy(error = null, confirmation = null) }
     }
 }

@@ -26,5 +26,4 @@ class ToolRegistry(
     private val writeNames = writeDescriptors.map { it.name }.toSet()
     fun read(name: String): ReadTool? = readByName[name]
     fun isWrite(name: String): Boolean = name in writeNames
-    fun isKnown(name: String): Boolean = name in readByName || name in writeNames
 }

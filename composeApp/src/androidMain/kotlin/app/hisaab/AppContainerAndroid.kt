@@ -223,7 +223,11 @@ actual class AppContainer(
         // M3-3: reference capturePipeline inside the lambda so it resolves FRESH on each invocation
         // (ensures the pipeline always binds the current open DB after a lock/unlock cycle).
         val handler = CaptureHandler { capturePipeline.process(it) }
-        CaptureCoordinator(captureService, handler, cursorStore)
+        CaptureCoordinator(captureService, handler, cursorStore) { raw, e ->
+            // Per-item failures stay isolated (cursor doesn't advance), but log them so a
+            // persistently-failing capture is visible instead of retried silently forever.
+            android.util.Log.w("HisaabCapture", "Dropped capture item (ts=${raw.receivedAt}); will retry: ${e.message}")
+        }
     }
 
     // M3-5: coordinator scope — created on DB open, cancelled on DB close.

@@ -133,7 +133,7 @@ class EntryViewModel(
                             personId = personId,
                             amount = amount,
                             direction = direction,
-                            accountId = s.accountId!!,
+                            accountId = requireNotNull(s.accountId) { "Account required for ${s.kind}" },
                             purpose = s.notes.ifBlank { null },
                             ts = s.whenMs,
                             dueDate = s.dueDate,
@@ -143,7 +143,7 @@ class EntryViewModel(
                     else -> {
                         val capId = prefilledCandidateId
                         val newTxn = NewTransaction(
-                            accountId = s.accountId!!,
+                            accountId = requireNotNull(s.accountId) { "Account required for ${s.kind}" },
                             amount = amount,
                             ts = s.whenMs,
                             merchantName = s.merchantName.ifBlank { null },

@@ -66,9 +66,11 @@ fun RecoveryPhraseRevealScreen(onBack: () -> Unit) {
                 color = palette.negative, fontSize = 12.sp,
             )
             Spacer(Modifier.height(20.dp))
+            val err = error
+            val w = words
             when {
-                error != null -> Text(error!!, color = palette.negative)
-                words == null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                err != null -> Text(err, color = palette.negative)
+                w == null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = palette.accent)
                 }
                 else -> LazyVerticalGrid(
@@ -76,7 +78,7 @@ fun RecoveryPhraseRevealScreen(onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    itemsIndexed(words!!) { i, word ->
+                    itemsIndexed(w) { i, word ->
                         Row(
                             modifier = Modifier
                                 .border(1.dp, palette.rule, MaterialTheme.shapes.small)

@@ -110,6 +110,26 @@ class CaptureCoordinatorTest {
         }
 
     @Test
+    fun `catchUp - onItemError surfaces an isolated handler failure`() = runTest {
+        // The failure is still isolated (cursor not advanced) but is now observable via onItemError,
+        // so a persistently-failing item isn't retried invisibly forever.
+        val source = FakeCaptureService().apply { backfillRows = listOf(sms("boom", 400)) }
+        val config = FakeCaptureConfigRepository(initialCursor = 10)
+        val throwing = CaptureHandler { error("pipeline blew up") }
+        val errors = mutableListOf<Pair<String, String>>()
+        val coordinator = CaptureCoordinator(source, throwing, config) { raw, e ->
+            errors.add(raw.body to (e.message ?: ""))
+        }
+
+        coordinator.catchUp()
+
+        assertEquals(10L, config.cursor)                          // still isolated → not advanced
+        assertEquals(1, errors.size)                              // callback fired exactly once
+        assertEquals("boom", errors.single().first)               // with the failed item
+        assertEquals("pipeline blew up", errors.single().second)  // and its cause
+    }
+
+    @Test
     fun `catchUp - item 1 throws but item 2 still backfills and advances the cursor`() = runTest {
         // Backfill-path twin of the live-stream isolation test below: one bad historical SMS must
         // not block the rest of the 90-day import.
