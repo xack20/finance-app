@@ -15,7 +15,7 @@ libsodium         = "0.9.3"
 ktor              = "3.0.3"
 kotlinx-serialization = "1.7.3"
 mediapipe-genai       = "0.10.24"
-nav-compose       = "2.8.0-alpha10"
+nav-compose       = "2.9.2"
 espresso          = "3.7.0"
 
 [libraries]

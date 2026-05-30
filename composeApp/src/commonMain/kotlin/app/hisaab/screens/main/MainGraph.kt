@@ -28,6 +28,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.savedstate.read
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.domain.CloudProvider
@@ -151,7 +152,7 @@ fun MainGraph() {
                     PeopleListScreen(onPersonClick = { id -> navController.navigate("person/$id") })
                 }
                 composable("person/{id}") { entry ->
-                    val id = entry.arguments?.getString("id") ?: return@composable
+                    val id = entry.arguments?.read { getStringOrNull("id") } ?: return@composable
                     PersonDetailScreen(personId = id, onBack = { navController.popBackStack() })
                 }
                 composable(MainTab.SETTINGS.name) {
@@ -230,11 +231,11 @@ fun MainGraph() {
                         defaultValue = null
                     }),
                 ) { entry ->
-                    val cId = entry.arguments?.getString("candidateId")
+                    val cId = entry.arguments?.read { getStringOrNull("candidateId") }
                     EntryScreen(candidateId = cId, onDone = { navController.popBackStack() })
                 }
                 composable("txn/{id}") { entry ->
-                    val id = entry.arguments?.getString("id") ?: return@composable
+                    val id = entry.arguments?.read { getStringOrNull("id") } ?: return@composable
                     TransactionDetailScreen(txnId = id, onDone = { navController.popBackStack() })
                 }
                 composable(AGENT_ROUTE) {
