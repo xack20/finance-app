@@ -1,0 +1,9 @@
+# SQLCipher provides the sqlite3_* symbols that the (linkSqlite=false) ComposeApp KMP framework
+# references, so PRAGMA key actually encrypts the on-device DB on iOS (parity with Android's
+# net.zetetic:sqlcipher-android). Static linkage so the symbols resolve into the app binary.
+platform :ios, '15.0'
+
+target 'iosApp' do
+  use_frameworks! :linkage => :static
+  pod 'SQLCipher', '~> 4.5'
+end

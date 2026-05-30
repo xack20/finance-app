@@ -1,5 +1,6 @@
 // WriteTools.kt
 package app.hisaab.agent
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
@@ -8,6 +9,7 @@ private fun JsonObject.str(key: String): String? = (this[key] as? JsonPrimitive)
 private fun JsonObject.dbl(key: String): Double? =
     (this[key] as? JsonPrimitive)?.let { it.doubleOrNull ?: it.content.toDoubleOrNull() }
 private fun JsonObject.lng(key: String): Long? = (this[key] as? JsonPrimitive)?.content?.toLongOrNull()
+private fun JsonObject.arr(key: String): JsonArray? = this[key] as? JsonArray
 
 /** Parsed, typed form of a ProposedWrite. The committer consumes these; the loop never does. */
 sealed interface WriteIntent {
@@ -25,6 +27,12 @@ sealed interface WriteIntent {
     ) : WriteIntent
     data class Transfer(val fromAccount: String, val toAccount: String, val amount: Double, val notes: String?) : WriteIntent
     data class CardPayment(val fromAccount: String, val card: String, val amount: Double) : WriteIntent
+    data class SetBudget(val category: String, val amount: Double, val month: String?) : WriteIntent
+    data class Recategorize(val transactionId: String, val category: String) : WriteIntent
+    data class SplitLeg(val category: String?, val amount: Double, val notes: String? = null)
+    data class AddSplitTransaction(
+        val account: String, val amount: Double, val kind: String, val splits: List<SplitLeg>,
+    ) : WriteIntent
 
     companion object {
         /** Returns null for unknown tools or missing required fields (committer skips/reports null). */
@@ -57,6 +65,24 @@ sealed interface WriteIntent {
                     val from = a.str("fromAccount"); val card = a.str("card"); val amount = a.dbl("amount")
                     if (from != null && card != null && amount != null) CardPayment(from, card, amount) else null
                 }
+                "set_budget" -> {
+                    val cat = a.str("category"); val amount = a.dbl("amount")
+                    if (cat != null && amount != null) SetBudget(cat, amount, a.str("month")) else null
+                }
+                "recategorize" -> {
+                    val tid = a.str("transactionId"); val cat = a.str("category")
+                    if (tid != null && cat != null) Recategorize(tid, cat) else null
+                }
+                "add_split_transaction" -> {
+                    val account = a.str("account"); val total = a.dbl("amount")
+                    val splits = a.arr("splits")?.mapNotNull { el ->
+                        (el as? JsonObject)?.let { o ->
+                            o.dbl("amount")?.let { amt -> SplitLeg(o.str("category"), amt, o.str("notes")) }
+                        }
+                    }
+                    if (account != null && total != null && !splits.isNullOrEmpty())
+                        AddSplitTransaction(account, total, a.str("kind") ?: "EXPENSE", splits) else null
+                }
                 else -> null
             }
         }
@@ -76,4 +102,10 @@ fun agentWriteDescriptors(): List<WriteDescriptor> = listOf(
         "{ \"fromAccount\": string, \"toAccount\": string, \"amount\": number }"),
     WriteDescriptor("record_card_payment", "Pay a credit-card bill from an account",
         "{ \"fromAccount\": string, \"card\": string, \"amount\": number }"),
+    WriteDescriptor("set_budget", "Set a monthly spending cap for a category (month defaults to the current one)",
+        "{ \"category\": string, \"amount\": number, \"month\": \"YYYY-MM\"? }"),
+    WriteDescriptor("recategorize", "Change the category of an existing transaction (use the id from query_transactions)",
+        "{ \"transactionId\": string, \"category\": string }"),
+    WriteDescriptor("add_split_transaction", "Record one expense split across multiple categories",
+        "{ \"account\": string, \"amount\": number, \"kind\": \"EXPENSE|INCOME\", \"splits\": [ { \"category\": string, \"amount\": number } ] }"),
 )

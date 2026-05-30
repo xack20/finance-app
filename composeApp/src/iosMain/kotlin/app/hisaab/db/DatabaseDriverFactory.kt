@@ -7,7 +7,7 @@ import co.touchlab.sqliter.DatabaseConfiguration
 
 actual class DatabaseDriverFactory {
     actual fun createDriver(dbKey: ByteArray): SqlDriver {
-        val keyHex = dbKey.joinToString("") { "%02x".format(it) }
+        val keyHex = dbKey.joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
         dbKey.fill(0)  // zero caller-supplied key; keyHex String cannot be zeroed (JVM limitation)
         val config = DatabaseConfiguration(
             name = "hisaab.db",
@@ -22,8 +22,13 @@ actual class DatabaseDriverFactory {
             },
             extendedConfig = DatabaseConfiguration.Extended(
                 foreignKeyConstraints = true,
-                encryptionSpec = DatabaseConfiguration.Extended.EncryptionSpec(keyHex),
             ),
+            // sqliter 1.3.3's encryptionConfig runs `PRAGMA key` on open. IMPORTANT: this only
+            // ACTUALLY encrypts when SQLCipher is linked (CocoaPods `pod 'SQLCipher'` + SQLDelight
+            // `linkSqlite = false`). Against the default system libsqlite3, `PRAGMA key` is a no-op
+            // and the DB is NOT encrypted — so iOS must NOT ship to users until SQLCipher is linked
+            // and verified on a simulator (tracked: tech-debt M4 / the M4-0 Xcode-wrapper slice).
+            encryptionConfig = DatabaseConfiguration.Encryption(key = keyHex),
         )
         return NativeSqliteDriver(config)
     }

@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.fragment.app.FragmentActivity
 import app.cash.sqldelight.db.SqlDriver
 import app.hisaab.auth.AuthRepository
-import app.hisaab.auth.BypassAuthRepository
 import app.hisaab.auth.SupabaseAuthRepository
 import app.hisaab.crypto.BlobCrypto
 import app.hisaab.crypto.CryptoService
@@ -34,15 +33,25 @@ import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
 import app.hisaab.platform.SecureStorage
+import app.hisaab.agent.AgentProvider
+import app.hisaab.agent.AgentRuntime
+import app.hisaab.agent.WriteBatchCommitter
+import app.hisaab.agent.buildAgentToolRegistry
+import app.hisaab.domain.CloudProvider
+import app.hisaab.data.ConversationRepository
 import app.hisaab.llm.AndroidLlmContext
 import app.hisaab.llm.DefaultLlmRouter
+import app.hisaab.llm.LlmProvider
 import app.hisaab.llm.LlmRouter
 import app.hisaab.llm.cloud.ClaudeProvider
 import app.hisaab.llm.cloud.GeminiProvider
 import app.hisaab.llm.cloud.OpenAiProvider
+import app.hisaab.platform.AndroidSpeechToText
+import app.hisaab.platform.SpeechToText
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 actual class AppContainer(
@@ -65,10 +74,9 @@ actual class AppContainer(
     actual val mnemonicService: MnemonicService = MnemonicService()
     actual val blobCrypto: BlobCrypto = BlobCrypto()
 
-    // The emulator bypass (no Supabase test OTP) is DEBUG-ONLY: release builds always use the real
-    // SupabaseAuthRepository, so the auth bypass can never ship even if the revert is forgotten.
-    actual val authRepository: AuthRepository =
-        if (BuildConfig.DEBUG) BypassAuthRepository(secureStorage) else SupabaseAuthRepository()
+    // Real Supabase phone-OTP auth on all build types. Dev sign-in uses the Supabase project's
+    // test-OTP (visible in the dashboard) — the former DEBUG-only BypassAuthRepository was removed.
+    actual val authRepository: AuthRepository = SupabaseAuthRepository()
     actual val databaseDriverFactory: DatabaseDriverFactory = DatabaseDriverFactory(context)
 
     private var cachedDriver: SqlDriver? = null
@@ -106,6 +114,48 @@ actual class AppContainer(
         )
     actual val insightRepository: InsightRepository
         get() = InsightRepository(requireDb())
+
+    // M4-6: agent DI members.
+    actual val conversationRepository: ConversationRepository
+        get() = ConversationRepository(requireDb())
+
+    actual val speechToText: SpeechToText = AndroidSpeechToText(context)
+
+    actual fun agentRuntime(): AgentRuntime {
+        val db = requireDb()
+        val txns = TransactionRepository(db, merchantRepository, tagRepository)
+        return AgentRuntime(
+            registry = buildAgentToolRegistry(
+                accountRepository, categoryRepository, merchantRepository,
+                txns, insightRepository, personRepository,
+            ),
+            // Resolve the user's SELECTED cloud provider at call time. The agent has its own
+            // consent (checked via isConsented), independent of the SMS-capture cloud consent —
+            // so we map cloudProvider → adapter directly rather than via llmRouter.active().
+            agentProvider = {
+                val adapter: LlmProvider? = when (captureConfigRepository.get().cloudProvider) {
+                    CloudProvider.CLAUDE -> claudeProvider
+                    CloudProvider.GEMINI -> geminiProvider
+                    CloudProvider.OPENAI -> openAiProvider
+                    null -> null
+                }
+                if (adapter != null && adapter.isAvailable()) adapter as? AgentProvider else null
+            },
+            unavailableReason = {
+                if (captureConfigRepository.get().cloudProvider == null)
+                    "Pick a cloud model in Settings to use the assistant."
+                else
+                    "Add your cloud model's API key in Settings to use the assistant."
+            },
+            isConsented = { secureStorage.loadString("agent_consent_at") != null },
+            accountNames = { accountRepository.observeActive().first().joinToString(", ") { it.name } },
+            categoryNames = { categoryRepository.observeAll().first().joinToString(", ") { it.name } },
+            committer = WriteBatchCommitter(
+                db, accountRepository, categoryRepository, personRepository,
+                txns, lendBorrowRepository, budgetRepository,
+            ),
+        )
+    }
 
     // LLM HTTP client — stable singleton (not DB-scoped); cloud providers use OkHttp on Android.
     private val llmHttpClient: HttpClient = HttpClient(OkHttp)
@@ -190,7 +240,11 @@ actual class AppContainer(
         // M3-3: reference capturePipeline inside the lambda so it resolves FRESH on each invocation
         // (ensures the pipeline always binds the current open DB after a lock/unlock cycle).
         val handler = CaptureHandler { capturePipeline.process(it) }
-        CaptureCoordinator(captureService, handler, cursorStore)
+        CaptureCoordinator(captureService, handler, cursorStore) { raw, e ->
+            // Per-item failures stay isolated (cursor doesn't advance), but log them so a
+            // persistently-failing capture is visible instead of retried silently forever.
+            android.util.Log.w("HisaabCapture", "Dropped capture item (ts=${raw.receivedAt}); will retry: ${e.message}")
+        }
     }
 
     // M3-5: coordinator scope — created on DB open, cancelled on DB close.

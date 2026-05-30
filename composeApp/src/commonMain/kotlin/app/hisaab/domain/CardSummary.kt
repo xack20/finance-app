@@ -1,16 +1,6 @@
 package app.hisaab.domain
 import kotlinx.datetime.LocalDate
 
-/** Card reporting snapshot. Fields are null when the account isn't a configured card. */
-data class CardSummary(
-    val outstanding: Double,
-    val creditLimit: Double?,
-    val availableCredit: Double?,     // creditLimit - outstanding (null if no limit)
-    val statementDay: Int?,
-    val dueDay: Int?,
-    val nextDueDate: LocalDate?,      // null if statementDay/dueDay missing
-)
-
 /** Pure next-due-date math. statementDay/dueDay are expected in 1..28 but the day is clamped defensively. */
 object CardSummaryCalculator {
     fun nextDueDate(today: LocalDate, statementDay: Int, dueDay: Int): LocalDate {

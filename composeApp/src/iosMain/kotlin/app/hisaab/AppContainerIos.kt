@@ -31,14 +31,24 @@ import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
 import app.hisaab.platform.SecureStorage
+import app.hisaab.agent.AgentProvider
+import app.hisaab.agent.AgentRuntime
+import app.hisaab.agent.WriteBatchCommitter
+import app.hisaab.agent.buildAgentToolRegistry
+import app.hisaab.domain.CloudProvider
+import app.hisaab.data.ConversationRepository
 import app.hisaab.llm.DefaultLlmRouter
+import app.hisaab.llm.LlmProvider
 import app.hisaab.llm.LlmRouter
 import app.hisaab.llm.cloud.ClaudeProvider
 import app.hisaab.llm.cloud.GeminiProvider
 import app.hisaab.llm.cloud.OpenAiProvider
+import app.hisaab.platform.IosSpeechToText
+import app.hisaab.platform.SpeechToText
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.darwin.Darwin
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 actual class AppContainer {
@@ -92,6 +102,47 @@ actual class AppContainer {
         )
     actual val insightRepository: InsightRepository
         get() = InsightRepository(requireDb())
+
+    // M4-6: agent DI members.
+    actual val conversationRepository: ConversationRepository
+        get() = ConversationRepository(requireDb())
+
+    actual val speechToText: SpeechToText = IosSpeechToText()
+
+    actual fun agentRuntime(): AgentRuntime {
+        val db = requireDb()
+        val txns = TransactionRepository(db, merchantRepository, tagRepository)
+        return AgentRuntime(
+            registry = buildAgentToolRegistry(
+                accountRepository, categoryRepository, merchantRepository,
+                txns, insightRepository, personRepository,
+            ),
+            // Resolve the user's SELECTED cloud provider at call time (agent consent is separate,
+            // checked via isConsented — independent of the SMS-capture cloud consent).
+            agentProvider = {
+                val adapter: LlmProvider? = when (captureConfigRepository.get().cloudProvider) {
+                    CloudProvider.CLAUDE -> claudeProvider
+                    CloudProvider.GEMINI -> geminiProvider
+                    CloudProvider.OPENAI -> openAiProvider
+                    null -> null
+                }
+                if (adapter != null && adapter.isAvailable()) adapter as? AgentProvider else null
+            },
+            unavailableReason = {
+                if (captureConfigRepository.get().cloudProvider == null)
+                    "Pick a cloud model in Settings to use the assistant."
+                else
+                    "Add your cloud model's API key in Settings to use the assistant."
+            },
+            isConsented = { secureStorage.loadString("agent_consent_at") != null },
+            accountNames = { accountRepository.observeActive().first().joinToString(", ") { it.name } },
+            categoryNames = { categoryRepository.observeAll().first().joinToString(", ") { it.name } },
+            committer = WriteBatchCommitter(
+                db, accountRepository, categoryRepository, personRepository,
+                txns, lendBorrowRepository, budgetRepository,
+            ),
+        )
+    }
 
     // LLM HTTP client — stable singleton; Darwin engine on iOS.
     private val llmHttpClient: HttpClient = HttpClient(Darwin)

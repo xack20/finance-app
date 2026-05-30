@@ -28,6 +28,7 @@ import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
 import app.hisaab.platform.SecureStorage
+import app.hisaab.platform.SpeechToText
 
 /**
  * Hand-wired DI root. One instance per Application lifetime.
@@ -69,6 +70,11 @@ expect class AppContainer {
     val captureConfigRepository: CaptureConfigRepository
     val captureService: CaptureService
     val captureCoordinator: CaptureCoordinator
+
+    // M4-6: agent DI members — conversation store, speech stub, and runtime factory.
+    val conversationRepository: app.hisaab.data.ConversationRepository
+    val speechToText: SpeechToText
+    fun agentRuntime(): app.hisaab.agent.AgentRuntime
 
     // M3-3: tiered parsing pipeline + LLM router contract + auto-post event stream.
     val llmRouter: app.hisaab.llm.LlmRouter

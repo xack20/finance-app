@@ -1,6 +1,7 @@
 // WriteBatchCommitter.kt
 package app.hisaab.agent
 import app.hisaab.data.AccountRepository
+import app.hisaab.data.BudgetRepository
 import app.hisaab.data.CategoryRepository
 import app.hisaab.data.LendBorrowRepository
 import app.hisaab.data.PersonRepository
@@ -9,11 +10,15 @@ import app.hisaab.db.HisaabDatabase
 import app.hisaab.domain.AccountKind
 import app.hisaab.domain.LendBorrowDirection
 import app.hisaab.domain.NewLendBorrow
+import app.hisaab.domain.NewSplitTransaction
 import app.hisaab.domain.NewTransaction
 import app.hisaab.domain.TxnKind
 import app.hisaab.domain.TxnSource
+import app.hisaab.domain.YearMonth
 import kotlinx.coroutines.flow.first
 import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.Serializable
 
 /** What actually committed (basis for §11 applied_summary persistence in M4-3). */
@@ -24,6 +29,9 @@ data class AppliedSummary(
     val transactionsAdded: Int = 0,
     val lendBorrowsRecorded: Int = 0,
     val transfers: Int = 0,
+    val budgetsSet: Int = 0,
+    val recategorized: Int = 0,
+    val splitTransactionsAdded: Int = 0,
 )
 
 /**
@@ -39,6 +47,7 @@ class WriteBatchCommitter(
     private val persons: PersonRepository,
     private val txns: TransactionRepository,
     private val lendBorrow: LendBorrowRepository,
+    private val budgets: BudgetRepository,
 ) {
     /** @throws IllegalArgumentException if a referenced account cannot be resolved (rolls back). */
     suspend fun apply(writes: List<ProposedWrite>): AppliedSummary {
@@ -48,6 +57,8 @@ class WriteBatchCommitter(
         val categoryIdByName = categories.observeAll().first()
             .associate { it.name.lowercase() to it.id }.toMutableMap()
         val now = Clock.System.now().toEpochMilliseconds()
+        val nowDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val currentMonth = YearMonth.of(nowDate.year, nowDate.monthNumber)
 
         val intents = writes.mapNotNull { WriteIntent.parse(it) }
 
@@ -57,6 +68,9 @@ class WriteBatchCommitter(
         var txnsAdded = 0
         var lbs = 0
         var xfers = 0
+        var budgetsSet = 0
+        var recats = 0
+        var splits = 0
 
         db.transaction {
             // 1. accounts
@@ -106,6 +120,35 @@ class WriteBatchCommitter(
                         ))
                         lbs++
                     }
+                    is WriteIntent.SetBudget -> {
+                        val catId = cat(i.category) ?: throw IllegalArgumentException("unknown category '${i.category}'")
+                        // YearMonth(String) only checks "YYYY-MM" shape, not that MM is 1..12. The agent
+                        // supplies this string, so validate the month range too; anything invalid/malformed
+                        // falls back to the current month rather than persisting a nonsensical budget period.
+                        val month = i.month
+                            ?.let { runCatching { require(it.substringAfter('-').toInt() in 1..12); YearMonth(it) }.getOrNull() }
+                            ?: currentMonth
+                        budgets.setBlocking(catId, i.amount, month)
+                        budgetsSet++
+                    }
+                    is WriteIntent.Recategorize -> {
+                        val catId = cat(i.category) ?: throw IllegalArgumentException("unknown category '${i.category}'")
+                        txns.recategorizeBlocking(i.transactionId, catId)
+                        recats++
+                    }
+                    is WriteIntent.AddSplitTransaction -> {
+                        val kind = runCatching { TxnKind.valueOf(i.kind) }.getOrDefault(TxnKind.EXPENSE)
+                        val parentId = txns.addBlocking(NewTransaction(
+                            accountId = acct(i.account), amount = i.amount, ts = now,
+                            merchantName = null, categoryId = null, notes = null, kind = kind,
+                            source = TxnSource.CHAT,
+                        ))
+                        txns.addSplitsBlocking(parentId, i.splits.map { leg ->
+                            NewSplitTransaction(amount = leg.amount, categoryId = cat(leg.category),
+                                notes = leg.notes, kind = kind)
+                        })
+                        splits++
+                    }
                     is WriteIntent.CreateAccount, is WriteIntent.CreateCategory -> { /* handled in passes 1-2 */ }
                 }
             }
@@ -116,6 +159,9 @@ class WriteBatchCommitter(
             transactionsAdded = txnsAdded,
             lendBorrowsRecorded = lbs,
             transfers = xfers,
+            budgetsSet = budgetsSet,
+            recategorized = recats,
+            splitTransactionsAdded = splits,
         )
     }
 }

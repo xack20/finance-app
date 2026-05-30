@@ -1,5 +1,6 @@
 package app.hisaab.agent
 import app.hisaab.data.AccountRepository
+import app.hisaab.data.BudgetRepository
 import app.hisaab.data.CategoryRepository
 import app.hisaab.data.LendBorrowRepository
 import app.hisaab.data.MerchantRepository
@@ -21,7 +22,7 @@ class CreateCardAccountTest {
         val txns = TransactionRepository(db, MerchantRepository(db), TagRepository(db))
         val accounts = AccountRepository(db)
         val committer = WriteBatchCommitter(db, accounts, CategoryRepository(db),
-            PersonRepository(db), txns, LendBorrowRepository(db, txns))
+            PersonRepository(db), txns, LendBorrowRepository(db, txns), BudgetRepository(db))
         committer.apply(listOf(
             ProposedWrite("create_account", buildJsonObject {
                 put("name", "VISA"); put("kind", "CARD")

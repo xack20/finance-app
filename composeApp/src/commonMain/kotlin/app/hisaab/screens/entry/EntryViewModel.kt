@@ -68,6 +68,7 @@ class EntryViewModel(
 
     fun setAmount(a: String) { _state.update { it.copy(amount = a) } }
     fun setAccount(id: String) { _state.update { it.copy(accountId = id) } }
+    fun setToAccount(id: String) { _state.update { it.copy(toAccountId = id) } }
     fun setCategory(id: String) { _state.update { it.copy(categoryId = id) } }
     fun setWhen(ms: Long) { _state.update { it.copy(whenMs = ms) } }
     fun setMerchant(name: String) { _state.update { it.copy(merchantName = name) } }
@@ -106,6 +107,19 @@ class EntryViewModel(
         scope.launch {
             try {
                 val txnId: String? = when (s.kind) {
+                    TxnKind.TRANSFER -> {
+                        val fromId = requireNotNull(s.accountId) { "From account required for TRANSFER" }
+                        val toId = requireNotNull(s.toAccountId) { "To account required for TRANSFER" }
+                        val amount = s.amount.toDoubleOrNull()
+                            ?: error("Invalid amount for TRANSFER")
+                        txnRepo.transfer(
+                            fromAccountId = fromId,
+                            toAccountId = toId,
+                            amount = amount,
+                            ts = s.whenMs,
+                            notes = s.notes.ifBlank { null },
+                        )
+                    }
                     TxnKind.LEND, TxnKind.BORROW -> {
                         val personId = s.personId ?: when {
                             !s.newPersonName.isNullOrBlank() && !s.newPersonPhone.isNullOrBlank() ->
@@ -119,7 +133,7 @@ class EntryViewModel(
                             personId = personId,
                             amount = amount,
                             direction = direction,
-                            accountId = s.accountId!!,
+                            accountId = requireNotNull(s.accountId) { "Account required for ${s.kind}" },
                             purpose = s.notes.ifBlank { null },
                             ts = s.whenMs,
                             dueDate = s.dueDate,
@@ -129,7 +143,7 @@ class EntryViewModel(
                     else -> {
                         val capId = prefilledCandidateId
                         val newTxn = NewTransaction(
-                            accountId = s.accountId!!,
+                            accountId = requireNotNull(s.accountId) { "Account required for ${s.kind}" },
                             amount = amount,
                             ts = s.whenMs,
                             merchantName = s.merchantName.ifBlank { null },

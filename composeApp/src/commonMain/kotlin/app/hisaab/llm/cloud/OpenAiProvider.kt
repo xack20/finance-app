@@ -1,5 +1,8 @@
 package app.hisaab.llm.cloud
 
+import app.hisaab.agent.AgentProvider
+import app.hisaab.agent.ChatMessage
+import app.hisaab.agent.Role
 import app.hisaab.domain.Category
 import app.hisaab.llm.LlmError
 import app.hisaab.llm.LlmException
@@ -45,7 +48,7 @@ class OpenAiProvider(
     private val apiKey: () -> String?,
     private val model: String = "gpt-4o-mini",
     private val redact: suspend () -> Boolean = { true },
-) : LlmProvider {
+) : LlmProvider, AgentProvider {
 
     private val client = httpClient.llmConfigured()
     private val endpoint = "https://api.openai.com/v1/chat/completions"
@@ -110,6 +113,41 @@ class OpenAiProvider(
         if (!response.status.isSuccess()) return null
         val content = extractContent(response.bodyAsText()) ?: return null
         return LlmJson.decodeCategoryId(content, categories.map { it.id }.toSet())
+    }
+
+    /**
+     * Agent chat path (M4). Maps the ChatMessage list to chat/completions roles (SYSTEM→system,
+     * ASSISTANT→assistant, USER/TOOL→user) and requests json_object output. Returns the message
+     * content for the loop to decode. Redactor is intentionally NOT applied to agent text (master spec §10).
+     */
+    override suspend fun complete(messages: List<ChatMessage>, maxTokens: Int): String {
+        val key = apiKey() ?: throw LlmException(LlmError.InvalidKey)
+        val payload = buildJsonObject {
+            put("model", model)
+            put("max_tokens", maxTokens)
+            putJsonArray("messages") {
+                messages.forEach { m ->
+                    addJsonObject {
+                        put("role", when (m.role) {
+                            Role.SYSTEM -> "system"
+                            Role.ASSISTANT -> "assistant"
+                            else -> "user" // USER + TOOL results presented as user turns
+                        })
+                        put("content", m.content)
+                    }
+                }
+            }
+            putJsonObject("response_format") { put("type", "json_object") }
+        }
+        val response = client.post(endpoint) {
+            header("Authorization", "Bearer $key")
+            contentType(ContentType.Application.Json)
+            setBody(LlmJson.json.encodeToString(JsonObject.serializer(), payload))
+        }
+        if (!response.status.isSuccess()) {
+            throw LlmException(mapHttpError(response.status, response.bodyAsText()))
+        }
+        return extractContent(response.bodyAsText()) ?: throw LlmException(LlmError.Decode("no message content"))
     }
 
     private fun extractContent(body: String): String? =

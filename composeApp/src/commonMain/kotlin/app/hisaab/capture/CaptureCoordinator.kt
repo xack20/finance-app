@@ -37,6 +37,12 @@ class CaptureCoordinator(
     private val handler: CaptureHandler,
     private val cursorStore: CaptureCursorStore,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    /**
+     * Observability hook for per-item handler failures. Default no-op preserves the existing
+     * fail-isolation behaviour; AppContainer wires this to a log so a persistently-failing item
+     * is visible instead of being retried silently forever.
+     */
+    private val onItemError: (RawCapture, Throwable) -> Unit = { _, _ -> },
 ) {
     private val mutex = Mutex()
 
@@ -107,6 +113,7 @@ class CaptureCoordinator(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e // always re-throw cancellation
             } catch (e: Throwable) {
+                onItemError(raw, e) // surface the failure (no-op by default) before isolating it
                 return@withLock // isolate the failed item; leave the cursor where it is for retry
             }
             if (raw.receivedAt > cursorStore.currentCursor()) {

@@ -18,7 +18,14 @@ class BudgetRepository(private val db: HisaabDatabase) {
             .mapToList(Dispatchers.Default)
             .map { rows -> rows.map { it.toDomainResolvingCategoryName() } }
 
-    suspend fun set(categoryId: String, monthlyCapAmount: Double, startsMonth: YearMonth): String {
+    suspend fun set(categoryId: String, monthlyCapAmount: Double, startsMonth: YearMonth): String =
+        setBlocking(categoryId, monthlyCapAmount, startsMonth)
+
+    /**
+     * Non-suspending variant for use inside a [HisaabDatabase.transaction] block (the agent's
+     * set_budget tool). Inserts a budget row for [categoryId] effective from [startsMonth].
+     */
+    fun setBlocking(categoryId: String, monthlyCapAmount: Double, startsMonth: YearMonth): String {
         val id = randomId()
         db.budgetQueriesQueries.insertBudget(
             id = id,

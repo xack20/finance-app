@@ -8,6 +8,7 @@ data class EntryFormState(
     val kind: TxnKind = TxnKind.EXPENSE,
     val amount: String = "",
     val accountId: String? = null,
+    val toAccountId: String? = null,
     val categoryId: String? = null,
     val whenMs: Long = Clock.System.now().toEpochMilliseconds(),
     val merchantName: String = "",
@@ -30,7 +31,9 @@ data class EntryFormState(
             val personValid = kind !in setOf(TxnKind.LEND, TxnKind.BORROW) ||
                 personId != null ||
                 (newPersonName?.isNotBlank() == true)
-            return amountValid && accountValid && personValid
+            val transferValid = kind != TxnKind.TRANSFER ||
+                (toAccountId != null && toAccountId != accountId)
+            return amountValid && accountValid && personValid && transferValid
         }
 
     // Data class with ByteArray needs custom equals/hashCode — but for our purposes the

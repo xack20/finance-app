@@ -215,10 +215,10 @@ class CapturePipeline(
             confidence >= config.autoPostThreshold
 
         if (canAutoPost) {
-            // Non-null after the fieldsResolved gate above.
-            val resolvedAccountId = accountId!!
-            val resolvedAmount = amount!!
-            val resolvedDirection = direction!!
+            // Invariants guaranteed by the fieldsResolved/sane gate above; assert explicitly (no !!).
+            val resolvedAccountId = requireNotNull(accountId) { "auto-post invariant: accountId resolved" }
+            val resolvedAmount = requireNotNull(amount) { "auto-post invariant: amount sane" }
+            val resolvedDirection = requireNotNull(direction) { "auto-post invariant: direction known" }
             val candidate = candidate(
                 id = candidateId,
                 raw = raw,

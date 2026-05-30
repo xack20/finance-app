@@ -90,7 +90,7 @@ A single committer owns one FK-ordered `db.transaction` and is the **sole Apply 
 
 **Transfer ledger shape (net-new):** migration `4.sqm` adds `ALTER TABLE txn ADD COLUMN transfer_group_id TEXT;` + index. A transfer = **two rows** in one `db.transaction` sharing `transfer_group_id`: a debit leg on `from`, a credit leg on `to`, both `parent_txn_id IS NULL` (so they appear in feeds — **visually distinguished** as transfers in the UI, and excluded from spend because insights already filter `kind='EXPENSE'`). `TransactionRepository.toDomain/toFullDomain` mappers extended for the new column. The existing single-leg `TRANSFER` button in `EntryScreen` is rewired to this primitive (it currently posts a broken one-row transfer).
 
-**Card account foundation (`4.sqm`):**
+**Card account foundation (`6.sqm`):**
 ```sql
 ALTER TABLE account ADD COLUMN credit_limit  REAL;
 ALTER TABLE account ADD COLUMN statement_day INTEGER;
@@ -120,7 +120,7 @@ FROM txn WHERE account_id = ? AND parent_txn_id IS NULL;
 
 ## 11. Data flow & persistence
 
-**Migration `4.sqm`:** the two agent tables below + `txn.transfer_group_id` + the 3 card columns (§9).
+**Migrations (as shipped — split across three files):** `4.sqm` = `txn.transfer_group_id` (M4-2), `5.sqm` = the two agent tables below (M4-3), `6.sqm` = the 3 card columns (§9, M4-4).
 ```sql
 CREATE TABLE agent_conversation ( id TEXT NOT NULL PRIMARY KEY, title TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL );
 CREATE TABLE agent_message (
@@ -182,7 +182,7 @@ No TTS; no cloud STT; no on-device *agent* (cloud-only); no cross-session learne
 Dependency-ordered; agent core lands first as JVM commonTest, iOS in parallel:
 - **M4-1** — agent core: `AgentProvider.complete()` on the 3 cloud adapters, `AgentLoop`, `ToolRegistry`, `AgentPrompts`, `AgentJson`, guards + **read tools** incl. per-account balance queries. *DoD:* loop + all guards green in commonTest with `FakeProviders`; a **one-vendor (Gemini) reliability spike** on real prompts before expanding the tool registry.
 - **M4-2** — write tools (pure `ProposedWrite`) + `WriteBatchCommitter` + new blocking primitives (`recordBlocking`, `transferBlocking`) + `TxnSource.CHAT` + tolerant mapper. *DoD:* mixed-batch atomic Apply + rollback tests pass under FK-enforced DB.
-- **M4-3** — persistence: `4.sqm` (agent tables + `transfer_group_id` + card columns) + `ConversationRepository` (incl. `proposed_writes`). *DoD:* round-trip + migration tests.
+- **M4-3** — persistence: `5.sqm` (agent tables; `transfer_group_id` is `4.sqm`/M4-2, card columns are `6.sqm`/M4-4) + `ConversationRepository` (incl. `proposed_writes`). *DoD:* round-trip + migration tests.
 - **M4-4** — credit cards: `Account` attrs + threading touch points (§9), `cardOutstanding`/`CardSummary`, `card_summary`/`record_card_payment` tools, transfer-pair UI distinction, card UI. **Hard predecessor of the agent card tools.** *DoD:* card math + due-date + bill-payment-not-spend tests pass.
 - **M4-5** — `SpeechToText` expect/actual (Android fail-closed + iOS) + permissions. *DoD:* on-device transcribe on a real device; unavailable-locale path degrades to text.
 - **M4-6** — `AgentScreen` + extracted review-card widgets + `AgentViewModel` + DI (all 3 actuals) + FAB chooser. *DoD:* end-to-end propose→edit→Apply on Android.

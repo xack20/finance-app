@@ -31,13 +31,20 @@ import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
 import app.hisaab.platform.SecureStorage
+import app.hisaab.agent.AgentRuntime
+import app.hisaab.agent.WriteBatchCommitter
+import app.hisaab.agent.buildAgentToolRegistry
+import app.hisaab.data.ConversationRepository
 import app.hisaab.llm.DefaultLlmRouter
 import app.hisaab.llm.LlmRouter
 import app.hisaab.llm.cloud.ClaudeProvider
 import app.hisaab.llm.cloud.GeminiProvider
 import app.hisaab.llm.cloud.OpenAiProvider
+import app.hisaab.platform.NoSpeechToText
+import app.hisaab.platform.SpeechToText
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 actual class AppContainer {
@@ -91,6 +98,31 @@ actual class AppContainer {
         )
     actual val insightRepository: InsightRepository
         get() = InsightRepository(requireDb())
+
+    // M4-6: agent DI members. wasm has no cloud-capable agent provider → provider = null.
+    actual val conversationRepository: ConversationRepository
+        get() = ConversationRepository(requireDb())
+
+    actual val speechToText: SpeechToText = NoSpeechToText
+
+    actual fun agentRuntime(): AgentRuntime {
+        val db = requireDb()
+        val txns = TransactionRepository(db, merchantRepository, tagRepository)
+        return AgentRuntime(
+            registry = buildAgentToolRegistry(
+                accountRepository, categoryRepository, merchantRepository,
+                txns, insightRepository, personRepository,
+            ),
+            agentProvider = { null },
+            isConsented = { secureStorage.loadString("agent_consent_at") != null },
+            accountNames = { accountRepository.observeActive().first().joinToString(", ") { it.name } },
+            categoryNames = { categoryRepository.observeAll().first().joinToString(", ") { it.name } },
+            committer = WriteBatchCommitter(
+                db, accountRepository, categoryRepository, personRepository,
+                txns, lendBorrowRepository, budgetRepository,
+            ),
+        )
+    }
 
     // wasmJs is a viewer target: no capture, but the router member is required by
     // the expect. A default HttpClient() picks the available JS engine; it is never
