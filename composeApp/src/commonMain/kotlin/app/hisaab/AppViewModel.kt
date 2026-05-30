@@ -38,7 +38,13 @@ class AppViewModel(
             _state.value = when {
                 !authRepository.isSignedIn() -> AppState.Unauthenticated
                 !hasMasterSecret() -> AppState.OnboardingKey
-                else -> AppState.Authenticated
+                // A persisted master_secret exists, but on a COLD START the SQLCipher DB is not open
+                // yet (master_secret is only held in memory while unlocked, and is zeroed on
+                // background). Route to Locked so the unlock path actually opens the DB — going
+                // straight to Authenticated would render the main graph against a closed DB and crash
+                // (requireDb -> "Database not open"). Onboarding completion still goes straight to
+                // Authenticated via onOnboardingComplete(), because it opens the DB inline.
+                else -> AppState.Locked
             }
         }
     }

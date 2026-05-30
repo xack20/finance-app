@@ -30,27 +30,40 @@ fun LockScreen(onUnlock: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
 
+    // Loads the persisted master_secret, opens the SQLCipher DB, and proceeds. Shared by the
+    // biometric-success path and the no-biometric path.
+    suspend fun openAndContinue() {
+        val secret = container.secureStorage.loadMasterSecret()
+        if (secret == null) {
+            isLoading = false
+            error = "Unable to load encryption key. Sign in again."
+            return
+        }
+        container.openDatabase(secret)
+        secret.fill(0)
+        isLoading = false
+        onUnlock()
+    }
+
     fun attemptUnlock() {
         if (isLoading) return
         isLoading = true
         scope.launch {
+            // If the user never enabled biometric (skipped at onboarding), the encrypted
+            // master_secret in secure storage is the only gate — opening it directly is consistent
+            // with that choice and avoids stranding them behind a biometric prompt they can't satisfy
+            // (also the path that lets cold-start unlock succeed on devices without enrolled biometrics).
+            val biometricEnabled = container.secureStorage.loadString("biometric_enabled") == "true"
+            if (!biometricEnabled) {
+                openAndContinue()
+                return@launch
+            }
             val result = container.biometricAuth.authenticate(
                 title = "Unlock Hisaab",
                 subtitle = "Confirm your identity to continue",
             )
             when (result) {
-                BiometricResult.Success -> {
-                    val secret = container.secureStorage.loadMasterSecret()
-                    if (secret == null) {
-                        isLoading = false
-                        error = "Unable to load encryption key. Sign in again."
-                        return@launch
-                    }
-                    container.openDatabase(secret)
-                    secret.fill(0)
-                    isLoading = false
-                    onUnlock()
-                }
+                BiometricResult.Success -> openAndContinue()
                 BiometricResult.UserCancelled -> {
                     isLoading = false
                     // Leave on LockScreen — user can tap the button to retry.

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.fragment.app.FragmentActivity
 import app.cash.sqldelight.db.SqlDriver
 import app.hisaab.auth.AuthRepository
+import app.hisaab.auth.BypassAuthRepository
 import app.hisaab.auth.SupabaseAuthRepository
 import app.hisaab.crypto.BlobCrypto
 import app.hisaab.crypto.CryptoService
@@ -64,7 +65,10 @@ actual class AppContainer(
     actual val mnemonicService: MnemonicService = MnemonicService()
     actual val blobCrypto: BlobCrypto = BlobCrypto()
 
-    actual val authRepository: AuthRepository = SupabaseAuthRepository()
+    // The emulator bypass (no Supabase test OTP) is DEBUG-ONLY: release builds always use the real
+    // SupabaseAuthRepository, so the auth bypass can never ship even if the revert is forgotten.
+    actual val authRepository: AuthRepository =
+        if (BuildConfig.DEBUG) BypassAuthRepository(secureStorage) else SupabaseAuthRepository()
     actual val databaseDriverFactory: DatabaseDriverFactory = DatabaseDriverFactory(context)
 
     private var cachedDriver: SqlDriver? = null

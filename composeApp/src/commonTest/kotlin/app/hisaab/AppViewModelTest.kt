@@ -43,12 +43,15 @@ class AppViewModelTest {
     }
 
     @Test
-    fun `session with master secret emits Authenticated`() = runTest {
+    fun `session with master secret emits Locked on cold start (DB must be unlocked to open)`() = runTest {
         fakeAuth.signedIn = true
         val vm = AppViewModel(fakeAuth, hasMasterSecret = { true })
         vm.init()
         dispatcher.scheduler.advanceUntilIdle()
-        assertIs<AppState.Authenticated>(vm.state.value)
+        // Cold start with a persisted secret routes to Locked: the SQLCipher DB is not open yet, and
+        // the unlock path (LockScreen) is what actually opens it. Going straight to Authenticated
+        // would render the main graph against a closed DB and crash.
+        assertIs<AppState.Locked>(vm.state.value)
     }
 
     @Test
@@ -57,6 +60,7 @@ class AppViewModelTest {
         val vm = AppViewModel(fakeAuth, hasMasterSecret = { true }, lockTimeoutMs = 1000L)
         vm.init()
         dispatcher.scheduler.advanceUntilIdle()
+        vm.onBiometricUnlockSuccess() // simulate unlock → Authenticated
         vm.onAppBackground()
         dispatcher.scheduler.advanceUntilIdle()
         assertIs<AppState.Locked>(vm.state.value)
@@ -68,6 +72,7 @@ class AppViewModelTest {
         val vm = AppViewModel(fakeAuth, hasMasterSecret = { true }, lockTimeoutMs = 1000L)
         vm.init()
         dispatcher.scheduler.advanceUntilIdle()
+        vm.onBiometricUnlockSuccess() // unlock → Authenticated
         assertIs<AppState.Authenticated>(vm.state.value)
 
         vm.onAppBackground()
@@ -83,6 +88,7 @@ class AppViewModelTest {
         val vm = AppViewModel(fakeAuth, hasMasterSecret = { true }, lockTimeoutMs = 1000L)
         vm.init()
         dispatcher.scheduler.advanceUntilIdle()
+        vm.onBiometricUnlockSuccess() // unlock → Authenticated
 
         vm.onAppBackground()
         dispatcher.scheduler.advanceTimeBy(500L)
