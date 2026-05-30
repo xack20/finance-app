@@ -1,14 +1,16 @@
 package app.hisaab.capture
 
 import android.content.ContentProvider
+import android.content.ContentResolver
 import android.content.ContentValues
-import android.content.Context
+import android.content.pm.ProviderInfo
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
 import android.provider.Telephony
-import androidx.test.core.app.ApplicationProvider
+import android.test.mock.MockContentResolver
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.RawCapture
 import org.junit.Test
@@ -18,8 +20,15 @@ import kotlin.test.assertTrue
 
 /**
  * Verifies the inbox-query → RawCapture mapping in isolation using a MatrixCursor-backed fake
- * provider. The mapping (ADDRESS/BODY/DATE columns, DATE > cursor filter, DATE ASC ordering,
- * blank-body skip) is the production-critical logic and is identical to CaptureService.backfillSince.
+ * provider wired through an in-process MockContentResolver. The mapping (ADDRESS/BODY/DATE columns,
+ * DATE > cursor filter, DATE ASC ordering, blank-body skip) is the production-critical logic and is
+ * identical to CaptureService.backfillSince.
+ *
+ * The provider is registered programmatically (MockContentResolver.addProvider) rather than via the
+ * androidTest manifest: a manifest-declared provider is hosted in the test APK's own process, which
+ * has no Kotlin stdlib linked and crashes with NoClassDefFoundError when queried cross-process.
+ * MockContentResolver runs the provider in the instrumentation process, so no separate process,
+ * cross-UID export, or manifest entry is required.
  */
 @RunWith(AndroidJUnit4::class)
 class CaptureServiceBackfillInstrumentedTest {
@@ -52,9 +61,9 @@ class CaptureServiceBackfillInstrumentedTest {
         }
     }
 
-    /** Replicates CaptureService.backfillSince's cursor-mapping against an arbitrary URI. */
-    private fun mapInboxCursor(context: Context, uri: Uri, cursorMs: Long): List<RawCapture> = buildList {
-        context.contentResolver.query(
+    /** Replicates CaptureService.backfillSince's cursor-mapping against an arbitrary resolver. */
+    private fun mapInboxCursor(resolver: ContentResolver, uri: Uri, cursorMs: Long): List<RawCapture> = buildList {
+        resolver.query(
             uri,
             arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
             "${Telephony.Sms.DATE} > ?",
@@ -75,12 +84,25 @@ class CaptureServiceBackfillInstrumentedTest {
 
     @Test
     fun maps_inbox_rows_skipping_blank_bodies_and_passing_cursor_filter() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val authority = "${context.packageName}.fakesms"
-        // Resolve the fake provider registered for the test authority (see androidTest manifest).
+        // In-process fake provider via MockContentResolver — see class KDoc for why this avoids a
+        // manifest-declared provider (separate test-APK process, NoClassDefFoundError on query).
+        FakeSmsProvider.lastSelection = null
+        FakeSmsProvider.lastSelectionArgs = null
+        FakeSmsProvider.lastSortOrder = null
+        val authority = "fakesms"
+        // Attach a real Context + ProviderInfo so the ContentProvider.Transport URI validation
+        // (validateIncomingUri → context.getUserId()) doesn't NPE when MockContentResolver routes
+        // the query through the provider's IContentProvider transport.
+        val provider = FakeSmsProvider().apply {
+            attachInfo(
+                InstrumentationRegistry.getInstrumentation().context,
+                ProviderInfo().apply { this.authority = authority },
+            )
+        }
+        val resolver = MockContentResolver().apply { addProvider(authority, provider) }
         val uri = Uri.parse("content://$authority/inbox")
 
-        val rows = mapInboxCursor(context, uri, cursorMs = 50L)
+        val rows = mapInboxCursor(resolver, uri, cursorMs = 50L)
 
         // Verify the query shape the production code uses.
         assertEquals("${Telephony.Sms.DATE} > ?", FakeSmsProvider.lastSelection)
