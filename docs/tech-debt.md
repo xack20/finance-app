@@ -1,10 +1,12 @@
 # Hisaab — Tech Debt & Carryover
 
 **Status:** Tracking doc — items here are deliberate deferrals or known gaps from prior phases.
-**Last updated:** 2026-05-29 (M3 — SMS capture engine + on-device/cloud LLM categorizer — shipped: 5 slices, `m3-complete`)
+**Last updated:** 2026-05-31 (M4 — conversational agent: M4-1…M4-4 + M4-6 shipped; + a full carry-forward / tech-debt sweep)
 **Convention:** Each item carries a target phase. Items unresolved by v1 launch must move to Phase 2 backlog.
 
 > **M3 shipped (2026-05-29):** SMS capture (Android: receiver + backfill + NotificationListener, lock-safe catch-up), tiered parsing (deterministic pre-filter → 6 bank templates → LLM), on-device (MediaPipe Gemma) + cloud BYO-key (Claude/Gemini/OpenAI) providers with redaction + consent, confidence-gated auto-post + Review inbox, Settings/onboarding UX. 239 unit tests + instrumented suites green. M3 closed no prior debt (net-new feature); its residuals are tracked as H7–H8, M13–M17, L3 below.
+
+> **M4 shipped (2026-05-30→31):** conversational money agent — `AgentProvider.complete()` + `AgentLoop` (ReAct, db-free) + read tools + `WriteBatchCommitter` (atomic FK-ordered Apply) + agent persistence (`5.sqm`) + credit cards (`6.sqm`, signed `cardOutstanding`, `CardSummaryCalculator`) + `AgentScreen`/`ReviewCard`/`AgentViewModel` + DI + paired-leg transfer entry. A subsequent tech-debt sweep (2026-05-31) closed the items in **Closed → M4 sweep** below.
 
 ---
 
@@ -22,7 +24,7 @@ Important gaps but not blocking ongoing development.
 |---|---|---|---|---|
 | H1 | `iOS SecureStorage` is a stub — load/save are no-ops | P0b T6 | Keychain cinterop deferred; iOS users cannot persist `master_secret` | P0d |
 | H2 | iOS app never run on simulator — Xcode project setup incomplete | P0a T23/T26 | Need Xcode wizard to create `iosApp.xcodeproj`, embed `ComposeApp.framework` | P0d |
-| H3 | wasmJs / Web target never run in browser | P0a T29 | Compiles partially; SQLDelight + libsodium don't publish wasmJs artifacts in current versions | P0d |
+| H3 | wasmJs target **gated off** (`-Phisaab.enableWasm`, default off) | P0a T29; M4 sweep | Root cause pinned: **libsodium (all crypto) publishes no wasmJs artifact in any version** — a hard upstream blocker. SQLDelight fixed via the 2.1.0 bump (publishes wasm-js variants). Gating it off also clears the KMP-metadata resolution errors that polluted the iOS build. Re-enable when upstream ships wasm crypto, or add a WebCrypto/libsodium.js expect-actual seam | P0d / upstream |
 | H5 | Real BD SMS provider (SSL Wireless / Infobip) not wired — using Supabase Test Mode | P0b T8 | Blocks public beta but not internal dev | P0d/P0e |
 | H6 | 16 KB page-size alignment — `libsodium.so`, `libsqlcipher.so`, `libjnidispatch.so`, `libandroidx.graphics.path.so`, and now MediaPipe's `libllm_inference_engine_jni.so` not aligned | P0b emulator test; M3-4 | Runs in compatibility mode on Android 15+ pixel devices; breaks under future Android requiring 16 KB | P0d |
 | H7 | On-device Gemini Nano (AICore) is a runtime `Class.forName` availability probe only — no actual Nano inference path; `play-services-aicore:16.0.0-alpha05` artifact does not exist in Google Maven | M3-4 | MediaPipe Gemma is the real on-device path; Nano returns unavailable on all devices. Wire the real AICore path when a valid GA artifact exists | when AICore GA |
@@ -59,7 +61,7 @@ Important gaps but not blocking ongoing development.
 | # | Item | Origin | Notes | Target |
 |---|---|---|---|---|
 | L1 | Release build has `isMinifyEnabled = false` — SQLCipher key-handling code ships unobfuscated | P0b T3 review | Release builds far away; track for pre-launch | pre-launch |
-| L2 | `expect class … in Beta` warnings everywhere — KT-61573 | P0a | Add `-Xexpect-actual-classes` flag when Kotlin moves it to stable | when stable |
+| L5 | Gradle **configuration cache** intermittently fails serializing AGP `JdkImageInput` (`:composeApp:androidJdkImage`), triggered by a "JVM has changed" invalidation | M4 sweep | Pre-existing AGP×config-cache flake, **not** introduced by M4 (a `--no-configuration-cache` run is clean). Workaround: that flag. Revisit on the next AGP bump | when AGP fixes |
 | L3 | Two `AutoCaptureViewModel` instances exist when navigating AutoCaptureScreen → CloudConsentScreen | M3-5 review | Benign given the reactive DB-backed config flow keeps both consistent; consolidate via a shared nav-scoped VM if consent gains in-memory state | P0d polish |
 | L4 | `AndroidOnDeviceProvider.createOnDeviceProvider()` caches a single engine but its `redact` lambda is bound on first construction — a second `AppContainer` (test only) reuses the first's lambda | M3-4 review | Test-only hazard; production has one `AppContainer`. Add a cache-reset seam if multi-container tests are added | when needed |
 
@@ -81,6 +83,20 @@ Important gaps but not blocking ongoing development.
 | C8 | `OnboardingKey` state has no UI | P0c-1 T9 | New `RecoveryEntryScreen` — 24-input grid, BIP39 word validation, decode + open DB |
 | C9 | App lifecycle never triggers Locked | P0c-1 T4 + T6 + T8 | `AppLifecycle` expect/actual + `ProcessLifecycleOwner` Android observer; `AppViewModel.lockTimeoutMs` timer (30s default); `App.kt` collects `container.lifecycle.events()` |
 | H4 | `CryptoServiceTest` marked `@Ignore` due to libsodium native lib unavailable in JVM | P0c-3 T23 | 12 instrumented tests under `androidInstrumentedTest` all pass on Pixel_10_Pro emulator (4 CryptoService + 5 MnemonicService + 3 BlobCrypto) |
+
+### Closed in M4 sweep (2026-05-31)
+
+| # | Item | Resolved by | Verified |
+|---|---|---|---|
+| S1 | `kotlinx-datetime` used in 26 commonMain files but never declared — floated to 0.7.1 on iOS (where `Clock.System` was removed) → the iOS compile failure | Pinned `kotlinx-datetime = 0.6.1` in `commonMain` | Android 307 unit tests green; iOS `Clock.System` errors gone (per-target compile) |
+| S2 | JVM-only `"%.2f".format()` in `commonMain/AccountsScreen.kt` broke iOS/wasm | Added multiplatform `Double.toMoneyString()`; replaced both call sites | Compiles; helper is pure-Kotlin |
+| S3 | Espresso 3.5.0 (transitive) `InputManager.getInstance` `NoSuchMethodException` broke all Compose instrumented tests on API 37 | Pinned `espresso-core 3.7.0` on `androidInstrumentedTest` | Dependency on classpath; awaits an API-37 instrumented run |
+| S4 | `AgentViewModel` error/confirmation banners were sticky (only cleared at send start) and could coexist | One mutually-exclusive status; cleared on every send path + at `onApply` start; `onDismissBanner()` added | +2 unit tests |
+| S5 | `!!` in `EntryViewModel` (×2), `CapturePipeline` (×3), `RecoveryPhraseRevealScreen` (×2) — no-`!!` rule | `requireNotNull` with messages / local-val capture | 307 tests green |
+| S6 | `CaptureCoordinator` swallowed per-item handler failures silently | Optional `onItemError` hook (default no-op); Android `AppContainer` logs dropped items | +1 unit test |
+| S7 | Dead code: `ToolRegistry.isKnown()`, `CardSummary` data class | Removed (YAGNI; `AgentLoop` dispatches via `read`/`isWrite`/else; `CardSummaryCalculator` kept) | 307 tests green |
+| L2 | `expect class … in Beta` warnings (KT-61573) | Added `-Xexpect-actual-classes` to `kotlin { compilerOptions }` | Warnings silenced |
+| S8 | M4 master-spec migration-numbering claimed one combined `4.sqm`; reality is `4`=transfer_group_id, `5`=agent tables, `6`=card columns | Corrected the spec (§9, §11, M4-3 line) | Matches `.sqm` files |
 
 ---
 
