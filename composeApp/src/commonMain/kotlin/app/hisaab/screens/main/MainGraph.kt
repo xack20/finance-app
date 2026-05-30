@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.NavigationBar
@@ -14,7 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
@@ -27,6 +31,8 @@ import androidx.navigation.navArgument
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.domain.CloudProvider
+import app.hisaab.screens.agent.AgentScreen
+import app.hisaab.screens.agent.AgentViewModel
 import app.hisaab.screens.capture.AutoPostSnackbarHost
 import app.hisaab.screens.capture.ReviewInboxScreen
 import app.hisaab.screens.entry.EntryScreen
@@ -43,6 +49,9 @@ import app.hisaab.screens.settings.RecoveryPhraseRevealScreen
 import app.hisaab.screens.settings.SettingsScreen
 import app.hisaab.screens.today.TodayScreen
 import app.hisaab.screens.transaction.TransactionDetailScreen
+import kotlinx.datetime.Clock
+
+private const val AGENT_ROUTE = "agent"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,11 +101,33 @@ fun MainGraph() {
         },
         floatingActionButton = {
             if (currentRoute in setOf(MainTab.TODAY.name, MainTab.MONTH.name, MainTab.PEOPLE.name)) {
-                FloatingActionButton(
-                    onClick = { navController.navigate("entry") },
-                    containerColor = palette.accent,
-                ) {
-                    Text("+", color = palette.background, fontSize = 28.sp)
+                var showChooser by remember { mutableStateOf(false) }
+                Box {
+                    FloatingActionButton(
+                        onClick = { showChooser = true },
+                        containerColor = palette.accent,
+                    ) {
+                        Text("+", color = palette.background, fontSize = 28.sp)
+                    }
+                    DropdownMenu(
+                        expanded = showChooser,
+                        onDismissRequest = { showChooser = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Add manually", color = palette.onBackground) },
+                            onClick = {
+                                showChooser = false
+                                navController.navigate("entry")
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Ask the assistant", color = palette.accent) },
+                            onClick = {
+                                showChooser = false
+                                navController.navigate(AGENT_ROUTE)
+                            },
+                        )
+                    }
                 }
             }
         },
@@ -205,6 +236,22 @@ fun MainGraph() {
                 composable("txn/{id}") { entry ->
                     val id = entry.arguments?.getString("id") ?: return@composable
                     TransactionDetailScreen(txnId = id, onDone = { navController.popBackStack() })
+                }
+                composable(AGENT_ROUTE) {
+                    val container = LocalAppContainer.current
+                    val vm = remember(container) {
+                        AgentViewModel(
+                            conversationRepo = container.conversationRepository,
+                            runtime = container.agentRuntime(),
+                            setConsent = {
+                                container.secureStorage.storeString(
+                                    "agent_consent_at",
+                                    Clock.System.now().toEpochMilliseconds().toString(),
+                                )
+                            },
+                        )
+                    }
+                    AgentScreen(vm = vm, onClose = { navController.popBackStack() })
                 }
             }
             // Mount the auto-post snackbar host once; it collects captureEvents and shows Undo snackbars.
