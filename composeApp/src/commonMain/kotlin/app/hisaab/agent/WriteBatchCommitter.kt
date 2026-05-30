@@ -122,7 +122,12 @@ class WriteBatchCommitter(
                     }
                     is WriteIntent.SetBudget -> {
                         val catId = cat(i.category) ?: throw IllegalArgumentException("unknown category '${i.category}'")
-                        val month = i.month?.let { runCatching { YearMonth(it) }.getOrNull() } ?: currentMonth
+                        // YearMonth(String) only checks "YYYY-MM" shape, not that MM is 1..12. The agent
+                        // supplies this string, so validate the month range too; anything invalid/malformed
+                        // falls back to the current month rather than persisting a nonsensical budget period.
+                        val month = i.month
+                            ?.let { runCatching { require(it.substringAfter('-').toInt() in 1..12); YearMonth(it) }.getOrNull() }
+                            ?: currentMonth
                         budgets.setBlocking(catId, i.amount, month)
                         budgetsSet++
                     }

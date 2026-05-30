@@ -41,4 +41,23 @@ class AgentRuntimeTest {
             ProposedWrite("add_transaction", buildJsonObject { put("account","Cash"); put("amount",500.0); put("kind","EXPENSE") })))
         assertEquals(1, s.transactionsAdded)
     }
+
+    @Test fun `availability re-resolves the provider on each call`() = runTest {
+        // The lazy agentProvider resolver must be re-invoked per call, so a provider becoming
+        // available mid-session is reflected without rebuilding the runtime (the point of WS4).
+        val db = TestDatabase.create()
+        var current: FakeAgentProvider? = null
+        val txns = TransactionRepository(db, MerchantRepository(db), TagRepository(db))
+        val rt = AgentRuntime(
+            registry = buildAgentToolRegistry(AccountRepository(db), CategoryRepository(db), MerchantRepository(db), txns, InsightRepository(db), PersonRepository(db)),
+            agentProvider = { current },
+            isConsented = { true },
+            accountNames = { "Cash" }, categoryNames = { "Food" },
+            committer = WriteBatchCommitter(db, AccountRepository(db), CategoryRepository(db), PersonRepository(db), txns, LendBorrowRepository(db, txns), BudgetRepository(db)),
+            todayIso = { "2026-05-30" },
+        )
+        assertTrue(rt.availability() is AgentAvailability.Unavailable, "no provider selected yet")
+        current = FakeAgentProvider(emptyList())
+        assertEquals(AgentAvailability.Ready, rt.availability(), "same runtime reflects the newly-selected provider")
+    }
 }

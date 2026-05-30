@@ -22,6 +22,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 /** set_budget / recategorize / add_split_transaction — the M4 deferred write tools (parse + apply). */
 class DeferredWriteToolsTest {
@@ -37,6 +38,11 @@ class DeferredWriteToolsTest {
             WriteIntent.SetBudget("Food", 500.0, null),
             WriteIntent.parse(ProposedWrite("set_budget",
                 buildJsonObject { put("category", "Food"); put("amount", 500.0) })),
+        )
+        assertEquals(
+            WriteIntent.SetBudget("Food", 500.0, "2025-01"),
+            WriteIntent.parse(ProposedWrite("set_budget",
+                buildJsonObject { put("category", "Food"); put("amount", 500.0); put("month", "2025-01") })),
         )
         assertEquals(
             WriteIntent.Recategorize("t1", "Food"),
@@ -115,7 +121,58 @@ class DeferredWriteToolsTest {
         ))
 
         assertEquals(1, s.splitTransactionsAdded)
+        val cats = CategoryRepository(db).observeAll().first()
+        val groceriesId = cats.first { it.name == "Groceries" }.id
+        val householdId = cats.first { it.name == "Household" }.id
         val recent = TransactionRepository(db, MerchantRepository(db), TagRepository(db)).observeRecent().first()
-        assertEquals(true, recent.any { it.amount == 1000.0 }, "parent split transaction should be present")
+        val parent = recent.first { it.amount == 1000.0 } // observeRecent is top-level only (parent_txn_id IS NULL)
+
+        // The two child legs must actually be inserted under the parent with resolved categories.
+        val children = db.transactionQueriesQueries.observeChildSplits(parent.id).executeAsList()
+        assertEquals(2, children.size, "both split legs should be inserted under the parent")
+        assertEquals(setOf(600.0, 400.0), children.map { it.amount }.toSet())
+        assertEquals(setOf(groceriesId, householdId), children.mapNotNull { it.category_id }.toSet())
+        children.forEach { assertEquals(parent.id, it.parent_txn_id) }
+    }
+
+    @Test
+    fun `recategorize on a missing transaction rolls the batch back`() = runTest {
+        val db = TestDatabase.create()
+        val cats = CategoryRepository(db)
+        cats.ensureDefaults()
+        val before = cats.observeAll().first().size
+
+        // recategorizeBlocking error()s on a missing id; the whole db.transaction must roll back,
+        // so the create_category in the same batch is undone too.
+        assertFailsWith<IllegalStateException> {
+            committer(db).apply(listOf(
+                ProposedWrite("create_category", buildJsonObject { put("name", "ZZTemp") }),
+                ProposedWrite("recategorize", buildJsonObject { put("transactionId", "does-not-exist"); put("category", "ZZTemp") }),
+            ))
+        }
+        assertEquals(before, cats.observeAll().first().size, "batch must roll back — no category created")
+    }
+
+    @Test
+    fun `set_budget honors an explicit valid month and falls back on an out-of-range one`() = runTest {
+        val db = TestDatabase.create()
+        CategoryRepository(db).ensureDefaults()
+        committer(db).apply(listOf(
+            ProposedWrite("create_category", buildJsonObject { put("name", "Travel") }),
+            ProposedWrite("set_budget", buildJsonObject { put("category", "Travel"); put("amount", 2000.0); put("month", "2025-01") }),
+        ))
+        val travel = BudgetRepository(db).observeActive().first().first { it.categoryName == "Travel" }
+        assertEquals("2025-01", travel.startsMonth.value)
+
+        // An out-of-range month (13) must NOT abort the batch and must NOT be persisted verbatim.
+        val db2 = TestDatabase.create()
+        CategoryRepository(db2).ensureDefaults()
+        val s = committer(db2).apply(listOf(
+            ProposedWrite("create_category", buildJsonObject { put("name", "Gifts") }),
+            ProposedWrite("set_budget", buildJsonObject { put("category", "Gifts"); put("amount", 500.0); put("month", "2025-13") }),
+        ))
+        assertEquals(1, s.budgetsSet, "out-of-range month must not abort the batch")
+        val gifts = BudgetRepository(db2).observeActive().first().first { it.categoryName == "Gifts" }
+        assertEquals(false, gifts.startsMonth.value == "2025-13", "invalid month must fall back to the current month")
     }
 }
