@@ -15,6 +15,14 @@ plugins {
 // in any version, a hard upstream blocker. Re-enable with -Phisaab.enableWasm=true.
 val enableWasm = (findProperty("hisaab.enableWasm") as String?)?.toBoolean() ?: false
 
+// Pin kotlinx-datetime to 0.6.1 on ALL targets. iOS otherwise floats to 0.7.1 (where Clock/Instant
+// moved out of package kotlinx.datetime into kotlin.time), breaking the 27 commonMain files that call
+// kotlinx.datetime.Clock.System. Android already resolves 0.6.1 (Supabase pins it); a non-strict
+// commonMain declaration loses Gradle's highest-version-wins, so force it everywhere.
+configurations.all {
+    resolutionStrategy { force("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1") }
+}
+
 kotlin {
     compilerOptions {
         // Silence KT-61573 "expect/actual class in Beta" warnings until Kotlin stabilizes it.

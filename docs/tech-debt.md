@@ -22,7 +22,7 @@ Important gaps but not blocking ongoing development.
 
 | # | Item | Origin | Notes | Target |
 |---|---|---|---|---|
-| H1 | `iOS SecureStorage` is a stub — load/save are no-ops | P0b T6 | Keychain cinterop deferred; iOS users cannot persist `master_secret` | P0d |
+| H1 | `iOS SecureStorage` is a stub — load/save are no-ops | P0b T6 | Keychain cinterop deferred; iOS users cannot persist `master_secret`. (iOS now compiles, so this can be implemented + simulator-verified; security-critical, so left as an honest stub rather than shipping unverified cinterop) | P0d / M4-0 |
 | H2 | iOS app never run on simulator — Xcode project setup incomplete | P0a T23/T26 | Need Xcode wizard to create `iosApp.xcodeproj`, embed `ComposeApp.framework` | P0d |
 | H3 | wasmJs target **gated off** (`-Phisaab.enableWasm`, default off) | P0a T29; M4 sweep | Root cause pinned: **libsodium (all crypto) publishes no wasmJs artifact in any version** — a hard upstream blocker. SQLDelight fixed via the 2.1.0 bump (publishes wasm-js variants). Gating it off also clears the KMP-metadata resolution errors that polluted the iOS build. Re-enable when upstream ships wasm crypto, or add a WebCrypto/libsodium.js expect-actual seam | P0d / upstream |
 | H5 | Real BD SMS provider (SSL Wireless / Infobip) not wired — using Supabase Test Mode | P0b T8 | Blocks public beta but not internal dev | P0d/P0e |
@@ -39,7 +39,7 @@ Important gaps but not blocking ongoing development.
 | M1 | No locale switching wired — UI strings are hardcoded English | P0b T12 | `compose-resources` is added to deps but `stringResource()` not used; locale stored in `UserProfile` is unused | P0d |
 | M2 | `AppViewModel.lockTimeoutMs` is fixed at construction — Settings UI persists the choice but it only applies on next app start | P0c-3 T22 | Make AppViewModel re-read on background or expose mutable lockTimeout | P0d |
 | M3 | No accessibility audit — VoiceOver / TalkBack untested | P0b | Accessibility pass deferred per S8 spec | P0e |
-| M4 | iOS `NativeSqliteDriver` + SQLCipher encryption never tested on simulator | P0b T3 | Hex keying path uses lossless conversion now (commit `1ba88e4`) but unverified on device | P0d |
+| M4 | iOS DB encryption: API fixed, but **SQLCipher binary not yet linked** | P0b T3; M4 sweep | The driver now uses the correct sqliter-1.3.3 `encryptionConfig = Encryption(key)` and **compiles**, but sqliter links the *system* libsqlite3 where `PRAGMA key` is a NO-OP → the DB is NOT actually encrypted. iOS must NOT ship to users until SQLCipher is linked (CocoaPods `pod 'SQLCipher'` + SQLDelight `linkSqlite=false`) and verified on a simulator. Loudly commented in DatabaseDriverFactory.ios | P0d / M4-0 |
 | M5 | Web `WebWorkerDriver` (sql.js) never tested in browser | P0b T3 | Web is viewer-only in v1 | P0d |
 | M6 | Screenshot prevention on `RecoveryPhraseScreen` and `RecoveryPhraseRevealScreen` not implemented — Android `FLAG_SECURE`, iOS blur overlay | P0b/P0c-3 | Recovery phrase visible to screenshots / screen recording | P0d |
 | M7 | Argon2id timing benchmark on low-end devices — may need to drop to `m=32MB` if P99 > 3 s | P0b spec §13 | Currently uses `MEMLIMIT_MODERATE` (~64 MB) | P0d |
@@ -97,6 +97,7 @@ Important gaps but not blocking ongoing development.
 | S7 | Dead code: `ToolRegistry.isKnown()`, `CardSummary` data class | Removed (YAGNI; `AgentLoop` dispatches via `read`/`isWrite`/else; `CardSummaryCalculator` kept) | 307 tests green |
 | L2 | `expect class … in Beta` warnings (KT-61573) | Added `-Xexpect-actual-classes` to `kotlin { compilerOptions }` | Warnings silenced |
 | S8 | M4 master-spec migration-numbering claimed one combined `4.sqm`; reality is `4`=transfer_group_id, `5`=agent tables, `6`=card columns | Corrected the spec (§9, §11, M4-3 line) | Matches `.sqm` files |
+| S9 | iOS Kotlin/Native target had **never compiled** (Clock.System ×27, JVM `%02x`.format, missing `@ExperimentalForeignApi` opt-in, wrong SQLCipher API, wasmJs-variant pollution) | datetime forced to 0.6.1 (resolutionStrategy); multiplatform hex; `@file:OptIn(ExperimentalForeignApi)` on BiometricAuth; `encryptionSpec` → the real sqliter-1.3.3 `encryptionConfig = Encryption(key)`; wasmJs gated; AppLifecycle implemented via NSNotificationCenter | **`compileKotlinIosSimulatorArm64` BUILD SUCCESSFUL** (29 errors → 0) |
 
 ---
 

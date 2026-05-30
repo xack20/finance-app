@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
 package app.hisaab.platform
 
 import kotlinx.coroutines.suspendCancellableCoroutine
