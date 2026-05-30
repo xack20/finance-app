@@ -16,3 +16,6 @@ VALUES (?, ?, ?, ?, ?, ?, ?);
 
 observeMessages:
 SELECT * FROM agent_message WHERE conversation_id = ? ORDER BY created_at ASC;
+
+updateMessageAppliedSummary:
+UPDATE agent_message SET applied_summary = ? WHERE id = ?;

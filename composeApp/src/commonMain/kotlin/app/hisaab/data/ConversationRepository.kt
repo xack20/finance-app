@@ -59,6 +59,10 @@ class ConversationRepository(
         return id
     }
 
+    suspend fun recordApplied(messageId: String, summary: AppliedSummary) {
+        queries.updateMessageAppliedSummary(AgentWriteCodec.encodeSummary(summary), messageId)
+    }
+
     fun observeMessages(conversationId: String): Flow<List<AgentMessage>> =
         queries.observeMessages(conversationId).asFlow()
             .mapToList(Dispatchers.Default)
