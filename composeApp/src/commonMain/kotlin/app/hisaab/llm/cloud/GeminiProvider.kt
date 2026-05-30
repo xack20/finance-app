@@ -1,6 +1,9 @@
 package app.hisaab.llm.cloud
 
 import app.hisaab.domain.Category
+import app.hisaab.agent.AgentProvider
+import app.hisaab.agent.ChatMessage
+import app.hisaab.agent.Role
 import app.hisaab.llm.LlmError
 import app.hisaab.llm.LlmException
 import app.hisaab.llm.LlmJson
@@ -45,7 +48,7 @@ class GeminiProvider(
     private val apiKey: () -> String?,
     private val model: String = "gemini-2.0-flash",
     private val redact: suspend () -> Boolean = { true },
-) : LlmProvider {
+) : LlmProvider, AgentProvider {
 
     private val client = httpClient.llmConfigured()
     private val endpoint =
@@ -108,6 +111,36 @@ class GeminiProvider(
         if (!response.status.isSuccess()) return null
         val text = extractText(response.bodyAsText()) ?: return null
         return LlmJson.decodeCategoryId(text, categories.map { it.id }.toSet())
+    }
+
+    override suspend fun complete(messages: List<ChatMessage>, maxTokens: Int): String {
+        val key = apiKey() ?: throw LlmException(LlmError.InvalidKey)
+        val system = messages.filter { it.role == Role.SYSTEM }.joinToString("\n") { it.content }
+        val turns = messages.filter { it.role != Role.SYSTEM }
+        val payload = buildJsonObject {
+            if (system.isNotBlank()) putJsonObject("systemInstruction") {
+                putJsonArray("parts") { addJsonObject { put("text", system) } }
+            }
+            putJsonArray("contents") {
+                turns.forEach { m ->
+                    addJsonObject {
+                        put("role", if (m.role == Role.ASSISTANT) "model" else "user")
+                        putJsonArray("parts") { addJsonObject { put("text", m.content) } }
+                    }
+                }
+            }
+            putJsonObject("generationConfig") {
+                put("responseMimeType", "application/json")     // free-form JSON, NOT the SMS responseSchema
+                put("maxOutputTokens", maxTokens)
+            }
+        }
+        val response = client.post(endpoint) {
+            header("x-goog-api-key", key)
+            contentType(ContentType.Application.Json)
+            setBody(LlmJson.json.encodeToString(JsonObject.serializer(), payload))
+        }
+        if (!response.status.isSuccess()) throw LlmException(mapHttpError(response.status, response.bodyAsText()))
+        return extractText(response.bodyAsText()) ?: throw LlmException(LlmError.Decode("no candidate text"))
     }
 
     private fun extractText(body: String): String? =
