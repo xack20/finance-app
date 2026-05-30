@@ -20,8 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -266,60 +264,16 @@ fun AgentScreenContent(
 
                 item { Spacer(Modifier.height(8.dp)) }
 
-                // Review section — minimal inline placeholder until T7 introduces the full ReviewCard.
-                // TODO(T7): replace this inline list with the full ReviewCard composable.
+                // Review section — full ReviewCard introduced in T7.
                 if (state.review.isNotEmpty()) {
                     item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(palette.surface)
-                                .border(1.dp, palette.rule, RoundedCornerShape(14.dp))
-                                .padding(14.dp)
-                                .testTag("agent_review_section"),
-                        ) {
-                            Text(
-                                text = "Proposed changes",
-                                color = palette.onBackground,
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            state.review.forEachIndexed { i, write ->
-                                val included = i in state.reviewIncluded
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = if (included) "✓" else "○",
-                                        color = if (included) palette.positive else palette.muted,
-                                        modifier = Modifier
-                                            .padding(end = 8.dp)
-                                            .testTag("agent_review_toggle_$i"),
-                                    )
-                                    Text(
-                                        text = write.tool,
-                                        color = palette.onBackground,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.height(10.dp))
-                            Button(
-                                onClick = onApply,
-                                colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("agent_apply"),
-                            ) {
-                                Text("Apply", color = palette.background)
-                            }
-                        }
+                        ReviewCard(
+                            writes = state.review,
+                            included = state.reviewIncluded,
+                            onToggle = onToggleInclude,
+                            onEdit = onEditWrite,
+                            onApply = onApply,
+                        )
                     }
 
                     item { Spacer(Modifier.height(8.dp)) }
