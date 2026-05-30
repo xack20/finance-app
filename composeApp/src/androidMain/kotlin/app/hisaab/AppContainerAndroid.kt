@@ -34,15 +34,22 @@ import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
 import app.hisaab.platform.SecureStorage
+import app.hisaab.agent.AgentRuntime
+import app.hisaab.agent.WriteBatchCommitter
+import app.hisaab.agent.buildAgentToolRegistry
+import app.hisaab.data.ConversationRepository
 import app.hisaab.llm.AndroidLlmContext
 import app.hisaab.llm.DefaultLlmRouter
 import app.hisaab.llm.LlmRouter
 import app.hisaab.llm.cloud.ClaudeProvider
 import app.hisaab.llm.cloud.GeminiProvider
 import app.hisaab.llm.cloud.OpenAiProvider
+import app.hisaab.platform.NoSpeechToText
+import app.hisaab.platform.SpeechToText
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 actual class AppContainer(
@@ -106,6 +113,32 @@ actual class AppContainer(
         )
     actual val insightRepository: InsightRepository
         get() = InsightRepository(requireDb())
+
+    // M4-6: agent DI members.
+    actual val conversationRepository: ConversationRepository
+        get() = ConversationRepository(requireDb())
+
+    actual val speechToText: SpeechToText = NoSpeechToText
+
+    actual fun agentRuntime(): AgentRuntime {
+        val db = requireDb()
+        val txns = TransactionRepository(db, merchantRepository, tagRepository)
+        val gemKey = secureStorage.loadString("llm_api_key_GEMINI")
+        return AgentRuntime(
+            registry = buildAgentToolRegistry(
+                accountRepository, categoryRepository, merchantRepository,
+                txns, insightRepository, personRepository,
+            ),
+            provider = if (!gemKey.isNullOrBlank()) geminiProvider else null,
+            isConsented = { secureStorage.loadString("agent_consent_at") != null },
+            accountNames = { accountRepository.observeActive().first().joinToString(", ") { it.name } },
+            categoryNames = { categoryRepository.observeAll().first().joinToString(", ") { it.name } },
+            committer = WriteBatchCommitter(
+                db, accountRepository, categoryRepository, personRepository,
+                txns, lendBorrowRepository,
+            ),
+        )
+    }
 
     // LLM HTTP client — stable singleton (not DB-scoped); cloud providers use OkHttp on Android.
     private val llmHttpClient: HttpClient = HttpClient(OkHttp)
