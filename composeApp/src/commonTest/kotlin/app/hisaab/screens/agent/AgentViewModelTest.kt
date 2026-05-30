@@ -204,7 +204,7 @@ class AgentViewModelTest {
         advanceUntilIdle()
 
         val state = v.state.value
-        assertTrue(state.gate is AgentAvailability.Unavailable, "Expected gate to be Unavailable")
+        assertTrue(state.gate is AgentAvailability.NeedsConsent, "Expected gate to be NeedsConsent")
         // no assistant message — state.messages observed via injected dispatcher
         val msgs = v.state.first { it.messages.isNotEmpty() || it.gate != null }.messages
         assertTrue(msgs.none { it.role == AgentRole.ASSISTANT }, "No assistant message should exist")

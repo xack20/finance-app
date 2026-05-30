@@ -19,8 +19,8 @@ class AgentRuntimeTest {
             committer = committer, todayIso = { "2026-05-30" },
         )
     }
-    @Test fun `unavailable when not consented`() = runTest {
-        assertTrue(runtime(TestDatabase.create(), FakeAgentProvider(emptyList()), false).availability() is AgentAvailability.Unavailable)
+    @Test fun `needs consent when not consented`() = runTest {
+        assertTrue(runtime(TestDatabase.create(), FakeAgentProvider(emptyList()), false).availability() is AgentAvailability.NeedsConsent)
     }
     @Test fun `unavailable when no provider`() = runTest {
         assertTrue(runtime(TestDatabase.create(), null, true).availability() is AgentAvailability.Unavailable)

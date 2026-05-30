@@ -14,6 +14,7 @@ import kotlinx.datetime.toLocalDateTime
 
 sealed interface AgentAvailability {
     data object Ready : AgentAvailability
+    data object NeedsConsent : AgentAvailability
     data class Unavailable(val reason: String) : AgentAvailability
 }
 
@@ -44,7 +45,7 @@ class AgentRuntime(
     private val maxIterations: Int = 6,
 ) {
     suspend fun availability(): AgentAvailability = when {
-        !isConsented() -> AgentAvailability.Unavailable("Turn on the assistant (a cloud feature) to continue.")
+        !isConsented() -> AgentAvailability.NeedsConsent
         provider == null -> AgentAvailability.Unavailable("Add a cloud model + API key in Settings to use the assistant.")
         else -> AgentAvailability.Ready
     }

@@ -118,31 +118,41 @@ fun AgentScreenContent(
                 .padding(padding)
                 .imePadding(),
         ) {
-            // Gate banner — shown when the feature is unavailable (consent not given / no key).
-            val gate = state.gate
-            if (gate is AgentAvailability.Unavailable) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(palette.surface)
-                        .border(1.dp, palette.rule)
-                        .padding(horizontal = 18.dp, vertical = 12.dp)
-                        .testTag("agent_gate_banner"),
-                ) {
-                    Column {
-                        Text(
-                            text = gate.reason,
-                            color = palette.onBackground,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "Enable in Settings to continue.",
-                            color = palette.muted,
-                            fontSize = 12.sp,
-                        )
+            // Gate — shown when the feature is not ready.
+            // NeedsConsent → opt-in dialog with disclosure.
+            // Unavailable (no provider/key) → inline banner pointing to Settings.
+            when (val gate = state.gate) {
+                is AgentAvailability.NeedsConsent -> {
+                    AgentConsentDialog(
+                        onConsent = onConsent,
+                        onDismiss = onClose,
+                    )
+                }
+                is AgentAvailability.Unavailable -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(palette.surface)
+                            .border(1.dp, palette.rule)
+                            .padding(horizontal = 18.dp, vertical = 12.dp)
+                            .testTag("agent_gate_banner"),
+                    ) {
+                        Column {
+                            Text(
+                                text = gate.reason,
+                                color = palette.onBackground,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Enable in Settings to continue.",
+                                color = palette.muted,
+                                fontSize = 12.sp,
+                            )
+                        }
                     }
                 }
+                AgentAvailability.Ready, null -> Unit
             }
 
             // Error line.

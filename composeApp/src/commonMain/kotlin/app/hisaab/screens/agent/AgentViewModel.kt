@@ -118,6 +118,9 @@ class AgentViewModel(
         scope.launch {
             val avail = runtime.availability()
             when (avail) {
+                AgentAvailability.NeedsConsent -> {
+                    _state.update { it.copy(gate = avail) }
+                }
                 is AgentAvailability.Unavailable -> {
                     _state.update { it.copy(gate = avail) }
                 }
