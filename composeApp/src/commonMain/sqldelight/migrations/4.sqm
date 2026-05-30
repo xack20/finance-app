@@ -1,0 +1,5 @@
+-- M4-2: transfer ledger shape. A transfer is two txn rows sharing a transfer_group_id
+-- (debit leg on the source account, credit leg on the destination), both kind='TRANSFER'
+-- and parent_txn_id IS NULL. Reserved separately from parent_txn_id (which is for splits).
+ALTER TABLE txn ADD COLUMN transfer_group_id TEXT;
+CREATE INDEX idx_txn_transfer_group ON txn(transfer_group_id);

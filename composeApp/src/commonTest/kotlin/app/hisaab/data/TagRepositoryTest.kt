@@ -53,6 +53,7 @@ class TagRepositoryTest {
             kind = TxnKind.EXPENSE.name,
             parent_txn_id = null,
             capture_id = null,
+            transfer_group_id = null,
         )
 
         val t1 = repo.upsertByName("urgent")

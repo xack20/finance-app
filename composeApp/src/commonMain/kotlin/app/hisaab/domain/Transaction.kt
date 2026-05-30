@@ -51,4 +51,5 @@ data class TransactionRow(
     val kind: TxnKind,
     val parentTxnId: String?,
     val captureId: String? = null,
+    val transferGroupId: String? = null,
 )
