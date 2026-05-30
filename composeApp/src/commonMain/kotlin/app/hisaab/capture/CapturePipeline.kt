@@ -238,10 +238,12 @@ class CapturePipeline(
                 now = now,
             )
 
-            // R2: one DB transaction — create the ALREADY-LINKED txn (R1) and insert
-            // the candidate together, so neither can exist without the other.
+            // R2: one DB transaction — insert the candidate FIRST, then create the
+            // ALREADY-LINKED txn (R1), so neither can exist without the other AND the
+            // txn.capture_id -> capture_inbox(id) foreign key is satisfied at insert time.
             lateinit var txnId: String
             db.transaction {
+                inboxRepo.insertCandidateBlocking(candidate)
                 txnId = txnRepo.addBlocking(
                     NewTransaction(
                         accountId = resolvedAccountId,
@@ -255,7 +257,6 @@ class CapturePipeline(
                         captureId = candidateId,
                     ),
                 )
-                inboxRepo.insertCandidateBlocking(candidate)
             }
 
             captureEvents.emit(

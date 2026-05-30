@@ -49,22 +49,15 @@ class CaptureCoordinator(
     /**
      * Starts collecting the live stream on [scope] using [dispatcher].
      *
-     * Per-item exception guard (M3-5 requirement): a handler failure on any single item is caught
-     * and logged; the cursor does NOT advance for the failed item (it will be retried on next
-     * catchUp/unlock). The collection coroutine itself is NOT cancelled — subsequent items continue
-     * to be processed normally. Only unrecoverable coroutine cancellation propagates.
+     * Per-item failure isolation lives in [process] (single source of truth), so a handler failure
+     * on any single live item is caught there: the cursor does NOT advance for the failed item, and
+     * the collection coroutine is NOT cancelled — subsequent items keep flowing. Only coroutine
+     * cancellation propagates out of [process], which correctly tears down this collector.
      */
     fun start(scope: CoroutineScope) {
         scope.launch(dispatcher) {
             source.observeIncoming().collect { raw ->
-                try {
-                    process(raw)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e  // always re-throw CancellationException
-                } catch (e: Throwable) {
-                    // Swallow per-item failures so the stream stays alive. The cursor does not
-                    // advance for a failed item; it will be retried on the next catchUp/unlock.
-                }
+                process(raw)
             }
         }
     }
@@ -98,9 +91,24 @@ class CaptureCoordinator(
         }
     }
 
+    /**
+     * Serialized, fail-isolated per-item processing — the single guard point for BOTH the live
+     * collector ([start]) AND the backfill/catch-up path ([drainSince]).
+     *
+     * A handler failure on one item (malformed SMS, a transient DB/FK error) is caught and the
+     * cursor is NOT advanced, so that item is retried on the next catchUp/unlock and a single bad
+     * item can never crash backfill or kill the live stream. Coroutine cancellation always
+     * propagates so the collector tears down cleanly.
+     */
     private suspend fun process(raw: RawCapture) {
         mutex.withLock {
-            handler.handle(raw)
+            try {
+                handler.handle(raw)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e // always re-throw cancellation
+            } catch (e: Throwable) {
+                return@withLock // isolate the failed item; leave the cursor where it is for retry
+            }
             if (raw.receivedAt > cursorStore.currentCursor()) {
                 cursorStore.advanceCursor(raw.receivedAt)
             }

@@ -2,8 +2,13 @@ package app.hisaab.data
 
 import app.hisaab.data.support.TestDatabase
 import app.hisaab.domain.AccountKind
+import app.hisaab.domain.CandidateTransaction
+import app.hisaab.domain.CaptureChannel
+import app.hisaab.domain.CaptureStatus
+import app.hisaab.domain.Direction
 import app.hisaab.domain.NewSplitTransaction
 import app.hisaab.domain.NewTransaction
+import app.hisaab.domain.ParsedBy
 import app.hisaab.domain.TransactionPatch
 import app.hisaab.domain.TxnKind
 import app.hisaab.domain.TxnSource
@@ -201,6 +206,32 @@ class TransactionRepositoryTest {
         val tagRepo = TagRepository(db)
         val txnRepo = TransactionRepository(db, merchantRepo, tagRepo)
         val accountId = seedAccount(db)
+        // FK now enforced (matches production): the referenced capture_inbox row MUST exist before a
+        // txn can point at it — exactly the ordering the pipeline guarantees on auto-post.
+        CaptureInboxRepository(db).insertCandidate(
+            CandidateTransaction(
+                id = "cand-42",
+                receivedAt = 2000L,
+                channel = CaptureChannel.SMS,
+                sender = "bKash",
+                rawBody = "You have received Tk 500. TrxID CAND42",
+                dedupHash = "hash-42",
+                status = CaptureStatus.AUTO_POSTED,
+                confidence = 0.9,
+                parsedBy = ParsedBy.TEMPLATE,
+                model = null,
+                parseError = null,
+                amount = 500.0,
+                direction = Direction.CREDIT,
+                currency = "BDT",
+                balanceAfter = null,
+                refNo = "CAND42",
+                proposedAccountId = accountId,
+                proposedCategoryId = null,
+                proposedMerchant = "bKash",
+                createdAt = 2000L,
+            ),
+        )
         val id = txnRepo.add(
             NewTransaction(
                 accountId = accountId,

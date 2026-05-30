@@ -95,18 +95,41 @@ class CaptureCoordinatorTest {
     }
 
     @Test
-    fun `handler that throws does not advance the cursor`() = runTest {
-        val source = FakeCaptureService().apply { backfillRows = listOf(sms("boom", 400)) }
-        val config = FakeCaptureConfigRepository(initialCursor = 10)
-        val throwing = CaptureHandler { error("pipeline blew up") }
-        val coordinator = CaptureCoordinator(source, throwing, config)
+    fun `catchUp - a failing handler is isolated, does not crash backfill, and does not advance the cursor`() =
+        runTest {
+            // Regression for the FK-violation crash: an unguarded backfill let one bad item throw
+            // straight out of catchUp() and crash the app on unlock. process() must now isolate it.
+            val source = FakeCaptureService().apply { backfillRows = listOf(sms("boom", 400)) }
+            val config = FakeCaptureConfigRepository(initialCursor = 10)
+            val throwing = CaptureHandler { error("pipeline blew up") }
+            val coordinator = CaptureCoordinator(source, throwing, config)
 
-        try {
-            coordinator.catchUp()
-        } catch (_: IllegalStateException) {
-            // expected: failure propagates; cursor must NOT advance past a failed candidate
+            coordinator.catchUp() // must NOT throw — the failure is isolated per-item
+
+            assertEquals(10L, config.cursor) // cursor unchanged → the bad item is retried next unlock
         }
-        assertEquals(10L, config.cursor)
+
+    @Test
+    fun `catchUp - item 1 throws but item 2 still backfills and advances the cursor`() = runTest {
+        // Backfill-path twin of the live-stream isolation test below: one bad historical SMS must
+        // not block the rest of the 90-day import.
+        val config = FakeCaptureConfigRepository(initialCursor = 0)
+        val processed = mutableListOf<String>()
+        var callCount = 0
+        val throwingThenOk = CaptureHandler { raw ->
+            callCount++
+            if (callCount == 1) error("item 1 failed")
+            processed.add(raw.body)
+        }
+        val source = FakeCaptureService().apply {
+            backfillRows = listOf(sms("boom", 400), sms("ok", 500))
+        }
+        val coordinator = CaptureCoordinator(source, throwingThenOk, config)
+
+        coordinator.catchUp()
+
+        assertEquals(listOf("ok"), processed)  // item 2 imported despite item 1 failing
+        assertEquals(500L, config.cursor)      // cursor advanced to the successfully-handled item
     }
 
     @Test
