@@ -9,6 +9,7 @@ import app.hisaab.domain.LendBorrowStatus
 import app.hisaab.domain.NewLendBorrow
 import app.hisaab.domain.NewTransaction
 import app.hisaab.domain.TxnKind
+import app.hisaab.domain.TxnSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -44,6 +45,40 @@ class LendBorrowRepository(
                 categoryId = categoryId,
                 notes = input.purpose,
                 kind = txnKind,
+            ),
+        )
+        db.lendBorrowQueriesQueries.linkLendBorrowTxn(lend_borrow_id = lendBorrowId, txn_id = txnId)
+        return lendBorrowId to txnId
+    }
+
+    /**
+     * Non-suspending lend/borrow record (for WriteBatchCommitter, inside a db.transaction).
+     * Person must already exist (resolve before the transaction). Returns Pair(lendBorrowId, txnId).
+     */
+    fun recordBlocking(input: NewLendBorrow): Pair<String, String> {
+        val lendBorrowId = randomId()
+        val txnKind = if (input.direction == LendBorrowDirection.LENT) TxnKind.LEND else TxnKind.BORROW
+        val categoryId = if (input.direction == LendBorrowDirection.LENT) "lend" else "borrow"
+        db.lendBorrowQueriesQueries.insertLendBorrow(
+            id = lendBorrowId,
+            person_id = input.personId,
+            amount = input.amount,
+            direction = input.direction.name,
+            purpose = input.purpose,
+            ts = input.ts,
+            due_date = input.dueDate,
+            status = LendBorrowStatus.OPEN.name,
+        )
+        val txnId = txnRepo.addBlocking(
+            NewTransaction(
+                accountId = input.accountId,
+                amount = input.amount,
+                ts = input.ts,
+                merchantName = null,
+                categoryId = categoryId,
+                notes = input.purpose,
+                kind = txnKind,
+                source = TxnSource.CHAT,
             ),
         )
         db.lendBorrowQueriesQueries.linkLendBorrowTxn(lend_borrow_id = lendBorrowId, txn_id = txnId)

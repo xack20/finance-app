@@ -9,3 +9,6 @@ SELECT * FROM person WHERE contact_ref = ? LIMIT 1;
 
 getPerson:
 SELECT * FROM person WHERE id = ?;
+
+findPersonByName:
+SELECT * FROM person WHERE LOWER(name) = LOWER(?) LIMIT 1;

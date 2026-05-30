@@ -55,6 +55,17 @@ class PersonRepository(private val db: HisaabDatabase) {
         return id
     }
 
+    /** Case-insensitive exact name lookup; null if no person matches. Non-suspending (for committer use). */
+    fun findByNameBlocking(name: String): String? =
+        db.personQueriesQueries.findPersonByName(name).executeAsOneOrNull()?.id
+
+    /** Non-suspending person insert (for committer use inside a db.transaction). Returns the new id. */
+    fun addManualBlocking(name: String): String {
+        val id = randomId()
+        db.personQueriesQueries.insertPerson(id = id, name = name, contact_ref = null)
+        return id
+    }
+
     private fun migrations.Person.toDomain(): Person = Person(
         id = id,
         name = name,

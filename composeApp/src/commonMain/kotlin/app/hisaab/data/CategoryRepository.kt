@@ -41,6 +41,20 @@ class CategoryRepository(private val db: HisaabDatabase) {
         return id
     }
 
+    /** Non-suspending category insert (for committer use inside a db.transaction). Returns the new id. */
+    fun addBlocking(name: String, color: String?, icon: String?, parentId: String?): String {
+        val id = randomId()
+        db.insightQueriesQueries.insertCategoryIfMissing(
+            id = id,
+            name = name,
+            parent_id = parentId,
+            color = color,
+            icon = icon,
+            is_default = 0L,
+        )
+        return id
+    }
+
     private fun migrations.Category.toDomain(): Category = Category(
         id = id,
         name = name,
