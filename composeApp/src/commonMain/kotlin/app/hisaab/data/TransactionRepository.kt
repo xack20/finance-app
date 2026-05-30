@@ -87,6 +87,40 @@ class TransactionRepository(
     }
 
     /**
+     * Inserts a transfer as two TRANSFER legs (debit on [fromAccountId], credit on [toAccountId])
+     * sharing a generated transfer_group_id. NON-suspending: MUST be called inside a db.transaction { }
+     * (e.g. by WriteBatchCommitter). Returns the shared transfer_group_id.
+     */
+    fun transferBlocking(
+        fromAccountId: String,
+        toAccountId: String,
+        amount: Double,
+        ts: Long,
+        notes: String?,
+        currency: String = "BDT",
+    ): String {
+        val groupId = randomId()
+        fun leg(accountId: String) = db.transactionQueriesQueries.insertTxn(
+            id = randomId(),
+            account_id = accountId,
+            amount = amount,
+            currency = currency,
+            ts = ts,
+            merchant_id = null,
+            category_id = "transfer",
+            source = TxnSource.CHAT.name,
+            notes = notes,
+            kind = TxnKind.TRANSFER.name,
+            parent_txn_id = null,
+            capture_id = null,
+            transfer_group_id = groupId,
+        )
+        leg(fromAccountId)
+        leg(toAccountId)
+        return groupId
+    }
+
+    /**
      * Non-suspending variant for use inside a [HisaabDatabase.transaction] block.
      * Performs the same INSERT as [add] but skips async merchant upsert and tag linking — those
      * are either handled by the pipeline before calling this or irrelevant for auto-post.
