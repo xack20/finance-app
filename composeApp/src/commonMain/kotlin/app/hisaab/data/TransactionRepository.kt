@@ -21,6 +21,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlin.random.Random
 
+/** Tolerant source decode: unknown stored values (e.g. a source written by a newer build) map to MANUAL. */
+internal fun txnSourceOrManual(raw: String): TxnSource =
+    runCatching { TxnSource.valueOf(raw) }.getOrDefault(TxnSource.MANUAL)
+
 class TransactionRepository(
     private val db: HisaabDatabase,
     private val merchantRepo: MerchantRepository,
@@ -182,7 +186,7 @@ class TransactionRepository(
         categoryId = category_id,
         categoryName = null,
         categoryColor = null,
-        source = TxnSource.valueOf(source),
+        source = txnSourceOrManual(source),
         notes = notes,
         kind = TxnKind.valueOf(kind),
         parentTxnId = parent_txn_id,
@@ -204,7 +208,7 @@ class TransactionRepository(
         categoryId = category_id,
         categoryName = null,
         categoryColor = null,
-        source = TxnSource.valueOf(source),
+        source = txnSourceOrManual(source),
         notes = notes,
         kind = TxnKind.valueOf(kind),
         parentTxnId = parent_txn_id,

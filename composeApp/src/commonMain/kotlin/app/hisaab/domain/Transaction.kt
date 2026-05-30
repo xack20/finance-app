@@ -2,7 +2,7 @@ package app.hisaab.domain
 
 enum class TxnKind { EXPENSE, INCOME, TRANSFER, LEND, BORROW, SETTLEMENT }
 
-enum class TxnSource { SMS, EMAIL, VOICE, MANUAL, OCR, RECURRING }
+enum class TxnSource { SMS, EMAIL, VOICE, MANUAL, OCR, RECURRING, CHAT }
 
 data class NewTransaction(
     val accountId: String,
