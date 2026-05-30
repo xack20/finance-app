@@ -11,4 +11,7 @@ data class Account(
     val balanceTracking: Boolean,
     val createdAt: Long,
     val archivedAt: Long?,
+    val creditLimit: Double? = null,
+    val statementDay: Int? = null,
+    val dueDay: Int? = null,
 )

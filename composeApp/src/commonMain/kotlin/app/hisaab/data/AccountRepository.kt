@@ -22,6 +22,9 @@ class AccountRepository(private val db: HisaabDatabase) {
         kind: AccountKind,
         institution: String?,
         currency: String = "BDT",
+        creditLimit: Double? = null,
+        statementDay: Int? = null,
+        dueDay: Int? = null,
     ): String {
         val id = randomId()
         db.accountQueriesQueries.insertAccount(
@@ -32,6 +35,9 @@ class AccountRepository(private val db: HisaabDatabase) {
             currency = currency,
             balance_tracking = 1L,
             created_at = Clock.System.now().toEpochMilliseconds(),
+            credit_limit = creditLimit,
+            statement_day = statementDay?.toLong(),
+            due_day = dueDay?.toLong(),
         )
         return id
     }
@@ -46,6 +52,9 @@ class AccountRepository(private val db: HisaabDatabase) {
         kind: AccountKind,
         institution: String?,
         currency: String = "BDT",
+        creditLimit: Double? = null,
+        statementDay: Int? = null,
+        dueDay: Int? = null,
     ): String {
         val id = randomId()
         db.accountQueriesQueries.insertAccount(
@@ -56,6 +65,9 @@ class AccountRepository(private val db: HisaabDatabase) {
             currency = currency,
             balance_tracking = 1L,
             created_at = Clock.System.now().toEpochMilliseconds(),
+            credit_limit = creditLimit,
+            statement_day = statementDay?.toLong(),
+            due_day = dueDay?.toLong(),
         )
         return id
     }
@@ -79,6 +91,10 @@ class AccountRepository(private val db: HisaabDatabase) {
         db.accountQueriesQueries.accountBalances().executeAsList()
             .associate { it.account_id to it.balance }
 
+    /** Signed card debt: purchases (EXPENSE) raise it; refunds (INCOME) and payments (TRANSFER) lower it. */
+    suspend fun cardOutstanding(accountId: String): Double =
+        db.accountQueriesQueries.cardOutstanding(accountId).executeAsOne()
+
     private fun migrations.Account.toDomain(): Account = Account(
         id = id,
         name = name,
@@ -88,6 +104,9 @@ class AccountRepository(private val db: HisaabDatabase) {
         balanceTracking = balance_tracking == 1L,
         createdAt = created_at,
         archivedAt = archived_at,
+        creditLimit = credit_limit,
+        statementDay = statement_day?.toInt(),
+        dueDay = due_day?.toInt(),
     )
 
     private fun randomId(): String {

@@ -1,6 +1,6 @@
 insertAccount:
-INSERT INTO account(id, name, kind, institution, currency, balance_tracking, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO account(id, name, kind, institution, currency, balance_tracking, created_at, credit_limit, statement_day, due_day)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 observeActiveAccounts:
 SELECT * FROM account WHERE archived_at IS NULL ORDER BY created_at ASC;
@@ -26,3 +26,11 @@ SELECT account_id,
 FROM txn
 WHERE parent_txn_id IS NULL
 GROUP BY account_id;
+
+cardOutstanding:
+SELECT COALESCE(SUM(CASE kind
+  WHEN 'EXPENSE'  THEN amount
+  WHEN 'INCOME'   THEN -amount
+  WHEN 'TRANSFER' THEN -amount
+  ELSE 0 END), 0.0) AS outstanding
+FROM txn WHERE account_id = ? AND parent_txn_id IS NULL;

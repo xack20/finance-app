@@ -1,0 +1,5 @@
+-- M4-4: credit-card metadata on account. A card is AccountKind.CARD with these set;
+-- non-card accounts leave them NULL. Days are constrained to 1..28 at creation (caller-enforced).
+ALTER TABLE account ADD COLUMN credit_limit  REAL;
+ALTER TABLE account ADD COLUMN statement_day INTEGER;
+ALTER TABLE account ADD COLUMN due_day       INTEGER;
