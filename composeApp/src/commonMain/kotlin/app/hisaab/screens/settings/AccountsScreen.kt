@@ -16,6 +16,7 @@ import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.domain.Account
 import app.hisaab.domain.AccountKind
 import app.hisaab.domain.CardSummaryCalculator
+import app.hisaab.util.toMoneyString
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -130,9 +131,9 @@ private fun CardSummaryRow(acc: Account) {
                 .padding(start = 4.dp, bottom = 10.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                CardSummaryChip(label = "Outstanding", value = "৳${"%.2f".format(os)}", palette.negative)
+                CardSummaryChip(label = "Outstanding", value = "৳${os.toMoneyString()}", palette.negative)
                 if (available != null) {
-                    CardSummaryChip(label = "Available", value = "৳${"%.2f".format(available)}", palette.positive)
+                    CardSummaryChip(label = "Available", value = "৳${available.toMoneyString()}", palette.positive)
                 }
                 if (nextDue != null) {
                     CardSummaryChip(label = "Due", value = nextDue.toString(), palette.muted)

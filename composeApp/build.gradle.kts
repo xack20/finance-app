@@ -11,7 +11,16 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// wasmJs is gated off by default — libsodium (all crypto) publishes no wasmJs artifact
+// in any version, a hard upstream blocker. Re-enable with -Phisaab.enableWasm=true.
+val enableWasm = (findProperty("hisaab.enableWasm") as String?)?.toBoolean() ?: false
+
 kotlin {
+    compilerOptions {
+        // Silence KT-61573 "expect/actual class in Beta" warnings until Kotlin stabilizes it.
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     androidTarget {
         compilations.all {
             compileTaskProvider.configure {
@@ -33,15 +42,17 @@ kotlin {
         }
     }
 
-    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
-    wasmJs {
-        outputModuleName = "composeApp"
-        browser {
-            commonWebpackConfig {
-                outputFileName = "composeApp.js"
+    if (enableWasm) {
+        @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+        wasmJs {
+            outputModuleName = "composeApp"
+            browser {
+                commonWebpackConfig {
+                    outputFileName = "composeApp.js"
+                }
             }
+            binaries.executable()
         }
-        binaries.executable()
     }
 
     sourceSets {
@@ -63,8 +74,10 @@ kotlin {
             implementation(libs.sqldelight.native.driver)
             implementation(libs.ktor.client.darwin)
         }
-        named("wasmJsMain").dependencies {
-            implementation(libs.sqldelight.web.driver)
+        if (enableWasm) {
+            named("wasmJsMain").dependencies {
+                implementation(libs.sqldelight.web.driver)
+            }
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -74,6 +87,7 @@ kotlin {
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.datetime)
             implementation(libs.sqldelight.coroutines)
             implementation(libs.supabase.auth)
             implementation(libs.supabase.postgrest)
@@ -96,6 +110,7 @@ kotlin {
                 implementation(kotlin("test"))
                 implementation(libs.androidx.test.junit)
                 implementation(libs.androidx.test.runner)
+                implementation(libs.espresso.core)
                 implementation(libs.compose.ui.test.junit4)
             }
         }
