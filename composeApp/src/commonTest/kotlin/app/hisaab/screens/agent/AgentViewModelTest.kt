@@ -6,6 +6,7 @@ import app.hisaab.agent.WriteBatchCommitter
 import app.hisaab.agent.buildAgentToolRegistry
 import app.hisaab.agent.support.FakeAgentProvider
 import app.hisaab.data.AccountRepository
+import app.hisaab.data.BudgetRepository
 import app.hisaab.data.CategoryRepository
 import app.hisaab.data.ConversationRepository
 import app.hisaab.data.InsightRepository
@@ -78,6 +79,7 @@ class AgentViewModelTest {
             PersonRepository(db),
             txns,
             LendBorrowRepository(db, txns),
+            BudgetRepository(db),
         )
         return AgentRuntime(
             registry = buildAgentToolRegistry(

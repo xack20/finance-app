@@ -210,6 +210,25 @@ private fun summarize(w: ProposedWrite): String = when (w.tool) {
         if (parent != null) "New category: $name (under $parent)" else "New category: $name"
     }
 
+    "set_budget" -> {
+        val amount   = argStr(w, "amount")?.let { "৳$it" } ?: ""
+        val category = argStr(w, "category") ?: ""
+        listOf("Budget", category, amount).filter { it.isNotBlank() }.joinToString(" · ")
+    }
+
+    "recategorize" -> {
+        val category = argStr(w, "category") ?: ""
+        if (category.isNotBlank()) "Recategorize → $category" else "Recategorize transaction"
+    }
+
+    "add_split_transaction" -> {
+        val amount  = argStr(w, "amount")?.let { "৳$it" } ?: ""
+        val account = argStr(w, "account") ?: ""
+        val n = (w.args["splits"] as? kotlinx.serialization.json.JsonArray)?.size
+        val splitsPart = if (n != null) "$n splits" else "split"
+        listOf("Split", amount, account, splitsPart).filter { it.isNotBlank() }.joinToString(" · ")
+    }
+
     else -> w.tool
 }
 

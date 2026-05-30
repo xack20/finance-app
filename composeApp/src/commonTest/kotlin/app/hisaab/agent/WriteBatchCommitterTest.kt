@@ -1,5 +1,6 @@
 package app.hisaab.agent
 import app.hisaab.data.AccountRepository
+import app.hisaab.data.BudgetRepository
 import app.hisaab.data.CategoryRepository
 import app.hisaab.data.LendBorrowRepository
 import app.hisaab.data.MerchantRepository
@@ -19,7 +20,7 @@ class WriteBatchCommitterTest {
     private fun committer(db: HisaabDatabase): WriteBatchCommitter {
         val txns = TransactionRepository(db, MerchantRepository(db), TagRepository(db))
         return WriteBatchCommitter(db, AccountRepository(db), CategoryRepository(db),
-            PersonRepository(db), txns, LendBorrowRepository(db, txns))
+            PersonRepository(db), txns, LendBorrowRepository(db, txns), BudgetRepository(db))
     }
 
     @Test fun `applies a create_account then add_transaction referencing it by name`() = runTest {

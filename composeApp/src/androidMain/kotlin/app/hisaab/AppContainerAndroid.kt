@@ -148,7 +148,7 @@ actual class AppContainer(
             categoryNames = { categoryRepository.observeAll().first().joinToString(", ") { it.name } },
             committer = WriteBatchCommitter(
                 db, accountRepository, categoryRepository, personRepository,
-                txns, lendBorrowRepository,
+                txns, lendBorrowRepository, budgetRepository,
             ),
         )
     }

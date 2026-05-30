@@ -163,7 +163,15 @@ class TransactionRepository(
         return id
     }
 
-    suspend fun addSplits(parentId: String, children: List<NewSplitTransaction>) {
+    suspend fun addSplits(parentId: String, children: List<NewSplitTransaction>) =
+        addSplitsBlocking(parentId, children)
+
+    /**
+     * Non-suspending variant for use inside a [HisaabDatabase.transaction] block (e.g. the agent's
+     * add_split_transaction). Inserts each child leg under [parentId], inheriting the parent's
+     * account / currency / ts / merchant / source.
+     */
+    fun addSplitsBlocking(parentId: String, children: List<NewSplitTransaction>) {
         val parent = db.transactionQueriesQueries.getTxn(parentId).executeAsOneOrNull()
             ?: error("Parent txn $parentId not found")
         children.forEach { child ->
@@ -183,6 +191,25 @@ class TransactionRepository(
                 transfer_group_id = null,
             )
         }
+    }
+
+    /**
+     * Non-suspending category change for use inside a [HisaabDatabase.transaction] block (the agent's
+     * recategorize tool). Preserves every other field of the transaction.
+     * @throws IllegalStateException if [txnId] does not exist (rolls the batch back).
+     */
+    fun recategorizeBlocking(txnId: String, categoryId: String?) {
+        val cur = db.transactionQueriesQueries.getTxn(txnId).executeAsOneOrNull()
+            ?: error("Transaction $txnId not found")
+        db.transactionQueriesQueries.updateTxn(
+            amount = cur.amount,
+            ts = cur.ts,
+            merchant_id = cur.merchant_id,
+            category_id = categoryId,
+            notes = cur.notes,
+            kind = cur.kind,
+            id = txnId,
+        )
     }
 
     suspend fun update(id: String, patch: TransactionPatch) {

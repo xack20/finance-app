@@ -86,7 +86,14 @@ class QueryTransactionsTool(private val repo: TransactionRepository) : ReadTool 
         val txns = repo.observeRecent(limit).first()
         return jsonArray {
             txns.forEach { t ->
-                addJsonObject { put("amount", t.amount); put("kind", t.kind.name); put("ts", t.ts) }
+                addJsonObject {
+                    put("id", t.id)                                  // needed by the recategorize write tool
+                    put("amount", t.amount)
+                    put("kind", t.kind.name)
+                    t.merchantName?.let { put("merchant", it) }
+                    t.categoryName?.let { put("category", it) }
+                    put("ts", t.ts)
+                }
             }
         }
     }

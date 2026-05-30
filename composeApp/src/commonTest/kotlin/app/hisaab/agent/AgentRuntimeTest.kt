@@ -10,7 +10,7 @@ import kotlin.test.*
 class AgentRuntimeTest {
     private fun runtime(db: app.hisaab.db.HisaabDatabase, provider: FakeAgentProvider?, consented: Boolean): AgentRuntime {
         val txns = TransactionRepository(db, MerchantRepository(db), TagRepository(db))
-        val committer = WriteBatchCommitter(db, AccountRepository(db), CategoryRepository(db), PersonRepository(db), txns, LendBorrowRepository(db, txns))
+        val committer = WriteBatchCommitter(db, AccountRepository(db), CategoryRepository(db), PersonRepository(db), txns, LendBorrowRepository(db, txns), BudgetRepository(db))
         return AgentRuntime(
             registry = buildAgentToolRegistry(AccountRepository(db), CategoryRepository(db), MerchantRepository(db), txns, InsightRepository(db), PersonRepository(db)),
             agentProvider = { provider },
