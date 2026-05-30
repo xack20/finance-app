@@ -16,3 +16,13 @@ UPDATE account SET archived_at = ? WHERE id = ?;
 
 countActiveAccounts:
 SELECT COUNT(*) FROM account WHERE archived_at IS NULL;
+
+accountBalances:
+SELECT account_id,
+       COALESCE(SUM(CASE kind
+         WHEN 'INCOME'  THEN amount
+         WHEN 'EXPENSE' THEN -amount
+         ELSE 0 END), 0.0) AS balance
+FROM txn
+WHERE parent_txn_id IS NULL
+GROUP BY account_id;

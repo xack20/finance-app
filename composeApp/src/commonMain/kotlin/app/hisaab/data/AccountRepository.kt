@@ -74,6 +74,11 @@ class AccountRepository(private val db: HisaabDatabase) {
         return add(name = "Cash", kind = AccountKind.CASH, institution = null)
     }
 
+    /** Net balance per account id (income − expense; transfer legs folded in M4-2). */
+    suspend fun accountBalances(): Map<String, Double> =
+        db.accountQueriesQueries.accountBalances().executeAsList()
+            .associate { it.account_id to it.balance }
+
     private fun migrations.Account.toDomain(): Account = Account(
         id = id,
         name = name,
