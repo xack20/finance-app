@@ -14,8 +14,10 @@ import app.hisaab.domain.TxnKind
 import app.hisaab.domain.TxnSource
 import kotlinx.coroutines.flow.first
 import kotlinx.datetime.Clock
+import kotlinx.serialization.Serializable
 
 /** What actually committed (basis for §11 applied_summary persistence in M4-3). */
+@Serializable
 data class AppliedSummary(
     val accountsCreated: Int = 0,
     val categoriesCreated: Int = 0,

@@ -1,8 +1,10 @@
 // Tools.kt
 package app.hisaab.agent
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
 /** A staged write the model proposed (NEVER executed in the loop; committed in M4-2). */
+@Serializable
 data class ProposedWrite(val tool: String, val args: JsonObject)
 
 /** A side-effect-free tool the loop may execute. Returns a compact JSON string fed back to the model. */
