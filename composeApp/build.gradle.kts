@@ -133,6 +133,10 @@ android {
     namespace = "app.hisaab"
     compileSdk = 35
 
+    // android.test.mock (MockContentResolver) — used by CaptureServiceBackfillInstrumentedTest to
+    // host a fake ContentProvider in-process. Optional platform library; not packaged into the app.
+    useLibrary("android.test.mock")
+
     buildFeatures {
         buildConfig = true
     }

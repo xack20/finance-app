@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -22,6 +24,10 @@
 	<string>1</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Unlock Hisaab with Face ID.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Hisaab uses the microphone for voice entry to the assistant.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Hisaab transcribes your voice on-device to fill in the assistant.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

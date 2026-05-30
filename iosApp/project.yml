@@ -17,6 +17,9 @@ targets:
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "1"
         UILaunchScreen: {}
+        # Required by Compose Multiplatform's PlistSanityCheck (CMP UIKit) — without it
+        # the app aborts at launch with an IllegalStateException. Enables 120Hz ProMotion.
+        CADisableMinimumFrameDurationOnPhone: true
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         NSFaceIDUsageDescription: "Unlock Hisaab with Face ID."
