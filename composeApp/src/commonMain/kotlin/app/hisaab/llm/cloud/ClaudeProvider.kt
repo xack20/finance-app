@@ -1,5 +1,8 @@
 package app.hisaab.llm.cloud
 
+import app.hisaab.agent.AgentProvider
+import app.hisaab.agent.ChatMessage
+import app.hisaab.agent.Role
 import app.hisaab.domain.Category
 import app.hisaab.llm.LlmError
 import app.hisaab.llm.LlmException
@@ -44,7 +47,7 @@ class ClaudeProvider(
     private val apiKey: () -> String?,
     private val model: String = "claude-3-5-haiku-latest",
     private val redact: suspend () -> Boolean = { true },
-) : LlmProvider {
+) : LlmProvider, AgentProvider {
 
     private val client = httpClient.llmConfigured()
     private val endpoint = "https://api.anthropic.com/v1/messages"
@@ -126,6 +129,48 @@ class ClaudeProvider(
         val text = LlmJson.json.parseToJsonElement(response.bodyAsText()).jsonObject["content"]
             ?.jsonArray?.firstOrNull()?.jsonObject?.get("text")?.jsonPrimitive?.content ?: return null
         return LlmJson.decodeCategoryId(text, categories.map { it.id }.toSet())
+    }
+
+    /**
+     * Agent chat path (M4). Unlike [parse] there is no forced record_transaction tool — the agent
+     * prompt instructs a raw JSON envelope, and we return Claude's text blocks verbatim for the
+     * loop to decode. SYSTEM turns go in the top-level `system` field; USER/TOOL → "user",
+     * ASSISTANT → "assistant". Redactor is intentionally NOT applied to agent text (master spec §10).
+     */
+    override suspend fun complete(messages: List<ChatMessage>, maxTokens: Int): String {
+        val key = apiKey() ?: throw LlmException(LlmError.InvalidKey)
+        val system = messages.filter { it.role == Role.SYSTEM }.joinToString("\n") { it.content }
+        val turns = messages.filter { it.role != Role.SYSTEM }
+        val payload = buildJsonObject {
+            put("model", model)
+            put("max_tokens", maxTokens)
+            if (system.isNotBlank()) put("system", system)
+            putJsonArray("messages") {
+                turns.forEach { m ->
+                    addJsonObject {
+                        put("role", if (m.role == Role.ASSISTANT) "assistant" else "user")
+                        put("content", m.content)
+                    }
+                }
+            }
+        }
+        val response = client.post(endpoint) {
+            header("x-api-key", key)
+            header("anthropic-version", anthropicVersion)
+            contentType(ContentType.Application.Json)
+            setBody(LlmJson.json.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), payload))
+        }
+        if (!response.status.isSuccess()) {
+            throw LlmException(mapHttpError(response.status, response.bodyAsText()))
+        }
+        return extractText(response.bodyAsText()) ?: throw LlmException(LlmError.Decode("no text content"))
+    }
+
+    /** Concatenate all `text` blocks from the Messages API `content` array; null if none. */
+    private fun extractText(body: String): String? {
+        val blocks = LlmJson.json.parseToJsonElement(body).jsonObject["content"]?.jsonArray ?: return null
+        val text = blocks.mapNotNull { it.jsonObject["text"]?.jsonPrimitive?.content }.joinToString("")
+        return text.ifBlank { null }
     }
 
     private fun parseInputSchema(categories: List<Category>) = buildJsonObject {

@@ -13,7 +13,7 @@ class AgentRuntimeTest {
         val committer = WriteBatchCommitter(db, AccountRepository(db), CategoryRepository(db), PersonRepository(db), txns, LendBorrowRepository(db, txns))
         return AgentRuntime(
             registry = buildAgentToolRegistry(AccountRepository(db), CategoryRepository(db), MerchantRepository(db), txns, InsightRepository(db), PersonRepository(db)),
-            provider = provider,
+            agentProvider = { provider },
             isConsented = { consented },
             accountNames = { "Cash" }, categoryNames = { "Food" },
             committer = committer, todayIso = { "2026-05-30" },

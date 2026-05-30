@@ -33,7 +33,8 @@ fun buildAgentToolRegistry(
 /** Integration seam. Loop stays db-free; the committer is the only writer. */
 class AgentRuntime(
     private val registry: ToolRegistry,
-    private val provider: AgentProvider?,
+    /** Resolved lazily so the runtime always reflects the user's currently-selected cloud provider. */
+    private val agentProvider: suspend () -> AgentProvider?,
     private val isConsented: suspend () -> Boolean,
     private val accountNames: suspend () -> String,
     private val categoryNames: suspend () -> String,
@@ -46,12 +47,12 @@ class AgentRuntime(
 ) {
     suspend fun availability(): AgentAvailability = when {
         !isConsented() -> AgentAvailability.NeedsConsent
-        provider == null -> AgentAvailability.Unavailable("Add a cloud model + API key in Settings to use the assistant.")
+        agentProvider() == null -> AgentAvailability.Unavailable("Add a cloud model + API key in Settings to use the assistant.")
         else -> AgentAvailability.Ready
     }
 
     suspend fun run(history: List<ChatMessage>, userMessage: String): AgentTurnResult {
-        val p = provider ?: throw LlmException(LlmError.InvalidKey)
+        val p = agentProvider() ?: throw LlmException(LlmError.InvalidKey)
         val system = AgentPrompts.system(registry, accounts = accountNames(), categories = categoryNames(),
             todayIso = todayIso(), language = language)
         return AgentLoop(p, registry, systemPrompt = system, maxIterations = maxIterations).run(history, userMessage)

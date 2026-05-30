@@ -88,7 +88,7 @@ class AgentViewModelTest {
                 InsightRepository(db),
                 PersonRepository(db),
             ),
-            provider = provider,
+            agentProvider = { provider },
             isConsented = { consented },
             accountNames = { "Cash" },
             categoryNames = { "Food" },

@@ -113,7 +113,7 @@ actual class AppContainer {
                 accountRepository, categoryRepository, merchantRepository,
                 txns, insightRepository, personRepository,
             ),
-            provider = null,
+            agentProvider = { null },
             isConsented = { secureStorage.loadString("agent_consent_at") != null },
             accountNames = { accountRepository.observeActive().first().joinToString(", ") { it.name } },
             categoryNames = { categoryRepository.observeAll().first().joinToString(", ") { it.name } },

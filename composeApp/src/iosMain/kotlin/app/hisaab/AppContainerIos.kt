@@ -31,11 +31,14 @@ import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
 import app.hisaab.platform.SecureStorage
+import app.hisaab.agent.AgentProvider
 import app.hisaab.agent.AgentRuntime
 import app.hisaab.agent.WriteBatchCommitter
 import app.hisaab.agent.buildAgentToolRegistry
+import app.hisaab.domain.CloudProvider
 import app.hisaab.data.ConversationRepository
 import app.hisaab.llm.DefaultLlmRouter
+import app.hisaab.llm.LlmProvider
 import app.hisaab.llm.LlmRouter
 import app.hisaab.llm.cloud.ClaudeProvider
 import app.hisaab.llm.cloud.GeminiProvider
@@ -109,13 +112,22 @@ actual class AppContainer {
     actual fun agentRuntime(): AgentRuntime {
         val db = requireDb()
         val txns = TransactionRepository(db, merchantRepository, tagRepository)
-        val gemKey = secureStorage.loadString("llm_api_key_GEMINI")
         return AgentRuntime(
             registry = buildAgentToolRegistry(
                 accountRepository, categoryRepository, merchantRepository,
                 txns, insightRepository, personRepository,
             ),
-            provider = if (!gemKey.isNullOrBlank()) geminiProvider else null,
+            // Resolve the user's SELECTED cloud provider at call time (agent consent is separate,
+            // checked via isConsented — independent of the SMS-capture cloud consent).
+            agentProvider = {
+                val adapter: LlmProvider? = when (captureConfigRepository.get().cloudProvider) {
+                    CloudProvider.CLAUDE -> claudeProvider
+                    CloudProvider.GEMINI -> geminiProvider
+                    CloudProvider.OPENAI -> openAiProvider
+                    null -> null
+                }
+                if (adapter != null && adapter.isAvailable()) adapter as? AgentProvider else null
+            },
             isConsented = { secureStorage.loadString("agent_consent_at") != null },
             accountNames = { accountRepository.observeActive().first().joinToString(", ") { it.name } },
             categoryNames = { categoryRepository.observeAll().first().joinToString(", ") { it.name } },
