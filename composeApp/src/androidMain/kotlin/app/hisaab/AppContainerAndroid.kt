@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.fragment.app.FragmentActivity
 import app.cash.sqldelight.db.SqlDriver
 import app.hisaab.auth.AuthRepository
-import app.hisaab.auth.BypassAuthRepository
 import app.hisaab.auth.SupabaseAuthRepository
 import app.hisaab.crypto.BlobCrypto
 import app.hisaab.crypto.CryptoService
@@ -75,10 +74,9 @@ actual class AppContainer(
     actual val mnemonicService: MnemonicService = MnemonicService()
     actual val blobCrypto: BlobCrypto = BlobCrypto()
 
-    // The emulator bypass (no Supabase test OTP) is DEBUG-ONLY: release builds always use the real
-    // SupabaseAuthRepository, so the auth bypass can never ship even if the revert is forgotten.
-    actual val authRepository: AuthRepository =
-        if (BuildConfig.DEBUG) BypassAuthRepository(secureStorage) else SupabaseAuthRepository()
+    // Real Supabase phone-OTP auth on all build types. Dev sign-in uses the Supabase project's
+    // test-OTP (visible in the dashboard) — the former DEBUG-only BypassAuthRepository was removed.
+    actual val authRepository: AuthRepository = SupabaseAuthRepository()
     actual val databaseDriverFactory: DatabaseDriverFactory = DatabaseDriverFactory(context)
 
     private var cachedDriver: SqlDriver? = null
