@@ -1,0 +1,20 @@
+-- M4-3: agent conversation persistence. Stores the chat thread so it survives restarts
+-- and the next turn's history includes prior proposed writes + what actually committed.
+-- Read-tool calls/results are NOT persisted (in-memory only).
+CREATE TABLE agent_conversation (
+    id         TEXT NOT NULL PRIMARY KEY,
+    title      TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE agent_message (
+    id              TEXT NOT NULL PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES agent_conversation(id),
+    role            TEXT NOT NULL,
+    content         TEXT NOT NULL,
+    proposed_writes TEXT,
+    applied_summary TEXT,
+    created_at      INTEGER NOT NULL
+);
+CREATE INDEX idx_agent_message_conversation ON agent_message(conversation_id, created_at);

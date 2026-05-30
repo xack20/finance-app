@@ -1,0 +1,18 @@
+insertConversation:
+INSERT INTO agent_conversation(id, title, created_at, updated_at) VALUES (?, ?, ?, ?);
+
+touchConversation:
+UPDATE agent_conversation SET updated_at = ? WHERE id = ?;
+
+observeConversations:
+SELECT * FROM agent_conversation ORDER BY updated_at DESC;
+
+latestConversation:
+SELECT * FROM agent_conversation ORDER BY updated_at DESC LIMIT 1;
+
+insertMessage:
+INSERT INTO agent_message(id, conversation_id, role, content, proposed_writes, applied_summary, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+observeMessages:
+SELECT * FROM agent_message WHERE conversation_id = ? ORDER BY created_at ASC;
