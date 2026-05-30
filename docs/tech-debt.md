@@ -23,7 +23,7 @@ Important gaps but not blocking ongoing development.
 | # | Item | Origin | Notes | Target |
 |---|---|---|---|---|
 | H1 | `iOS SecureStorage` is a stub — load/save are no-ops | P0b T6 | Keychain cinterop deferred; iOS users cannot persist `master_secret`. (iOS now compiles, so this can be implemented + simulator-verified; security-critical, so left as an honest stub rather than shipping unverified cinterop) | P0d / M4-0 |
-| H2 | iOS app never run on simulator — Xcode project setup incomplete | P0a T23/T26 | Need Xcode wizard to create `iosApp.xcodeproj`, embed `ComposeApp.framework` | P0d |
+| H2 | ~~iOS app never run on simulator~~ **RESOLVED (M4 sweep)** | P0a T23/T26 | `iosApp/project.yml` (xcodegen) generates the Xcode project + links the static `ComposeApp.framework`. App **builds + launches on the iPhone 17 simulator** and renders the Compose Welcome screen. See **S10** below | done |
 | H3 | wasmJs target **gated off** (`-Phisaab.enableWasm`, default off) | P0a T29; M4 sweep | Root cause pinned: **libsodium (all crypto) publishes no wasmJs artifact in any version** — a hard upstream blocker. SQLDelight fixed via the 2.1.0 bump (publishes wasm-js variants). Gating it off also clears the KMP-metadata resolution errors that polluted the iOS build. Re-enable when upstream ships wasm crypto, or add a WebCrypto/libsodium.js expect-actual seam | P0d / upstream |
 | H5 | Real BD SMS provider (SSL Wireless / Infobip) not wired — using Supabase Test Mode | P0b T8 | Blocks public beta but not internal dev | P0d/P0e |
 | H6 | 16 KB page-size alignment — `libsodium.so`, `libsqlcipher.so`, `libjnidispatch.so`, `libandroidx.graphics.path.so`, and now MediaPipe's `libllm_inference_engine_jni.so` not aligned | P0b emulator test; M3-4 | Runs in compatibility mode on Android 15+ pixel devices; breaks under future Android requiring 16 KB | P0d |
@@ -98,6 +98,7 @@ Important gaps but not blocking ongoing development.
 | L2 | `expect class … in Beta` warnings (KT-61573) | Added `-Xexpect-actual-classes` to `kotlin { compilerOptions }` | Warnings silenced |
 | S8 | M4 master-spec migration-numbering claimed one combined `4.sqm`; reality is `4`=transfer_group_id, `5`=agent tables, `6`=card columns | Corrected the spec (§9, §11, M4-3 line) | Matches `.sqm` files |
 | S9 | iOS Kotlin/Native target had **never compiled** (Clock.System ×27, JVM `%02x`.format, missing `@ExperimentalForeignApi` opt-in, wrong SQLCipher API, wasmJs-variant pollution) | datetime forced to 0.6.1 (resolutionStrategy); multiplatform hex; `@file:OptIn(ExperimentalForeignApi)` on BiometricAuth; `encryptionSpec` → the real sqliter-1.3.3 `encryptionConfig = Encryption(key)`; wasmJs gated; AppLifecycle implemented via NSNotificationCenter | **`compileKotlinIosSimulatorArm64` BUILD SUCCESSFUL** (29 errors → 0) |
+| S10 | iOS framework would not **link**, and there was no Xcode app (H2) — so the app had never built or run | nav-compose `2.8.0-alpha10 → 2.9.2` (the alpha had a Kotlin/Native inline-codegen bug failing the framework link) + multiplatform nav-args (`SavedState.read`); `iosApp/project.yml` (xcodegen) for the Xcode app target | **`xcodebuild` BUILD SUCCEEDED + the app launches on the iPhone 17 simulator** and renders the Compose Welcome screen |
 
 ---
 
