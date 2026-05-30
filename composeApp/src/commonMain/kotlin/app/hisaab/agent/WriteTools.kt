@@ -11,7 +11,10 @@ private fun JsonObject.lng(key: String): Long? = (this[key] as? JsonPrimitive)?.
 
 /** Parsed, typed form of a ProposedWrite. The committer consumes these; the loop never does. */
 sealed interface WriteIntent {
-    data class CreateAccount(val name: String, val kind: String) : WriteIntent
+    data class CreateAccount(
+        val name: String, val kind: String,
+        val creditLimit: Double? = null, val statementDay: Int? = null, val dueDay: Int? = null,
+    ) : WriteIntent
     data class CreateCategory(val name: String, val parent: String?) : WriteIntent
     data class AddTransaction(
         val account: String, val amount: Double, val kind: String,
@@ -28,7 +31,10 @@ sealed interface WriteIntent {
         fun parse(w: ProposedWrite): WriteIntent? {
             val a = w.args
             return when (w.tool) {
-                "create_account" -> a.str("name")?.let { CreateAccount(it, a.str("kind") ?: "CASH") }
+                "create_account" -> a.str("name")?.let {
+                    CreateAccount(it, a.str("kind") ?: "CASH",
+                        a.dbl("creditLimit"), a.dbl("statementDay")?.toInt(), a.dbl("dueDay")?.toInt())
+                }
                 "create_category" -> a.str("name")?.let { CreateCategory(it, a.str("parent")) }
                 "add_transaction" -> {
                     val account = a.str("account"); val amount = a.dbl("amount")
@@ -59,7 +65,8 @@ sealed interface WriteIntent {
 
 /** Prompt-facing catalog of the write tools this slice supports. */
 fun agentWriteDescriptors(): List<WriteDescriptor> = listOf(
-    WriteDescriptor("create_account", "Create a new account", "{ \"name\": string, \"kind\": \"CASH|BANK|MFS|CARD\" }"),
+    WriteDescriptor("create_account", "Create a new account (cards may set creditLimit/statementDay/dueDay)",
+        "{ \"name\": string, \"kind\": \"CASH|BANK|MFS|CARD\", \"creditLimit\": number?, \"statementDay\": 1-28?, \"dueDay\": 1-28? }"),
     WriteDescriptor("create_category", "Create a spending category", "{ \"name\": string, \"parent\": string? }"),
     WriteDescriptor("add_transaction", "Record an expense or income",
         "{ \"account\": string, \"amount\": number, \"kind\": \"EXPENSE|INCOME\", \"category\": string?, \"merchant\": string?, \"notes\": string? }"),

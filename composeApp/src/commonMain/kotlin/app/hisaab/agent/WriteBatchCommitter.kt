@@ -62,7 +62,8 @@ class WriteBatchCommitter(
             // 1. accounts
             intents.filterIsInstance<WriteIntent.CreateAccount>().forEach { i ->
                 val kind = runCatching { AccountKind.valueOf(i.kind) }.getOrDefault(AccountKind.CASH)
-                val id = accounts.addBlocking(i.name, kind, institution = null)
+                val id = accounts.addBlocking(i.name, kind, institution = null,
+                    creditLimit = i.creditLimit, statementDay = i.statementDay, dueDay = i.dueDay)
                 accountIdByName[i.name.lowercase()] = id
                 accts++
             }
