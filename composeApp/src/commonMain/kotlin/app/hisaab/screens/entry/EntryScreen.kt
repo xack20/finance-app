@@ -2,7 +2,6 @@ package app.hisaab.screens.entry
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -15,8 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -43,16 +40,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.HisaabColors
 import app.hisaab.design.LocalHisaabPalette
-import app.hisaab.domain.Account
-import app.hisaab.domain.Category
 import app.hisaab.domain.TxnKind
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
@@ -83,8 +75,6 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
     val categories by container.categoryRepository.observeAll().collectAsState(initial = emptyList())
     val coroutineScope = rememberCoroutineScope()
 
-    var showAccountSheet by remember { mutableStateOf(false) }
-    var showCategorySheet by remember { mutableStateOf(false) }
     var showSplitSheet by remember { mutableStateOf(false) }
     var showPersonSheet by remember { mutableStateOf(false) }
 
@@ -121,31 +111,27 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
         ) {
             // Kind selector
             KindSelector(
-                current = state.kind,
+                kind = state.kind,
                 onSelect = { viewModel.setKind(it) },
-                palette = palette,
             )
             Spacer(Modifier.height(28.dp))
 
             // Hero amount
-            HeroAmount(
-                amount = state.amount,
-                onAmountChange = { viewModel.setAmount(it) },
-                palette = palette,
+            AmountField(
+                value = state.amount,
+                onChange = { viewModel.setAmount(it) },
             )
             Spacer(Modifier.height(28.dp))
 
-            FieldRow(
-                label = "Account",
-                value = accounts.firstOrNull { it.id == state.accountId }?.name ?: "Select",
-                onClick = { showAccountSheet = true },
-                palette = palette,
+            AccountPicker(
+                accounts = accounts,
+                selectedId = state.accountId,
+                onSelect = { viewModel.setAccount(it) },
             )
-            FieldRow(
-                label = "Category",
-                value = categories.firstOrNull { it.id == state.categoryId }?.name ?: "Select",
-                onClick = { showCategorySheet = true },
-                palette = palette,
+            CategoryPicker(
+                categories = categories,
+                selectedId = state.categoryId,
+                onSelect = { viewModel.setCategory(it) },
             )
             FieldRow(
                 label = "When",
@@ -165,13 +151,9 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
             )
 
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
+            NotesField(
                 value = state.notes,
-                onValueChange = { viewModel.setNotes(it) },
-                label = { Text("Notes", color = palette.muted) },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2,
-                maxLines = 4,
+                onChange = { viewModel.setNotes(it) },
             )
 
             // Tags
@@ -234,24 +216,6 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
     }
 
     // Bottom sheets
-    if (showAccountSheet) {
-        AccountPickerSheet(
-            accounts = accounts,
-            selectedId = state.accountId,
-            onPick = { id -> viewModel.setAccount(id); showAccountSheet = false },
-            onDismiss = { showAccountSheet = false },
-            palette = palette,
-        )
-    }
-    if (showCategorySheet) {
-        CategoryPickerSheet(
-            categories = categories,
-            selectedId = state.categoryId,
-            onPick = { id -> viewModel.setCategory(id); showCategorySheet = false },
-            onDismiss = { showCategorySheet = false },
-            palette = palette,
-        )
-    }
     if (showSplitSheet) {
         SplitEditorSheet(
             initialSplits = state.splits,
@@ -267,59 +231,6 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
             onDismiss = { showPersonSheet = false },
             palette = palette,
         )
-    }
-}
-
-@Composable
-private fun KindSelector(current: TxnKind, onSelect: (TxnKind) -> Unit, palette: HisaabColors.Palette) {
-    val kinds = listOf(
-        TxnKind.EXPENSE to "Expense",
-        TxnKind.INCOME to "Income",
-        TxnKind.LEND to "Lend",
-        TxnKind.BORROW to "Borrow",
-        TxnKind.TRANSFER to "Transfer",
-    )
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        kinds.forEach { (k, label) ->
-            Button(
-                onClick = { onSelect(k) },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (current == k) palette.accent else palette.surface,
-                    contentColor = if (current == k) palette.background else palette.onBackground,
-                ),
-            ) { Text(label, fontSize = 13.sp) }
-        }
-    }
-}
-
-@Composable
-private fun HeroAmount(amount: String, onAmountChange: (String) -> Unit, palette: HisaabColors.Palette) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("৳ ", color = palette.accent, fontSize = 48.sp)
-        Box(modifier = Modifier.fillMaxWidth()) {
-            BasicTextField(
-                value = amount,
-                onValueChange = { input -> onAmountChange(input.filter { it.isDigit() || it == '.' }) },
-                textStyle = TextStyle(
-                    color = palette.onBackground,
-                    fontSize = 48.sp,
-                    fontWeight = FontWeight.SemiBold,
-                ),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            if (amount.isBlank()) {
-                Text(
-                    "0",
-                    color = palette.muted,
-                    fontSize = 48.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-        }
     }
 }
 
@@ -403,80 +314,6 @@ private fun AttachmentRow(
         Text("›", color = palette.muted)
     }
     HorizontalDivider(color = palette.rule)
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AccountPickerSheet(
-    accounts: List<Account>,
-    selectedId: String?,
-    onPick: (String) -> Unit,
-    onDismiss: () -> Unit,
-    palette: HisaabColors.Palette,
-) {
-    val sheetState = rememberModalBottomSheetState()
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = palette.background) {
-        Column(modifier = Modifier.padding(22.dp).fillMaxWidth()) {
-            Text("Account", color = palette.accent, fontSize = 13.sp)
-            Spacer(Modifier.height(8.dp))
-            accounts.forEach { acc ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onPick(acc.id) }
-                        .padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(acc.name, color = palette.onBackground, modifier = Modifier.weight(1f))
-                    if (acc.id == selectedId) Text("✓", color = palette.accent)
-                }
-                HorizontalDivider(color = palette.rule)
-            }
-            Spacer(Modifier.height(8.dp))
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CategoryPickerSheet(
-    categories: List<Category>,
-    selectedId: String?,
-    onPick: (String) -> Unit,
-    onDismiss: () -> Unit,
-    palette: HisaabColors.Palette,
-) {
-    val sheetState = rememberModalBottomSheetState()
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = palette.background,
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(22.dp)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
-        ) {
-            Text("Category", color = palette.accent, fontSize = 13.sp)
-            Spacer(Modifier.height(8.dp))
-            categories.forEach { cat ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onPick(cat.id) }
-                        .padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    cat.icon?.let { Text(it, modifier = Modifier.width(28.dp)) }
-                    Text(cat.name, color = palette.onBackground, modifier = Modifier.weight(1f))
-                    if (cat.id == selectedId) Text("✓", color = palette.accent)
-                }
-                HorizontalDivider(color = palette.rule)
-            }
-            Spacer(Modifier.height(8.dp))
-        }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
