@@ -179,6 +179,11 @@ compose.resources {
 }
 
 sqldelight {
+    // Do NOT link the system libsqlite3 on native (iOS): the iosApp links the SQLCipher pod instead,
+    // so the native driver's sqlite3 symbols resolve against SQLCipher and PRAGMA key actually
+    // encrypts. (Android is unaffected — it uses the SQLCipher android-driver.) This is an
+    // extension-level setting, not per-database.
+    linkSqlite.set(false)
     databases {
         create("HisaabDatabase") {
             packageName.set("app.hisaab.db")

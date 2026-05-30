@@ -40,10 +40,20 @@ targets:
           - "$(inherited)"
           - "-framework"
           - "ComposeApp"
-          - "-lsqlite3"
+          # sqlite3_* symbols come from the SQLCipher pod (see Podfile), NOT system libsqlite3.
     preBuildScripts:
       - name: "Build Kotlin/Native framework"
         basedOnDependencyAnalysis: false
         script: |
           cd "$SRCROOT/.."
           ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64
+# Explicit SHARED scheme so `xcodebuild -workspace` (CocoaPods) can resolve build destinations.
+schemes:
+  iosApp:
+    build:
+      targets:
+        iosApp: all
+    run:
+      config: Debug
+    archive:
+      config: Debug
