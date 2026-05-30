@@ -128,6 +128,14 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
                 selectedId = state.accountId,
                 onSelect = { viewModel.setAccount(it) },
             )
+            if (state.kind == TxnKind.TRANSFER) {
+                AccountPicker(
+                    accounts = accounts,
+                    selectedId = state.toAccountId,
+                    onSelect = { viewModel.setToAccount(it) },
+                    label = "To",
+                )
+            }
             CategoryPicker(
                 categories = categories,
                 selectedId = state.categoryId,

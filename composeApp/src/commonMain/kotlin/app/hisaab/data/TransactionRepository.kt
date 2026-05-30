@@ -121,6 +121,23 @@ class TransactionRepository(
     }
 
     /**
+     * Suspend wrapper: runs [transferBlocking] inside one db.transaction.
+     * Returns the shared transfer_group_id.
+     */
+    suspend fun transfer(
+        fromAccountId: String,
+        toAccountId: String,
+        amount: Double,
+        ts: Long,
+        notes: String?,
+        currency: String = "BDT",
+    ): String {
+        lateinit var groupId: String
+        db.transaction { groupId = transferBlocking(fromAccountId, toAccountId, amount, ts, notes, currency) }
+        return groupId
+    }
+
+    /**
      * Non-suspending variant for use inside a [HisaabDatabase.transaction] block.
      * Performs the same INSERT as [add] but skips async merchant upsert and tag linking — those
      * are either handled by the pipeline before calling this or irrelevant for auto-post.

@@ -91,6 +91,7 @@ fun AccountPicker(
     selectedId: String?,
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
+    label: String = "Account",
 ) {
     val palette = LocalHisaabPalette.current
     var showSheet by remember { mutableStateOf(false) }
@@ -103,7 +104,7 @@ fun AccountPicker(
             .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Account", color = palette.muted, modifier = Modifier.weight(1f))
+        Text(label, color = palette.muted, modifier = Modifier.weight(1f))
         Text(selectedName, color = palette.onBackground)
         Spacer(Modifier.width(6.dp))
         Text("›", color = palette.muted)
