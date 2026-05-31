@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -19,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.hisaab.design.HisaabSpacing
@@ -35,6 +37,9 @@ import app.hisaab.design.components.HCheck
 import app.hisaab.design.components.HRadio
 import app.hisaab.design.components.HToggle
 import app.hisaab.design.components.MidnightSlider
+import app.hisaab.design.components.MidnightTextField
+import app.hisaab.design.components.OtpCells
+import app.hisaab.design.components.RecoveryWordGrid
 import app.hisaab.design.components.MoneyText
 import app.hisaab.design.components.MoneyTone
 import app.hisaab.design.components.PrimaryButton
@@ -157,6 +162,23 @@ fun ComponentGallery() {
                 "Auto-post ≥ ${(conf * 100).toInt()}%",
                 color = LocalHisaabPalette.current.muted,
             )
+
+            Eyebrow("MidnightTextField")
+            var demoName by remember { mutableStateOf("") }
+            MidnightTextField(value = demoName, onValueChange = { demoName = it }, label = "Your name", placeholder = "Name")
+            var demoPhone by remember { mutableStateOf("") }
+            MidnightTextField(value = demoPhone, onValueChange = { demoPhone = it }, label = "Phone number", placeholder = "1X XXXX XXXX", prefix = "+880", keyboardType = KeyboardType.Phone)
+
+            Eyebrow("OtpCells")
+            var demoCode by remember { mutableStateOf("") }
+            OtpCells(value = demoCode, onValueChange = { if (it.length <= 6 && it.all(Char::isDigit)) demoCode = it })
+
+            Eyebrow("RecoveryWordGrid")
+            RecoveryWordGrid(words = listOf("abandon","ability","able","about","above","absent","absorb","abstract","absurd","abuse","access","accident"), modifier = Modifier.height(220.dp))
+
+            Eyebrow("PrimaryButton states")
+            PrimaryButton(text = "Loading", onClick = {}, loading = true)
+            PrimaryButton(text = "Start", trailingGlyph = "→", onClick = {})
         }
     }
 }
