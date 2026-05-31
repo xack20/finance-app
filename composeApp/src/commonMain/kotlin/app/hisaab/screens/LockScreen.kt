@@ -124,9 +124,9 @@ fun LockScreen(onUnlock: () -> Unit) {
                 )
             }
 
-            if (error != null) {
+            error?.let { msg ->
                 Text(
-                    text = error!!,
+                    text = msg,
                     color = palette.negative,
                     style = MaterialTheme.typography.labelSmall,
                 )
