@@ -23,7 +23,7 @@ class HisaabColorsTest {
     fun dark_text_roles_match_spec() {
         assertEquals(Color(0xFFF3F5F8), HisaabColors.Dark.onBackground)
         assertEquals(Color(0xFF98A0AD), HisaabColors.Dark.muted)
-        assertEquals(Color(0xFF5C6470), HisaabColors.Dark.faint)
+        assertEquals(Color(0xFF737B88), HisaabColors.Dark.faint)
     }
 
     @Test

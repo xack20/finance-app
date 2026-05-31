@@ -103,25 +103,4 @@ object HisaabColors {
         "slate"  to Color(0xFF8A93A3),
     )
 
-    // --- Parked: original "Editorial Premium" palettes (kept for reference; not wired) ---
-    val EditorialLight = Palette(
-        background = Color(0xFFFAF7F2), backgroundInset = Color(0xFFF2ECE0),
-        surface = Color(0xFFFFFFFF), surfaceRaised = Color(0xFFFFFFFF),
-        hair = Color(0x14000000), hair2 = Color(0x0A000000), glass = Color(0x0A000000),
-        onBackground = Color(0xFF1A1A1A), muted = Color(0xFF6F6453), faint = Color(0xFF9A8E78),
-        accent = Color(0xFFAD6B2A), accentDim = Color(0xFFC8964A), onAccent = Color(0xFFFFFFFF),
-        accentSoft = Color(0x1FAD6B2A), positive = Color(0xFF2E7D4F), negative = Color(0xFFB5402C),
-        positiveSoft = Color(0x1F2E7D4F), negativeSoft = Color(0x1FB5402C),
-        rule = Color(0xFFE6DCCB), gold = Color(0xFFC8964A),
-    )
-    val EditorialDark = Palette(
-        background = Color(0xFF0F0C08), backgroundInset = Color(0xFF141009),
-        surface = Color(0xFF1A1410), surfaceRaised = Color(0xFF211A14),
-        hair = Color(0x12FFFFFF), hair2 = Color(0x0AFFFFFF), glass = Color(0x0CFFFFFF),
-        onBackground = Color(0xFFF5EDE0), muted = Color(0xFFB3A288), faint = Color(0xFF7E715C),
-        accent = Color(0xFFD68945), accentDim = Color(0xFFD8A05A), onAccent = Color(0xFF0F0C08),
-        accentSoft = Color(0x1FD68945), positive = Color(0xFF2E7D4F), negative = Color(0xFFE26B57),
-        positiveSoft = Color(0x1F2E7D4F), negativeSoft = Color(0x1FE26B57),
-        rule = Color(0xFF2A2218), gold = Color(0xFFD8A05A),
-    )
 }
