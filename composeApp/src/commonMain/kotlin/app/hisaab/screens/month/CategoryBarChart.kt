@@ -9,15 +9,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabColors
 import app.hisaab.domain.CategorySlice
+import app.hisaab.util.toTaka
 
 @Composable
 fun CategoryBarChart(slices: List<CategorySlice>, palette: HisaabColors.Palette) {
@@ -35,6 +38,7 @@ fun CategoryBarChart(slices: List<CategorySlice>, palette: HisaabColors.Palette)
 @Composable
 private fun CategoryBar(slice: CategorySlice, palette: HisaabColors.Palette) {
     val barColor = parseColorOrAccent(slice.categoryColor, palette.accent)
+    val pill = RoundedCornerShape(999.dp)
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -44,14 +48,14 @@ private fun CategoryBar(slice: CategorySlice, palette: HisaabColors.Palette) {
                 fontSize = 13.sp,
             )
             Text(
-                "৳${slice.total.toInt()}",
+                slice.total.toTaka(),
                 color = palette.onBackground,
                 fontSize = 13.sp,
             )
             Spacer(Modifier.width(8.dp))
             Text(
                 "${slice.percent.toInt()}%",
-                color = palette.muted,
+                color = palette.faint,
                 fontSize = 11.sp,
                 modifier = Modifier.width(36.dp),
             )
@@ -60,13 +64,15 @@ private fun CategoryBar(slice: CategorySlice, palette: HisaabColors.Palette) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(6.dp)
-                .background(palette.rule),
+                .height(7.dp)
+                .clip(pill)
+                .background(palette.backgroundInset),
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth(slice.percent.toFloat() / 100f)
-                    .height(6.dp)
+                    .height(7.dp)
+                    .clip(pill)
                     .background(barColor),
             )
         }
