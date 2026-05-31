@@ -272,7 +272,7 @@ private fun TxnRow(
                     color = palette.onBackground,
                     style = MaterialTheme.typography.bodyLarge,
                 )
-                // Auto-capture indicator (gold "auto" pill, preserved from original)
+                // Auto-capture indicator ("auto" pill, preserved from original)
                 if (display.row.captureId != null) {
                     Spacer(Modifier.width(6.dp))
                     Text(
@@ -281,7 +281,7 @@ private fun TxnRow(
                         color = palette.background,
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
-                            .background(palette.gold)
+                            .background(palette.accentDim)
                             .padding(horizontal = 5.dp, vertical = 1.dp),
                     )
                 }

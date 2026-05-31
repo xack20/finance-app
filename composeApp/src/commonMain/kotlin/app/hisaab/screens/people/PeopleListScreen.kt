@@ -31,8 +31,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.GlassButton
+import app.hisaab.design.components.midnightOutlinedColors
 import app.hisaab.design.components.GradientAvatar
 import app.hisaab.design.components.MidnightSheet
 import app.hisaab.design.components.MoneyText
@@ -175,6 +177,8 @@ private fun AddPersonSheet(
             label = { Text("Name") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            shape = HisaabShapes.field,
+            colors = midnightOutlinedColors(),
         )
         Spacer(Modifier.height(12.dp))
         PrimaryButton(

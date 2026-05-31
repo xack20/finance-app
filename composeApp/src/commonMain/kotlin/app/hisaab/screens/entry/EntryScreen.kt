@@ -16,8 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -42,9 +40,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.HisaabColors
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.PrimaryButton
+import app.hisaab.design.components.midnightOutlinedColors
 import app.hisaab.domain.TxnKind
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
@@ -135,6 +135,8 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
                     label = { Text("Merchant", color = palette.muted) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    shape = HisaabShapes.field,
+                    colors = midnightOutlinedColors(),
                 )
                 Spacer(Modifier.height(8.dp))
                 NotesField(value = state.notes, onChange = { viewModel.setNotes(it) })
@@ -257,6 +259,8 @@ private fun TagChipInput(
                     }) { Text("+", color = palette.accent) }
                 }
             },
+            shape = HisaabShapes.field,
+            colors = midnightOutlinedColors(),
         )
         if (tags.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
@@ -317,16 +321,15 @@ private fun PersonPickerSheet(
                 label = { Text("Name", color = palette.muted) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                shape = HisaabShapes.field,
+                colors = midnightOutlinedColors(),
             )
             Spacer(Modifier.height(12.dp))
-            Button(
+            PrimaryButton(
+                text = "Add",
                 onClick = { if (input.isNotBlank()) onNewPerson(input.trim()) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
                 enabled = input.isNotBlank(),
-            ) { Text("Add", color = palette.background) }
+            )
             Spacer(Modifier.height(16.dp))
             Text("Contact picker comes in P0c-3.", color = palette.muted, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))

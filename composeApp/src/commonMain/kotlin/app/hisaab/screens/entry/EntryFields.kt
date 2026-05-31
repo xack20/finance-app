@@ -31,8 +31,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.midnightOutlinedColors
 import app.hisaab.domain.Account
 import app.hisaab.domain.Category
 
@@ -227,5 +229,7 @@ fun NotesField(
         modifier = modifier.fillMaxWidth(),
         minLines = 2,
         maxLines = 4,
+        shape = HisaabShapes.field,
+        colors = midnightOutlinedColors(),
     )
 }

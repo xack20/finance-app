@@ -1,12 +1,14 @@
 # Hisaab — Tech Debt & Carryover
 
 **Status:** Tracking doc — items here are deliberate deferrals or known gaps from prior phases.
-**Last updated:** 2026-05-31 (M4 — conversational agent: M4-1…M4-4 + M4-6 shipped; + a full carry-forward / tech-debt sweep; + simulator verification: iOS launch-crash fixed & Android instrumented suite green — PR #2)
+**Last updated:** 2026-06-01 — Midnight redesign Phases 1–9 shipped (PR #4) + post-audit polish pass. _(prior: 2026-05-31 — M4 conversational agent M4-1…M4-4 + M4-6, carry-forward/tech-debt sweep, simulator verification — PR #2.)_
 **Convention:** Each item carries a target phase. Items unresolved by v1 launch must move to Phase 2 backlog.
 
 > **M3 shipped (2026-05-29):** SMS capture (Android: receiver + backfill + NotificationListener, lock-safe catch-up), tiered parsing (deterministic pre-filter → 6 bank templates → LLM), on-device (MediaPipe Gemma) + cloud BYO-key (Claude/Gemini/OpenAI) providers with redaction + consent, confidence-gated auto-post + Review inbox, Settings/onboarding UX. 239 unit tests + instrumented suites green. M3 closed no prior debt (net-new feature); its residuals are tracked as H7–H8, M13–M17, L3 below.
 
 > **M4 shipped (2026-05-30→31) — ALL slices code-complete:** conversational money agent — `AgentProvider.complete()` (Gemini/Claude/OpenAI) + `AgentLoop` (ReAct, db-free) + read & write tools (incl. set_budget/recategorize/add_split_transaction) + `WriteBatchCommitter` (atomic FK-ordered Apply) + agent persistence (`5.sqm`) + credit cards (`6.sqm`) + `AgentScreen`/`ReviewCard`/`AgentViewModel` + DI + paired-leg transfer entry. **M4-5** on-device STT (Android `SpeechRecognizer` + iOS `SFSpeechRecognizer`/`AVAudioEngine`, push-to-talk). **M4-7** per-gate messages + `LlmError`→UI mapping + §10 consent disclosure. **M4-0** iOS Xcode wrapper (app builds + runs on the simulator). The 2026-05-31 tech-debt sweep closed the items in **Closed → M4 sweep** below. Runtime device-verification still pending: iOS voice transcription (mic), iOS SQLCipher at-rest file check.
+
+> **Midnight redesign shipped (2026-06-01) — Phases 1–9 (PR #4):** full dark "Midnight" re-skin of every surface (theme/tokens → primitives → onboarding/lock → accessibility polish) as a **pure presentation pass** (no ViewModel/repo/crypto/nav change). Design system under `composeApp/.../design/` (`HisaabColors`/`HisaabShapes`/`HisaabSpacing`/`HisaabTypography` + `design/components/*`); bundled fonts (Space Grotesk / Hanken Grotesk / Space Mono / Hind Siliguri / Noto Sans Bengali, OFL 1.1); reduce-motion `expect/actual` + `LocalReduceMotion`; WCAG AA `ContrastTest`. A post-audit pass replaced the remaining raw `AlertDialog`/`Button`/`OutlinedTextField` chrome leaks with `MidnightDialog`/`PrimaryButton`/`midnightOutlinedColors()`. Redesign residuals tracked as **L-MID1…L-MID4** below.
 
 ---
 
@@ -64,6 +66,10 @@ Important gaps but not blocking ongoing development.
 | L5 | Gradle **configuration cache** intermittently fails serializing AGP `JdkImageInput` (`:composeApp:androidJdkImage`), triggered by a "JVM has changed" invalidation | M4 sweep | Pre-existing AGP×config-cache flake, **not** introduced by M4 (a `--no-configuration-cache` run is clean). Workaround: that flag. Revisit on the next AGP bump | when AGP fixes |
 | L3 | Two `AutoCaptureViewModel` instances exist when navigating AutoCaptureScreen → CloudConsentScreen | M3-5 review | Benign given the reactive DB-backed config flow keeps both consistent; consolidate via a shared nav-scoped VM if consent gains in-memory state | P0d polish |
 | L4 | `AndroidOnDeviceProvider.createOnDeviceProvider()` caches a single engine but its `redact` lambda is bound on first construction — a second `AppContainer` (test only) reuses the first's lambda | M3-4 review | Test-only hazard; production has one `AppContainer`. Add a cache-reset seam if multi-container tests are added | when needed |
+| L-MID1 | Raw `dp` spacing literals not migrated to `HisaabSpacing` in `month/`, `today/`, `people/`, `agent/`, `capture/` screens | Midnight Phase 9 / PR #4 audit | ~310 literals, but most are non-spacing (chart geometry, stroke widths, icon/avatar sizes) so only a subset maps 1:1 to a token. Left as-is to avoid pixel shifts in a presentation pass; migrate the true spacing values once `HisaabSpacing` gains the missing steps | P0d polish |
+| L-MID2 | Legacy palette roles `rule` + `gold` still defined in `HisaabColors.Palette` | Midnight Phase 9 | `gold`'s last consumer migrated to `accentDim` (PR #4 audit pass); `rule` (dividers/borders, ~9 consumers) remains. Migrate to `hair`/`hair2`, then delete both legacy roles | P0d polish |
+| L-MID3 | Reduce-motion reads once at theme composition — not reactive to a live OS-setting change | Midnight Phase 9 | `LocalReduceMotion` resolves in `HisaabTheme`; a mid-session toggle isn't observed until recomposition/restart. Wire a reactive observer if it matters | P2 |
+| L-MID4 | Only dark-Midnight screenshots are generated; no light-variant set | Midnight Phase 9 | Dark is the shipped default; add a light pass to the screenshot harness if light becomes a supported surface | P2 |
 
 ---
 

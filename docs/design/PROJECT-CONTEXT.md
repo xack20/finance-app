@@ -32,47 +32,54 @@ by **device biometrics** and a **24-word recovery phrase**. There is no server-s
 
 ---
 
-## 2. Design system (current)
+## 2. Design system (current — "Midnight")
 
-The current visual language is **warm, editorial, light-luxury** — a cream paper background, a burnt-amber
-accent, a serif display face for headlines and amounts, and monospace tabular figures for money.
-`HisaabTheme { }` provides `LocalHisaabPalette` + a Material 3 theme. Both light and dark palettes exist;
-the app defaults to the system setting (screenshots are light).
+The current visual language is **Midnight** — a dark, neo-bank aesthetic: a near-black ink canvas, an
+electric-lime accent, a geometric grotesk display face for headlines and amounts, and monospace tabular
+figures for money. Bengali (the হিসাব wordmark, ৳ glyphs) is covered by bundled Hind Siliguri / Noto Sans
+Bengali faces. `HisaabTheme { }` provides `LocalHisaabPalette` + a Material 3 theme; **dark is the shipped
+default** and a derived light variant exists (AA-tuned in `ContrastTest`). Screenshots are captured in dark
+Midnight. Source of truth: `HisaabColors.kt` · `HisaabShapes.kt` · `HisaabTypography.kt`.
 
 ### Color palette
 
-| Token | Role | Light | Dark |
+| Token | Role | Dark (default) | Light (derived) |
 |---|---|---|---|
-| `background` | app canvas (cream paper) | `#FAF7F2` | `#0F0C08` |
-| `surface` | cards / sheets | `#FFFFFF` | `#1A1410` |
-| `onBackground` | primary text | `#1A1A1A` | `#F5EDE0` |
-| `muted` | secondary text | `#6F6453` | `#B3A288` |
-| `rule` | hairline borders / dividers | `#E6DCCB` | `#2A2218` |
-| `accent` | brand / primary actions (burnt amber) | `#AD6B2A` | `#D68945` |
-| `gold` | secondary accent | `#C8964A` | `#D8A05A` |
-| `positive` | income / credit | `#2E7D4F` | `#2E7D4F` |
-| `negative` | expense / warnings | `#B5402C` | `#E26B57` |
+| `background` | app canvas (ink) | `#0A0B0E` | `#F6F8FB` |
+| `surface` | cards / sheets | `#161922` | `#FFFFFF` |
+| `onBackground` | primary text | `#F3F5F8` | `#13161B` |
+| `muted` | secondary text | `#98A0AD` | `#5A6573` |
+| `faint` | tertiary text (AA-tuned) | `#737B88` | `#79828F` |
+| `hair` | hairline border (α over bg) | white @ 7% | ink @ 8% |
+| `accent` | brand / primary actions (lime) | `#CBF24A` | `#4E6A10` (dimmed for AA text) |
+| `accentDim` | hover / pressed accent | `#A9CE37` | `#5E7E12` |
+| `onAccent` | text on the lime fill | `#0A0B0E` | `#0A0B0E` |
+| `positive` | income / credit | `#46E08A` | `#18854A` |
+| `negative` | expense / warnings | `#FF6B5C` | `#C2392A` |
+| `rule`, `gold` | legacy roles (being retired) | `#242833`, `#A9CE37` | `#DDE2E8`, `#5E7E12` |
 
 ### Typography
 
 | Style | Family | Size / weight | Use |
 |---|---|---|---|
-| `heroAmount` (displayLarge) | Serif (GT Sectra intended) | 44sp, -0.6 tracking | hero amounts / big numbers |
-| `title` (headlineMedium) | Serif | 22sp | screen headlines |
-| `body` (bodyMedium) | Sans (Inter intended) | 14sp | body copy |
-| `label` (labelSmall) | Sans, Medium | 10sp, +1.8 tracking | eyebrow labels (uppercase-feel) |
-| `tabular` (bodySmall) | Mono (JetBrains Mono intended), `tnum lnum` | 14sp | money figures, aligned columns |
+| `heroAmount` | Space Grotesk (display) | 50sp SemiBold, -1.5 tracking | hero amounts / big numbers |
+| `title` | Space Grotesk (display) | 30sp SemiBold, -0.6 tracking | screen headlines |
+| `body` | Hanken Grotesk (ui) | 15sp Normal | body copy |
+| `eyebrow` / `label` | Hanken Grotesk (ui) | 11sp Medium/SemiBold, +1.5 tracking | eyebrow labels |
+| `tabular` | Space Mono (mono), `tnum lnum` | 16sp Bold | money figures, aligned columns |
 
-> Fonts currently fall back to system serif/sans/mono; the P0b intent is GT Sectra / Inter / JetBrains Mono.
+> Families are real bundled fonts (OFL 1.1, see `composeApp/THIRD_PARTY_FONT_LICENSES.md`), built in
+> composition via `HisaabTypography.families()`: display = Space Grotesk, ui = Hanken Grotesk, mono =
+> Space Mono; each carries a Bengali face (Hind Siliguri / Noto Sans Bengali) at a matching weight.
 
 ### Shapes
 
-- `card` = 10dp rounded · `sheet` = 18dp top corners · `pill` = fully rounded.
-- Material 3 shapes: small 6dp · medium 10dp · large 18dp.
+- `field` = 16dp · `card` = 22dp · `sheet` = 26dp top corners · `pill` = fully rounded (999dp).
+- Material 3 mapping: small = `field` (16dp) · medium = `card` (22dp) · large = 26dp.
 
 ### Recurring UI idioms
 
-- **Eyebrow label** (tiny tracked accent text) above a serif headline on most screens.
+- **Eyebrow label** (tiny tracked accent text) above a grotesk headline on most screens.
 - **Hairline-bordered surface cards** (`rule` border, `surface` fill) rather than heavy shadows.
 - **Full-width pill/rounded primary buttons**, accent fill, disabled until inputs valid.
 - **Inline `CircularProgressIndicator`** inside buttons for loading.
@@ -184,7 +191,7 @@ Navigation is partly imperative and partly side-effect-driven:
 
 In the live graph BiometricSetupScreen is always passed isAvailable=true (the unavailable state is reachable only by overriding that arg in isolation). RecoveryPhraseScreen's words come from viewModel.generateRecoveryPhrase(), which returns emptyList() unless a master_secret was generated during biometric enroll — so in a real run the phrase only populates after the biometric step; for isolated rendering pass a literal 24-word list.
 
-All six composables are stateless and renderable WITHOUT a ViewModel or DB: each takes plain primitives (String/Boolean/List/String?) plus lambda callbacks, and manages its transient input via internal remember. There is no separate XxxContent wrapper — the screen composables themselves are the stateless content layer. The only true ViewModel/DB dependencies (Supabase auth, CryptoService/MnemonicService, BiometricPrompt, encrypted SQLDelight DB via container.openDatabase) live entirely in OnboardingViewModel/OnboardingGraph and are bypassed when rendering the screens directly. OnboardingState (data class in OnboardingViewModel.kt) maps 1:1 to these params: phone, otpSent, otpVerified, biometricEnabled, recoveryPhrase, phraseAcknowledged, isLoading, error. Every screen must be wrapped in HisaabTheme { } so LocalHisaabPalette (HisaabColors.Palette with background/surface/onBackground/muted/rule/accent/negative) and HisaabSpacing.gutter (22.dp) resolve.
+All six composables are stateless and renderable WITHOUT a ViewModel or DB: each takes plain primitives (String/Boolean/List/String?) plus lambda callbacks, and manages its transient input via internal remember. There is no separate XxxContent wrapper — the screen composables themselves are the stateless content layer. The only true ViewModel/DB dependencies (Supabase auth, CryptoService/MnemonicService, BiometricPrompt, encrypted SQLDelight DB via container.openDatabase) live entirely in OnboardingViewModel/OnboardingGraph and are bypassed when rendering the screens directly. OnboardingState (data class in OnboardingViewModel.kt) maps 1:1 to these params: phone, otpSent, otpVerified, biometricEnabled, recoveryPhrase, phraseAcknowledged, isLoading, error. Every screen must be wrapped in HisaabTheme { } so LocalHisaabPalette (HisaabColors.Palette with background/surface/onBackground/muted/rule/accent/negative) and HisaabSpacing.gutter (20.dp) resolve.
 
 
 ### WelcomeScreen

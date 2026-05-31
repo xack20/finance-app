@@ -45,6 +45,7 @@ import app.hisaab.design.components.MidnightSheet
 import app.hisaab.design.components.MoneyText
 import app.hisaab.design.components.PrimaryButton
 import app.hisaab.design.components.SurfaceCard
+import app.hisaab.design.components.midnightOutlinedColors
 import app.hisaab.domain.Account
 import app.hisaab.domain.LendBorrowDirection
 import app.hisaab.domain.LendBorrowRow
@@ -245,6 +246,8 @@ private fun SettleSheet(
             prefix = { Text("৳") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
+            shape = HisaabShapes.field,
+            colors = midnightOutlinedColors(),
         )
         Spacer(Modifier.height(16.dp))
         Eyebrow(text = "Into account")
