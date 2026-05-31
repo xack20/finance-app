@@ -66,7 +66,10 @@ fun HisaabTheme(
         bodySmall      = HisaabTypography.tabular.copy(fontFamily = fams.mono),
     )
 
-    CompositionLocalProvider(LocalHisaabPalette provides palette) {
+    CompositionLocalProvider(
+        LocalHisaabPalette provides palette,
+        LocalReduceMotion provides isReduceMotionEnabled(),
+    ) {
         MaterialTheme(
             colorScheme = scheme,
             typography = typography,
