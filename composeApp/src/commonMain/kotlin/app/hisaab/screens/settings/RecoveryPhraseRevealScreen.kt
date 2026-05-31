@@ -13,7 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.Eyebrow
+import app.hisaab.design.components.SurfaceCard
 import app.hisaab.platform.BiometricResult
 import kotlinx.coroutines.launch
 
@@ -59,18 +62,46 @@ fun RecoveryPhraseRevealScreen(onBack: () -> Unit) {
         },
         containerColor = palette.background,
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 22.dp)) {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Anyone with these 24 words can restore your data on another device. Keep them private.",
-                color = palette.negative, fontSize = 12.sp,
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(palette.background)
+                .padding(padding)
+                .padding(horizontal = 22.dp),
+        ) {
+            Spacer(Modifier.height(12.dp))
+            // Warning card — negative-toned SurfaceCard
+            SurfaceCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = HisaabShapes.card,
+            ) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Text(
+                        text = "⚠",
+                        color = palette.negative,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(end = 8.dp, top = 1.dp),
+                    )
+                    Text(
+                        text = "Anyone with these 24 words can restore your data on another device. Never screenshot or share them.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.negative,
+                    )
+                }
+            }
             Spacer(Modifier.height(20.dp))
             val err = error
             val w = words
             when {
-                err != null -> Text(err, color = palette.negative)
-                w == null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                err != null -> {
+                    Eyebrow("Error")
+                    Spacer(Modifier.height(6.dp))
+                    Text(err, style = MaterialTheme.typography.bodyMedium, color = palette.negative)
+                }
+                w == null -> Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
                     CircularProgressIndicator(color = palette.accent)
                 }
                 else -> LazyVerticalGrid(
@@ -81,14 +112,22 @@ fun RecoveryPhraseRevealScreen(onBack: () -> Unit) {
                     itemsIndexed(w) { i, word ->
                         Row(
                             modifier = Modifier
-                                .border(1.dp, palette.rule, MaterialTheme.shapes.small)
-                                .background(palette.surface, MaterialTheme.shapes.small)
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                .border(1.dp, palette.hair, HisaabShapes.field)
+                                .background(palette.surface, HisaabShapes.field)
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text("${i + 1}", color = palette.accent, fontSize = 11.sp,
-                                modifier = Modifier.width(20.dp))
-                            Text(word, color = palette.onBackground, fontSize = 12.sp)
+                            Text(
+                                "${i + 1}",
+                                color = palette.accent,
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.width(22.dp),
+                            )
+                            Text(
+                                word,
+                                color = palette.onBackground,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                 }
