@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,17 +21,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.agent.AgentAvailability
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.SurfaceCard
 import app.hisaab.domain.AgentRole
 import kotlinx.serialization.json.JsonObject
 
@@ -93,277 +91,343 @@ fun AgentScreenContent(
         if (lastIndex >= 0) listState.animateScrollToItem(lastIndex)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Assistant", color = palette.onBackground) },
-                navigationIcon = {
-                    TextButton(onClick = onClose) {
-                        Text("Close", color = palette.muted)
-                    }
-                },
-                actions = {
-                    TextButton(onClick = onNewChat) {
-                        Text("New chat", color = palette.accent)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = palette.background),
-            )
-        },
-        containerColor = palette.background,
-    ) { padding ->
-        Column(
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(palette.background)
+            .imePadding(),
+    ) {
+        // ── Header ──────────────────────────────────────────────────────────────
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .imePadding(),
+                .fillMaxWidth()
+                .background(palette.background)
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Gate — shown when the feature is not ready.
-            // NeedsConsent → opt-in dialog with disclosure.
-            // Unavailable (no provider/key) → inline banner pointing to Settings.
-            when (val gate = state.gate) {
-                is AgentAvailability.NeedsConsent -> {
-                    AgentConsentDialog(
-                        onConsent = onConsent,
-                        onDismiss = onClose,
+            TextButton(onClick = onClose) {
+                Text("Close", color = palette.muted, fontSize = 15.sp)
+            }
+
+            Spacer(Modifier.width(4.dp))
+
+            SparkleOrb(size = 36)
+
+            Spacer(Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Assistant",
+                    color = palette.onBackground,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                )
+                Text(
+                    text = "On-device · private",
+                    color = palette.muted,
+                    fontSize = 12.sp,
+                )
+            }
+
+            TextButton(onClick = onNewChat) {
+                Text("New", color = palette.accent, fontWeight = FontWeight.SemiBold)
+            }
+        }
+
+        // ── Gate ────────────────────────────────────────────────────────────────
+        // NeedsConsent → opt-in dialog with disclosure.
+        // Unavailable (no provider/key) → inline card pointing to Settings.
+        when (val gate = state.gate) {
+            is AgentAvailability.NeedsConsent -> {
+                AgentConsentDialog(
+                    onConsent = onConsent,
+                    onDismiss = onClose,
+                )
+            }
+            is AgentAvailability.Unavailable -> {
+                SurfaceCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .testTag("agent_gate_banner"),
+                ) {
+                    Text(
+                        text = gate.reason,
+                        color = palette.onBackground,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Enable in Settings to continue.",
+                        color = palette.muted,
+                        fontSize = 12.sp,
                     )
                 }
-                is AgentAvailability.Unavailable -> {
-                    Box(
+            }
+            AgentAvailability.Ready, null -> Unit
+        }
+
+        // ── Error banner ────────────────────────────────────────────────────────
+        state.error?.let { err ->
+            Text(
+                text = err,
+                color = palette.negative,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 6.dp)
+                    .testTag("agent_error"),
+            )
+        }
+
+        // ── Confirmation banner ─────────────────────────────────────────────────
+        state.confirmation?.let { msg ->
+            Text(
+                text = msg,
+                color = palette.positive,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 6.dp),
+            )
+        }
+
+        // ── Message thread ──────────────────────────────────────────────────────
+        val gateReady = state.gate == AgentAvailability.Ready || state.gate == null
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item { Spacer(Modifier.height(8.dp)) }
+
+            // Empty state — only when there are no messages and the gate is ready/null.
+            if (state.messages.isEmpty() && gateReady) {
+                item {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(palette.surface)
-                            .border(1.dp, palette.rule)
-                            .padding(horizontal = 18.dp, vertical = 12.dp)
-                            .testTag("agent_gate_banner"),
+                            .padding(top = 48.dp, bottom = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Column {
-                            Text(
-                                text = gate.reason,
-                                color = palette.onBackground,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = "Enable in Settings to continue.",
-                                color = palette.muted,
-                                fontSize = 12.sp,
-                            )
-                        }
-                    }
-                }
-                AgentAvailability.Ready, null -> Unit
-            }
-
-            // Error line.
-            state.error?.let { err ->
-                Text(
-                    text = err,
-                    color = palette.negative,
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 6.dp)
-                        .testTag("agent_error"),
-                )
-            }
-
-            // Confirmation line.
-            state.confirmation?.let { msg ->
-                Text(
-                    text = msg,
-                    color = palette.positive,
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 6.dp),
-                )
-            }
-
-            // Message thread.
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                item { Spacer(Modifier.height(8.dp)) }
-
-                items(state.messages, key = { it.id }) { msg ->
-                    val isUser = msg.role == AgentRole.USER
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .widthIn(max = 280.dp)
-                                .clip(
-                                    RoundedCornerShape(
-                                        topStart = 14.dp,
-                                        topEnd = 14.dp,
-                                        bottomStart = if (isUser) 14.dp else 4.dp,
-                                        bottomEnd = if (isUser) 4.dp else 14.dp,
-                                    )
-                                )
-                                .background(if (isUser) palette.accent else palette.surface)
-                                .border(
-                                    width = if (isUser) 0.dp else 1.dp,
-                                    color = if (isUser) palette.accent else palette.rule,
-                                    shape = RoundedCornerShape(
-                                        topStart = 14.dp,
-                                        topEnd = 14.dp,
-                                        bottomStart = if (isUser) 14.dp else 4.dp,
-                                        bottomEnd = if (isUser) 4.dp else 14.dp,
-                                    )
-                                )
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
-                                .testTag("agent_msg_${msg.id}"),
-                        ) {
-                            Text(
-                                text = msg.content,
-                                color = if (isUser) palette.background else palette.onBackground,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    }
-                }
-
-                // inFlight indicator — "…" thinking bubble.
-                if (state.inFlight) {
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Start,
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(
-                                        RoundedCornerShape(
-                                            topStart = 14.dp,
-                                            topEnd = 14.dp,
-                                            bottomEnd = 14.dp,
-                                            bottomStart = 4.dp,
-                                        )
-                                    )
-                                    .background(palette.surface)
-                                    .border(
-                                        1.dp,
-                                        palette.rule,
-                                        RoundedCornerShape(
-                                            topStart = 14.dp,
-                                            topEnd = 14.dp,
-                                            bottomEnd = 14.dp,
-                                            bottomStart = 4.dp,
-                                        )
-                                    )
-                                    .padding(horizontal = 14.dp, vertical = 10.dp)
-                                    .testTag("agent_inflight"),
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    color = palette.muted,
-                                    strokeWidth = 2.dp,
-                                )
-                            }
-                        }
-                    }
-                }
-
-                item { Spacer(Modifier.height(8.dp)) }
-
-                // Review section — full ReviewCard introduced in T7.
-                if (state.review.isNotEmpty()) {
-                    item {
-                        ReviewCard(
-                            writes = state.review,
-                            included = state.reviewIncluded,
-                            onToggle = onToggleInclude,
-                            onEdit = onEditWrite,
-                            onApply = onApply,
+                        SparkleOrb(size = 64)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Ask about your money",
+                            color = palette.onBackground,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 18.sp,
+                        )
+                        Text(
+                            text = "Your data stays on device — nothing is shared.",
+                            color = palette.muted,
+                            fontSize = 13.sp,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        SuggestionChips(
+                            suggestions = listOf(
+                                "Set a food budget",
+                                "I paid 500 for lunch",
+                                "Move 1000 to cash",
+                            ),
+                            onPick = { text ->
+                                onInput(text)
+                                onSend()
+                            },
                         )
                     }
-
-                    item { Spacer(Modifier.height(8.dp)) }
                 }
             }
 
-            // Input bar — pinned at bottom.
+            items(state.messages, key = { it.id }) { msg ->
+                val isUser = msg.role == AgentRole.USER
+                val bubbleShape = if (isUser) {
+                    RoundedCornerShape(
+                        topStart = 20.dp,
+                        topEnd = 20.dp,
+                        bottomStart = 20.dp,
+                        bottomEnd = 6.dp,
+                    )
+                } else {
+                    RoundedCornerShape(
+                        topStart = 20.dp,
+                        topEnd = 20.dp,
+                        bottomStart = 6.dp,
+                        bottomEnd = 20.dp,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .widthIn(max = 300.dp)
+                            .clip(bubbleShape)
+                            .background(if (isUser) palette.accent else palette.surface)
+                            .border(
+                                width = if (isUser) 0.dp else 1.dp,
+                                color = if (isUser) palette.accent else palette.hair,
+                                shape = bubbleShape,
+                            )
+                            .padding(horizontal = 16.dp, vertical = 13.dp)
+                            .testTag("agent_msg_${msg.id}"),
+                    ) {
+                        Text(
+                            text = msg.content,
+                            color = if (isUser) palette.onAccent else palette.onBackground,
+                            fontSize = 15.5.sp,
+                        )
+                    }
+                }
+            }
+
+            // inFlight indicator — TypingDots thinking bubble.
+            if (state.inFlight) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start,
+                    ) {
+                        val inflightShape = RoundedCornerShape(
+                            topStart = 20.dp,
+                            topEnd = 20.dp,
+                            bottomStart = 6.dp,
+                            bottomEnd = 20.dp,
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(inflightShape)
+                                .background(palette.surface)
+                                .border(1.dp, palette.hair, inflightShape)
+                                .padding(horizontal = 16.dp, vertical = 13.dp)
+                                .testTag("agent_inflight"),
+                        ) {
+                            TypingDots()
+                        }
+                    }
+                }
+            }
+
+            item { Spacer(Modifier.height(8.dp)) }
+
+            // Review section — full ReviewCard introduced in T7.
+            if (state.review.isNotEmpty()) {
+                item {
+                    ReviewCard(
+                        writes = state.review,
+                        included = state.reviewIncluded,
+                        onToggle = onToggleInclude,
+                        onEdit = onEditWrite,
+                        onApply = onApply,
+                    )
+                }
+
+                item { Spacer(Modifier.height(8.dp)) }
+            }
+        }
+
+        // ── Listening indicator ─────────────────────────────────────────────────
+        if (state.listening) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(palette.background)
-                    .border(width = 1.dp, color = palette.rule)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 20.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OutlinedTextField(
-                    value = state.input,
-                    onValueChange = onInput,
-                    placeholder = {
-                        Text("Ask something…", color = palette.muted)
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("agent_input"),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = palette.accent,
-                        unfocusedBorderColor = palette.rule,
-                        focusedTextColor = palette.onBackground,
-                        unfocusedTextColor = palette.onBackground,
-                        cursorColor = palette.accent,
-                    ),
-                    maxLines = 4,
-                    shape = RoundedCornerShape(12.dp),
+                ListeningEqualizer()
+                Text(
+                    text = "Listening…",
+                    color = palette.accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
                 )
+            }
+        }
 
-                Spacer(Modifier.width(8.dp))
+        // ── Input bar — pinned at bottom ────────────────────────────────────────
+        val inputDisabled = state.gate is AgentAvailability.Unavailable
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(palette.glass)
+                .border(width = 1.dp, color = palette.hair)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = state.input,
+                onValueChange = onInput,
+                placeholder = {
+                    Text("Ask something…", color = palette.muted)
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 50.dp)
+                    .testTag("agent_input"),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = palette.accent,
+                    unfocusedBorderColor = if (state.listening) palette.accent else palette.hair,
+                    focusedTextColor = palette.onBackground,
+                    unfocusedTextColor = palette.onBackground,
+                    cursorColor = palette.accent,
+                    disabledBorderColor = palette.hair,
+                ),
+                maxLines = 4,
+                shape = RoundedCornerShape(999.dp),
+                enabled = !inputDisabled,
+            )
 
-                // Send button — enabled when input is non-blank and not inFlight.
-                val canSend = state.input.isNotBlank() && !state.inFlight
-                IconButton(
-                    onClick = onSend,
-                    enabled = canSend,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(if (canSend) palette.accent else palette.rule)
-                        .testTag("agent_send"),
-                ) {
-                    Text(
-                        text = "↑",
-                        color = if (canSend) palette.background else palette.muted,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
+            Spacer(Modifier.width(8.dp))
 
-                Spacer(Modifier.width(4.dp))
+            // Send button — enabled when input is non-blank and not inFlight.
+            val canSend = state.input.isNotBlank() && !state.inFlight && !inputDisabled
+            IconButton(
+                onClick = onSend,
+                enabled = canSend,
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(CircleShape)
+                    .background(if (state.input.isNotBlank()) palette.accent else palette.surfaceRaised)
+                    .testTag("agent_send"),
+            ) {
+                Text(
+                    text = "↑",
+                    color = if (state.input.isNotBlank()) palette.onAccent else palette.faint,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
 
-                // Mic button (M4-5) — push-to-talk on-device STT; enabled when voice is available,
-                // tinted while listening. Degrades silently to typing when unavailable.
-                IconButton(
-                    onClick = onMicTap,
-                    enabled = state.voiceAvailable,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .testTag("agent_mic")
-                        .semantics {
-                            contentDescription = when {
-                                state.listening -> "Listening — tap to stop"
-                                state.voiceAvailable -> "Voice input — tap to dictate"
-                                else -> "Voice input unavailable"
-                            }
-                        },
-                ) {
-                    Text(
-                        text = "🎤",
-                        fontSize = 18.sp,
-                        color = if (state.listening) palette.accent else palette.onBackground,
-                    )
-                }
+            Spacer(Modifier.width(6.dp))
+
+            // Mic button — push-to-talk on-device STT; tinted while listening.
+            IconButton(
+                onClick = onMicTap,
+                enabled = state.voiceAvailable && !inputDisabled,
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(CircleShape)
+                    .background(if (state.listening) palette.accent else palette.surface)
+                    .testTag("agent_mic")
+                    .semantics {
+                        contentDescription = when {
+                            state.listening -> "Listening — tap to stop"
+                            state.voiceAvailable -> "Voice input — tap to dictate"
+                            else -> "Voice input unavailable"
+                        }
+                    },
+            ) {
+                Text(
+                    text = "🎙",
+                    fontSize = 20.sp,
+                    color = if (state.listening) palette.onAccent else palette.onBackground,
+                )
             }
         }
     }
