@@ -39,11 +39,17 @@ import app.hisaab.design.components.PrimaryButton
 import app.hisaab.design.components.SectionHeader
 import app.hisaab.design.components.SurfaceCard
 import app.hisaab.design.components.categoryHue
+import app.hisaab.domain.BudgetProgress
+import app.hisaab.domain.BudgetRow
+import app.hisaab.domain.DayBucket
 import app.hisaab.domain.TxnKind
+import app.hisaab.domain.YearMonth
 import app.hisaab.screens.entry.BigAmount
 import app.hisaab.screens.entry.KindChipRow
 import app.hisaab.screens.entry.NumericKeypad
 import app.hisaab.screens.entry.applyAmountKey
+import app.hisaab.screens.month.BudgetProgressList
+import app.hisaab.screens.month.PerDayLineChart
 
 /** Trivial tintable glyph (avoids a material-icons dependency) for the gallery demo only. */
 private val DemoGlyph: ImageVector = ImageVector.Builder(
@@ -105,6 +111,28 @@ fun ComponentGallery() {
             KindChipRow(kind = TxnKind.EXPENSE, onSelect = {})
             BigAmount(amount = amt, kind = TxnKind.EXPENSE)
             NumericKeypad(onKey = { amt = applyAmountKey(amt, it) })
+
+            Eyebrow("Charts")
+            PerDayLineChart(
+                buckets = listOf(400.0, 1200.0, 300.0, 900.0, 1800.0, 600.0)
+                    .mapIndexed { i, v -> DayBucket(epochDay = 20000L + i, total = v) },
+                palette = LocalHisaabPalette.current,
+            )
+            BudgetProgressList(
+                budgets = listOf("Food" to 45.0, "Transport" to 85.0, "Shopping" to 112.0)
+                    .mapIndexed { i, (name, pct) ->
+                        BudgetProgress(
+                            budget = BudgetRow(
+                                id = "b$i", categoryId = "c$i", categoryName = name,
+                                monthlyCapAmount = 5000.0, currency = "BDT",
+                                startsMonth = YearMonth("2026-05"), archivedAt = null, createdAt = 0L,
+                            ),
+                            spent = 5000.0 * pct / 100.0,
+                            percent = pct,
+                        )
+                    },
+                palette = LocalHisaabPalette.current,
+            )
         }
     }
 }
