@@ -64,3 +64,9 @@ iosApp/Podfile.lock
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
+
+# Design assets: track the lightweight handoff source, ignore the redundant
+# root extraction and regenerable screenshot output (regen via the screenshot harness).
+/Hisaab/
+docs/design/screenshots/
+docs/design/*.zip
