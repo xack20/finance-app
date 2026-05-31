@@ -17,6 +17,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.GlassButton
 import app.hisaab.design.components.PrimaryButton
@@ -58,7 +59,7 @@ fun CloudConsentScreen(
                 .fillMaxSize()
                 .background(palette.background)
                 .padding(padding)
-                .padding(horizontal = 22.dp),
+                .padding(horizontal = HisaabSpacing.gutter),
         ) {
             Spacer(Modifier.height(16.dp))
             SectionHeader(

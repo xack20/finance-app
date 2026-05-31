@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.domain.Account
 import app.hisaab.domain.Category
@@ -114,7 +115,7 @@ fun AccountPicker(
             sheetState = sheetState,
             containerColor = palette.background,
         ) {
-            Column(modifier = Modifier.padding(22.dp).fillMaxWidth()) {
+            Column(modifier = Modifier.padding(HisaabSpacing.gutter).fillMaxWidth()) {
                 Text("Account", color = palette.accent, fontSize = 13.sp)
                 Spacer(Modifier.height(8.dp))
                 accounts.forEach { acc ->
@@ -179,7 +180,7 @@ fun CategoryPicker(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(22.dp)
+                    .padding(HisaabSpacing.gutter)
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
             ) {

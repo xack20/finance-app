@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.HisaabShapes
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.Eyebrow
 import app.hisaab.design.components.SurfaceCard
@@ -67,7 +68,7 @@ fun RecoveryPhraseRevealScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .background(palette.background)
                 .padding(padding)
-                .padding(horizontal = 22.dp),
+                .padding(horizontal = HisaabSpacing.gutter),
         ) {
             Spacer(Modifier.height(12.dp))
             // Warning card — negative-toned SurfaceCard

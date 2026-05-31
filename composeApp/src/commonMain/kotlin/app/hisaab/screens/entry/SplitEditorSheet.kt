@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.domain.Category
 import app.hisaab.domain.NewSplitTransaction
@@ -64,7 +65,7 @@ fun SplitEditorSheet(
     ) {
         Column(
             modifier = Modifier
-                .padding(22.dp)
+                .padding(HisaabSpacing.gutter)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState()),
         ) {

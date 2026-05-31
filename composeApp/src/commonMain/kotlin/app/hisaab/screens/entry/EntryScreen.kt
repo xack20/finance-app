@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.HisaabColors
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.PrimaryButton
 import app.hisaab.domain.TxnKind
@@ -307,7 +308,7 @@ private fun PersonPickerSheet(
     val sheetState = rememberModalBottomSheetState()
     var input by remember { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = palette.background) {
-        Column(modifier = Modifier.padding(22.dp).fillMaxWidth()) {
+        Column(modifier = Modifier.padding(HisaabSpacing.gutter).fillMaxWidth()) {
             Text("Person", color = palette.accent, fontSize = 13.sp)
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(

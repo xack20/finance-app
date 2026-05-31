@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.HisaabColors
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.domain.ParsedBy
 import app.hisaab.domain.TxnKind
@@ -90,7 +91,7 @@ fun TransactionDetailScreen(txnId: String, onDone: () -> Unit) {
                     .fillMaxSize()
                     .background(palette.background)
                     .padding(padding)
-                    .padding(horizontal = 22.dp),
+                    .padding(horizontal = HisaabSpacing.gutter),
             ) {
                 Spacer(Modifier.height(12.dp))
                 val (sign, color) = when (d.row.kind) {

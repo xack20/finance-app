@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import app.hisaab.LocalAppContainer
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.Eyebrow
 import app.hisaab.design.components.HToggle
@@ -45,7 +46,7 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(palette.background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 22.dp),
+            .padding(horizontal = HisaabSpacing.gutter),
     ) {
         Spacer(Modifier.height(16.dp))
         SectionHeader("Settings")

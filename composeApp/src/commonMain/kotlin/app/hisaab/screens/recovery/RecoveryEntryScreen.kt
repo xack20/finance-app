@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import app.hisaab.LocalAppContainer
 import app.hisaab.crypto.BIP39_WORDLIST
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.MidnightTextField
 import app.hisaab.design.components.PrimaryButton
@@ -74,7 +75,7 @@ fun RecoveryEntryScreen(onRecovered: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(palette.background)
-            .padding(22.dp),
+            .padding(HisaabSpacing.gutter),
     ) {
         SectionHeader(
             title = "Enter your 24-word recovery phrase",

@@ -99,7 +99,7 @@ fun AutoCaptureScreen(
         val c = cfg ?: return@Scaffold
         Column(
             modifier = Modifier.fillMaxSize().padding(padding)
-                .verticalScroll(rememberScrollState()).padding(horizontal = 22.dp),
+                .verticalScroll(rememberScrollState()).padding(horizontal = HisaabSpacing.gutter),
         ) {
             Spacer(Modifier.height(8.dp))
 
