@@ -2,15 +2,20 @@ package app.hisaab.screens.onboarding
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.Eyebrow
+import app.hisaab.design.components.GlassButton
+import app.hisaab.design.components.OtpCells
+import app.hisaab.design.components.PrimaryButton
 
 @Composable
 fun OtpScreen(
@@ -31,23 +36,28 @@ fun OtpScreen(
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            Text("Verify", color = palette.accent)
+            Eyebrow("Verify")
             Spacer(Modifier.height(12.dp))
             Text(
                 "Enter the code\nwe sent you",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.displaySmall,
                 color = palette.onBackground,
             )
             Spacer(Modifier.height(8.dp))
-            Text("Sent to $phone", color = palette.muted, style = MaterialTheme.typography.bodySmall)
+            Text(
+                buildAnnotatedString {
+                    append("Sent to ")
+                    withStyle(SpanStyle(color = palette.accent)) { append(phone) }
+                },
+                color = palette.muted,
+                style = MaterialTheme.typography.bodyMedium,
+            )
             Spacer(Modifier.height(32.dp))
-            OutlinedTextField(
+            OtpCells(
                 value = otp,
                 onValueChange = { if (it.length <= 6 && it.all(Char::isDigit)) otp = it },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                singleLine = true,
-                placeholder = { Text("6-digit code", color = palette.muted) },
+                isError = error != null,
             )
             error?.let {
                 Spacer(Modifier.height(8.dp))
@@ -55,18 +65,21 @@ fun OtpScreen(
             }
         }
         Column {
-            Button(
+            PrimaryButton(
+                text = "Verify",
                 onClick = { onVerify(otp) },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
+                modifier = Modifier.fillMaxWidth(),
                 enabled = otp.length == 6 && !isLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-            ) {
-                if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = palette.background)
-                else Text("Verify", color = palette.background)
-            }
+                loading = isLoading,
+                fillMaxWidth = true,
+            )
             Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onResend, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                Text("Resend code", color = palette.muted)
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                GlassButton(
+                    text = "Resend code",
+                    onClick = onResend,
+                    fillMaxWidth = false,
+                )
             }
             Spacer(Modifier.height(24.dp))
         }
