@@ -34,6 +34,7 @@ import app.hisaab.design.components.GradientAvatar
 import app.hisaab.design.components.HCheck
 import app.hisaab.design.components.HRadio
 import app.hisaab.design.components.HToggle
+import app.hisaab.design.components.MidnightSlider
 import app.hisaab.design.components.MoneyText
 import app.hisaab.design.components.MoneyTone
 import app.hisaab.design.components.PrimaryButton
@@ -148,6 +149,14 @@ fun ComponentGallery() {
                 ListeningEqualizer()
             }
             SuggestionChips(listOf("Set a food budget", "I paid 500 for lunch"), onPick = {})
+
+            Eyebrow("MidnightSlider")
+            var conf by remember { mutableStateOf(0.85f) }
+            MidnightSlider(value = conf, onValueChange = { conf = it }, valueRange = 0.5f..0.99f)
+            Text(
+                "Auto-post ≥ ${(conf * 100).toInt()}%",
+                color = LocalHisaabPalette.current.muted,
+            )
         }
     }
 }
