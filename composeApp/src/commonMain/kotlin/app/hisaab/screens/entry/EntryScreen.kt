@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -19,7 +18,6 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.HisaabColors
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.PrimaryButton
 import app.hisaab.domain.TxnKind
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
@@ -85,141 +84,115 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
                 navigationIcon = {
                     TextButton(onClick = onDone) { Text("Cancel", color = palette.muted) }
                 },
-                actions = {
-                    TextButton(
-                        onClick = { viewModel.save(onDone) },
-                        enabled = state.isValid && !state.isSaving,
-                    ) {
-                        if (state.isSaving) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = palette.accent)
-                        } else {
-                            Text("Save", color = if (state.isValid) palette.accent else palette.muted)
-                        }
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = palette.background),
             )
         },
         containerColor = palette.background,
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 22.dp, vertical = 12.dp),
-        ) {
-            // Kind selector
-            KindSelector(
-                kind = state.kind,
-                onSelect = { viewModel.setKind(it) },
-            )
-            Spacer(Modifier.height(28.dp))
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+            ) {
+                Spacer(Modifier.height(8.dp))
+                KindChipRow(kind = state.kind, onSelect = { viewModel.setKind(it) })
+                Spacer(Modifier.height(20.dp))
+                BigAmount(amount = state.amount, kind = state.kind)
+                Spacer(Modifier.height(20.dp))
 
-            // Hero amount
-            AmountField(
-                value = state.amount,
-                onChange = { viewModel.setAmount(it) },
-            )
-            Spacer(Modifier.height(28.dp))
-
-            AccountPicker(
-                accounts = accounts,
-                selectedId = state.accountId,
-                onSelect = { viewModel.setAccount(it) },
-            )
-            if (state.kind == TxnKind.TRANSFER) {
                 AccountPicker(
                     accounts = accounts,
-                    selectedId = state.toAccountId,
-                    onSelect = { viewModel.setToAccount(it) },
-                    label = "To",
+                    selectedId = state.accountId,
+                    onSelect = { viewModel.setAccount(it) },
                 )
-            }
-            CategoryPicker(
-                categories = categories,
-                selectedId = state.categoryId,
-                onSelect = { viewModel.setCategory(it) },
-            )
-            FieldRow(
-                label = "When",
-                value = formatDateTime(state.whenMs),
-                onClick = { /* date-time picker — P0d polish; for now keep "now" */ },
-                palette = palette,
-            )
-
-            // Merchant input (free-text — full autocomplete is P0d polish)
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = state.merchantName,
-                onValueChange = { viewModel.setMerchant(it) },
-                label = { Text("Merchant", color = palette.muted) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-
-            Spacer(Modifier.height(8.dp))
-            NotesField(
-                value = state.notes,
-                onChange = { viewModel.setNotes(it) },
-            )
-
-            // Tags
-            Spacer(Modifier.height(12.dp))
-            TagChipInput(
-                tags = state.tagNames,
-                onAdd = { viewModel.addTag(it) },
-                onRemove = { viewModel.removeTag(it) },
-                palette = palette,
-            )
-
-            // Attachment
-            Spacer(Modifier.height(12.dp))
-            AttachmentRow(
-                hasAttachment = state.attachmentBytes != null,
-                onPick = {
-                    coroutineScope.launch {
-                        val picked = container.imagePicker.pickFromGallery()
-                        if (picked != null) {
-                            viewModel.setAttachment(picked.bytes, picked.mimeType)
+                if (state.kind == TxnKind.TRANSFER) {
+                    AccountPicker(
+                        accounts = accounts,
+                        selectedId = state.toAccountId,
+                        onSelect = { viewModel.setToAccount(it) },
+                        label = "To",
+                    )
+                }
+                CategoryPicker(
+                    categories = categories,
+                    selectedId = state.categoryId,
+                    onSelect = { viewModel.setCategory(it) },
+                )
+                FieldRow(
+                    label = "When",
+                    value = formatDateTime(state.whenMs),
+                    onClick = { /* date-time picker — P0d polish; for now keep "now" */ },
+                    palette = palette,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = state.merchantName,
+                    onValueChange = { viewModel.setMerchant(it) },
+                    label = { Text("Merchant", color = palette.muted) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                Spacer(Modifier.height(8.dp))
+                NotesField(value = state.notes, onChange = { viewModel.setNotes(it) })
+                Spacer(Modifier.height(12.dp))
+                TagChipInput(
+                    tags = state.tagNames,
+                    onAdd = { viewModel.addTag(it) },
+                    onRemove = { viewModel.removeTag(it) },
+                    palette = palette,
+                )
+                Spacer(Modifier.height(12.dp))
+                AttachmentRow(
+                    hasAttachment = state.attachmentBytes != null,
+                    onPick = {
+                        coroutineScope.launch {
+                            val picked = container.imagePicker.pickFromGallery()
+                            if (picked != null) viewModel.setAttachment(picked.bytes, picked.mimeType)
                         }
-                    }
-                },
-                onClear = { viewModel.clearAttachment() },
-                palette = palette,
-            )
-
-            // Split row
-            FieldRow(
-                label = "Split",
-                value = if (state.splits.isEmpty()) "Single entry" else "${state.splits.size} parts",
-                onClick = { showSplitSheet = true },
-                palette = palette,
-            )
-
-            // LEND/BORROW only fields
-            if (state.kind in setOf(TxnKind.LEND, TxnKind.BORROW)) {
-                Spacer(Modifier.height(12.dp))
-                FieldRow(
-                    label = "Person",
-                    value = state.newPersonName ?: state.personId?.let { "selected" } ?: "Add",
-                    onClick = { showPersonSheet = true },
+                    },
+                    onClear = { viewModel.clearAttachment() },
                     palette = palette,
                 )
                 FieldRow(
-                    label = "Due date",
-                    value = state.dueDate?.let { formatDate(it) } ?: "Optional",
-                    onClick = { /* date picker — P0d polish */ },
+                    label = "Split",
+                    value = if (state.splits.isEmpty()) "Single entry" else "${state.splits.size} parts",
+                    onClick = { showSplitSheet = true },
                     palette = palette,
                 )
+                if (state.kind in setOf(TxnKind.LEND, TxnKind.BORROW)) {
+                    Spacer(Modifier.height(12.dp))
+                    FieldRow(
+                        label = "Person",
+                        value = state.newPersonName ?: state.personId?.let { "selected" } ?: "Add",
+                        onClick = { showPersonSheet = true },
+                        palette = palette,
+                    )
+                    FieldRow(
+                        label = "Due date",
+                        value = state.dueDate?.let { formatDate(it) } ?: "Optional",
+                        onClick = { /* date picker — P0d polish */ },
+                        palette = palette,
+                    )
+                }
+                state.error?.let {
+                    Spacer(Modifier.height(12.dp))
+                    Text(it, color = palette.negative, style = MaterialTheme.typography.labelSmall)
+                }
+                Spacer(Modifier.height(16.dp))
             }
 
-            state.error?.let {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
+                NumericKeypad(onKey = { viewModel.setAmount(applyAmountKey(state.amount, it)) })
                 Spacer(Modifier.height(12.dp))
-                Text(it, color = palette.negative, style = MaterialTheme.typography.labelSmall)
+                PrimaryButton(
+                    text = if (state.isSaving) "Saving…" else "Save entry",
+                    onClick = { viewModel.save(onDone) },
+                    enabled = state.isValid && !state.isSaving,
+                )
             }
-
-            Spacer(Modifier.height(40.dp))
         }
     }
 
