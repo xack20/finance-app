@@ -33,6 +33,7 @@ import app.hisaab.design.HisaabShapes
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.HisaabTypography
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.LocalReduceMotion
 
 /** Midnight text field: surface row, hairline border → lime on focus, eyebrow label, optional
  *  mono lime [prefix], faint placeholder, accent cursor. [big] = 62dp hero variant. */
@@ -55,14 +56,12 @@ fun MidnightTextField(
     val p = LocalHisaabPalette.current
     val monoFamily = HisaabTypography.families().mono
     var focused by remember { mutableStateOf(false) }
-    val border by animateColorAsState(
-        targetValue = when {
-            isError -> p.negative
-            focused -> p.accent
-            else -> p.hair
-        },
-        label = "fieldBorder",
-    )
+    val targetBorder = when {
+        isError -> p.negative
+        focused -> p.accent
+        else -> p.hair
+    }
+    val border = if (LocalReduceMotion.current) targetBorder else animateColorAsState(targetBorder, label = "fieldBorder").value
     Column(modifier) {
         if (label != null) {
             Eyebrow(label)

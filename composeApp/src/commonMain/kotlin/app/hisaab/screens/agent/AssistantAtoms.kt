@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.LocalReduceMotion
 
 /** Glowing lime sparkle tile (assistant avatar / empty-state hero). */
 @Composable
@@ -46,15 +47,26 @@ fun SparkleOrb(modifier: Modifier = Modifier, size: Int = 38) {
 @Composable
 fun TypingDots(modifier: Modifier = Modifier) {
     val p = LocalHisaabPalette.current
-    val t = rememberInfiniteTransition(label = "typing")
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        repeat(3) { i ->
-            val a by t.animateFloat(
-                0.3f, 1f,
-                infiniteRepeatable(tween(600, delayMillis = i * 180), RepeatMode.Reverse),
-                label = "dot$i",
-            )
-            Box(Modifier.size(7.dp).clip(CircleShape).background(p.accent.copy(alpha = a)))
+    val reduceMotion = LocalReduceMotion.current
+
+    if (reduceMotion) {
+        // Reduce-motion: 3 dots at static alpha — no infinite transition.
+        Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            repeat(3) {
+                Box(Modifier.size(7.dp).clip(CircleShape).background(p.accent.copy(alpha = 0.6f)))
+            }
+        }
+    } else {
+        val t = rememberInfiniteTransition(label = "typing")
+        Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            repeat(3) { i ->
+                val a by t.animateFloat(
+                    0.3f, 1f,
+                    infiniteRepeatable(tween(600, delayMillis = i * 180), RepeatMode.Reverse),
+                    label = "dot$i",
+                )
+                Box(Modifier.size(7.dp).clip(CircleShape).background(p.accent.copy(alpha = a)))
+            }
         }
     }
 }
@@ -63,15 +75,28 @@ fun TypingDots(modifier: Modifier = Modifier) {
 @Composable
 fun ListeningEqualizer(modifier: Modifier = Modifier) {
     val p = LocalHisaabPalette.current
-    val t = rememberInfiniteTransition(label = "eq")
-    Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        repeat(5) { i ->
-            val h by t.animateFloat(
-                6f, 6f + (i % 3) * 6f + 8f,
-                infiniteRepeatable(tween(700, delayMillis = i * 100), RepeatMode.Reverse),
-                label = "bar$i",
-            )
-            Box(Modifier.width(3.dp).height(h.dp).clip(RoundedCornerShape(2.dp)).background(p.accent))
+    val reduceMotion = LocalReduceMotion.current
+
+    if (reduceMotion) {
+        // Reduce-motion: 5 bars at static mid height — no infinite transition.
+        // Mid = (min + max) / 2 = (6f + (6f + (i%3)*6f + 8f)) / 2 per bar index.
+        val staticHeights = listOf(10f, 13f, 16f, 10f, 13f)
+        Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            staticHeights.forEach { h ->
+                Box(Modifier.width(3.dp).height(h.dp).clip(RoundedCornerShape(2.dp)).background(p.accent))
+            }
+        }
+    } else {
+        val t = rememberInfiniteTransition(label = "eq")
+        Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            repeat(5) { i ->
+                val h by t.animateFloat(
+                    6f, 6f + (i % 3) * 6f + 8f,
+                    infiniteRepeatable(tween(700, delayMillis = i * 100), RepeatMode.Reverse),
+                    label = "bar$i",
+                )
+                Box(Modifier.width(3.dp).height(h.dp).clip(RoundedCornerShape(2.dp)).background(p.accent))
+            }
         }
     }
 }

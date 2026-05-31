@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.LocalReduceMotion
 
 @Composable
 fun SplashScreen() {
@@ -49,32 +50,49 @@ fun SplashScreen() {
 @Composable
 private fun SplashPulseDots() {
     val palette = LocalHisaabPalette.current
-    val transition = rememberInfiniteTransition(label = "splash-pulse")
+    val reduceMotion = LocalReduceMotion.current
 
-    // Three dots with staggered phase offsets: 0 ms, 200 ms, 400 ms
-    val delayOffsets = listOf(0, 200, 400)
-    val alphas = delayOffsets.map { delayMs ->
-        transition.animateFloat(
-            initialValue = 0.3f,
-            targetValue = 1.0f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 600, delayMillis = delayMs),
-                repeatMode = RepeatMode.Reverse,
-            ),
-            label = "dot-alpha-$delayMs",
-        )
-    }
+    if (reduceMotion) {
+        // Reduce-motion: render 3 dots at static full alpha — no infinite transition.
+        Row(horizontalArrangement = Arrangement.spacedBy(HisaabSpacing.sm)) {
+            repeat(3) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .alpha(1f)
+                        .clip(CircleShape)
+                        .background(palette.accent),
+                )
+            }
+        }
+    } else {
+        val transition = rememberInfiniteTransition(label = "splash-pulse")
 
-    Row(horizontalArrangement = Arrangement.spacedBy(HisaabSpacing.sm)) {
-        alphas.forEach { alphaState ->
-            val alpha by alphaState
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .alpha(alpha)
-                    .clip(CircleShape)
-                    .background(palette.accent),
+        // Three dots with staggered phase offsets: 0 ms, 200 ms, 400 ms
+        val delayOffsets = listOf(0, 200, 400)
+        val alphas = delayOffsets.map { delayMs ->
+            transition.animateFloat(
+                initialValue = 0.3f,
+                targetValue = 1.0f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 600, delayMillis = delayMs),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "dot-alpha-$delayMs",
             )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(HisaabSpacing.sm)) {
+            alphas.forEach { alphaState ->
+                val alpha by alphaState
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .alpha(alpha)
+                        .clip(CircleShape)
+                        .background(palette.accent),
+                )
+            }
         }
     }
 }

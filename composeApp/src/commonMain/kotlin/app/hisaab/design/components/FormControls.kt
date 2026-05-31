@@ -12,19 +12,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.LocalReduceMotion
 
 /** Lime pill toggle (50x30, sliding 24dp knob). */
 @Composable
 fun HToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val p = LocalHisaabPalette.current
-    val knobX by animateDpAsState(if (checked) 23.dp else 3.dp, label = "toggleKnob")
+    val target = if (checked) 23.dp else 3.dp
+    val knobX = if (LocalReduceMotion.current) target else animateDpAsState(target, label = "toggleKnob").value
     Box(
         modifier
             .size(width = 50.dp, height = 30.dp)
