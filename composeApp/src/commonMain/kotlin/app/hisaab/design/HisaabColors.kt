@@ -72,7 +72,7 @@ object HisaabColors {
         glass          = Color(0x0A0A0B0E), // intentionally same opacity as hair2 on the light canvas
         onBackground   = Color(0xFF13161B),
         muted          = Color(0xFF5A6573),
-        faint          = Color(0xFF8A93A3),
+        faint          = Color(0xFF79828F), // darkened from #8A93A3 for WCAG AA (3.0) on light bg
         accent         = Color(0xFF4E6A10), // dimmed lime for AA text/icon use
         accentDim      = Color(0xFF5E7E12), // intentionally lighter than base accent on light (hover/pressed accent)
         onAccent       = Color(0xFF0A0B0E), // dark text on the bright lime fill
