@@ -10,6 +10,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -35,6 +39,11 @@ import app.hisaab.design.components.PrimaryButton
 import app.hisaab.design.components.SectionHeader
 import app.hisaab.design.components.SurfaceCard
 import app.hisaab.design.components.categoryHue
+import app.hisaab.domain.TxnKind
+import app.hisaab.screens.entry.BigAmount
+import app.hisaab.screens.entry.KindChipRow
+import app.hisaab.screens.entry.NumericKeypad
+import app.hisaab.screens.entry.applyAmountKey
 
 /** Trivial tintable glyph (avoids a material-icons dependency) for the gallery demo only. */
 private val DemoGlyph: ImageVector = ImageVector.Builder(
@@ -92,6 +101,10 @@ fun ComponentGallery() {
                 onTabSelect = {},
                 onFabClick = {},
             )
+            var amt by remember { mutableStateOf("1250") }
+            KindChipRow(kind = TxnKind.EXPENSE, onSelect = {})
+            BigAmount(amount = amt, kind = TxnKind.EXPENSE)
+            NumericKeypad(onKey = { amt = applyAmountKey(amt, it) })
         }
     }
 }
