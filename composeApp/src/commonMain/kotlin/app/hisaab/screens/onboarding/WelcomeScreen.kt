@@ -1,11 +1,19 @@
 package app.hisaab.screens.onboarding
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -13,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.MidnightTextField
+import app.hisaab.design.components.PrimaryButton
 
 @Composable
 fun WelcomeScreen(
@@ -31,16 +41,23 @@ fun WelcomeScreen(
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            Text("হিসাব · Hisaab", color = palette.accent, fontSize = 12.sp, letterSpacing = 3.sp)
+            // Bespoke lime brand line — do NOT replace with Eyebrow (uppercases + uses faint,
+            // which mangles the Bengali glyph and drops the lime).
+            Text(
+                text = "হিসাব · Hisaab",
+                color = palette.accent,
+                fontSize = 12.sp,
+                letterSpacing = 3.sp,
+            )
             Spacer(Modifier.height(16.dp))
             Text(
-                "Your money,\nonly yours.",
+                text = "Your money,\nonly yours.",
                 color = palette.onBackground,
                 style = MaterialTheme.typography.displaySmall,
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                "Privacy-first finance for Bangladesh. Everything stays on your device.",
+                text = "Privacy-first finance for Bangladesh. Everything stays on your device.",
                 color = palette.muted,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -50,33 +67,24 @@ fun WelcomeScreen(
                 Text(it, color = palette.negative, style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.height(8.dp))
             }
-            Text("Phone number", color = palette.muted, style = MaterialTheme.typography.labelSmall)
-            Spacer(Modifier.height(6.dp))
-            OutlinedTextField(
+            MidnightTextField(
                 value = phone,
                 onValueChange = { phone = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("1X XXXX XXXX", color = palette.muted) },
-                prefix = { Text("+880 ", color = palette.accent) },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Phone,
-                    imeAction = ImeAction.Done,
-                ),
-                keyboardActions = KeyboardActions(onDone = {
-                    if (phone.length >= 10) onSendOtp("+880$phone")
-                }),
-                singleLine = true,
+                label = "Phone number",
+                placeholder = "1X XXXX XXXX",
+                prefix = "+880",
+                keyboardType = KeyboardType.Phone,
+                imeAction = ImeAction.Done,
+                onImeAction = { if (phone.length >= 10) onSendOtp("+880$phone") },
+                big = true,
             )
             Spacer(Modifier.height(12.dp))
-            Button(
+            PrimaryButton(
+                text = "Continue",
                 onClick = { onSendOtp("+880$phone") },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
                 enabled = phone.length >= 10 && !isLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-            ) {
-                if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = palette.background)
-                else Text("Continue", color = palette.background)
-            }
+                loading = isLoading,
+            )
             Spacer(Modifier.height(24.dp))
         }
     }
