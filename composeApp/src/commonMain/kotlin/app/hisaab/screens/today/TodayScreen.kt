@@ -26,15 +26,39 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
-import app.hisaab.design.HisaabColors
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.Eyebrow
+import app.hisaab.design.components.GlyphChip
+import app.hisaab.design.components.MoneyText
+import app.hisaab.design.components.MoneyTone
+import app.hisaab.design.components.SectionHeader
+import app.hisaab.design.components.SurfaceCard
+import app.hisaab.design.components.categoryHue
 import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.TxnKind
 import app.hisaab.screens.onboarding.CaptureOptInCard
+
+/** Neutral filled-rectangle glyph for transaction rows (category hue supplies the color signal). */
+private val TodayGlyph: ImageVector = ImageVector.Builder(
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).apply {
+    path(fill = SolidColor(Color.White)) {
+        moveTo(7f, 5f)
+        lineTo(17f, 5f)
+        lineTo(17f, 19f)
+        lineTo(7f, 19f)
+        close()
+    }
+}.build()
 
 @Composable
 fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCapture: () -> Unit) {
@@ -63,29 +87,123 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
         modifier = Modifier
             .fillMaxSize()
             .background(palette.background)
-            .padding(horizontal = 22.dp),
+            .padding(horizontal = 20.dp),
     ) {
         Spacer(Modifier.height(16.dp))
+
+        // Header row: "Today" title + review badge
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("Today", style = MaterialTheme.typography.displaySmall, color = palette.onBackground)
+            SectionHeader(title = "Today")
             ReviewBadge(count = pendingCount, palette = palette, onClick = onReview)
         }
-        Spacer(Modifier.height(20.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            NetCell("In", net.income, palette.positive)
-            NetCell("Out", net.expense, palette.negative)
-            NetCell("Net", net.net, palette.onBackground)
+        Spacer(Modifier.height(16.dp))
+
+        // Hero net card
+        SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+            Eyebrow("Net today")
+            Spacer(Modifier.height(8.dp))
+            MoneyText(
+                amount = net.net,
+                signed = true,
+                style = MaterialTheme.typography.displayLarge,
+            )
+            Spacer(Modifier.height(12.dp))
+
+            // In / out bar
+            val income = net.income
+            val expense = net.expense
+            val bothZero = income == 0.0 && expense == 0.0
+            if (bothZero) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(palette.backgroundInset),
+                )
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(palette.backgroundInset),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(income.toFloat().coerceAtLeast(0.0001f))
+                            .fillMaxSize()
+                            .background(palette.positive),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(expense.toFloat().coerceAtLeast(0.0001f))
+                            .fillMaxSize()
+                            .background(palette.negative),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // In / out label row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Eyebrow("In")
+                    Spacer(Modifier.width(6.dp))
+                    MoneyText(amount = net.income, tone = MoneyTone.Plain)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MoneyText(amount = net.expense, tone = MoneyTone.Plain)
+                    Spacer(Modifier.width(6.dp))
+                    Eyebrow("Out")
+                }
+            }
         }
 
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(16.dp))
 
-        // Show the capture opt-in card between the totals row and the transaction list.
-        // Conditions: capture not yet enabled, user hasn't dismissed the card, SMS is supported.
+        // Review banner — only shown when pendingCount > 0
+        if (pendingCount > 0) {
+            SurfaceCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(palette.accentSoft, RoundedCornerShape(22.dp))
+                    .clickable { onReview() },
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column {
+                        Text(
+                            "$pendingCount to review",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = palette.onBackground,
+                        )
+                        Text(
+                            "Auto-captured from SMS",
+                            fontSize = 13.sp,
+                            color = palette.muted,
+                        )
+                    }
+                    Text("›", fontSize = 22.sp, color = palette.accent)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+
+        // Capture opt-in card — unchanged conditions and call site
         if (!captureEnabled && !captureOptInSeen && viewModel.smsSupported) {
             CaptureOptInCard(
                 onTurnOn = {
@@ -99,9 +217,7 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
             )
         }
 
-        HorizontalDivider(color = palette.rule)
-        Spacer(Modifier.height(8.dp))
-
+        // Transaction feed
         if (recent.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
@@ -111,12 +227,13 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
                 )
             }
         } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(0.dp),
-            ) {
+            LazyColumn {
                 items(recent, key = { it.row.id }) { display ->
-                    TxnRow(display = display, palette = palette, onClick = { onTxnClick(display.row.id) })
-                    HorizontalDivider(color = palette.rule)
+                    TxnRow(
+                        display = display,
+                        onClick = { onTxnClick(display.row.id) },
+                    )
+                    HorizontalDivider(color = palette.hair)
                 }
             }
         }
@@ -124,52 +241,37 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
 }
 
 @Composable
-private fun NetCell(label: String, amount: Double, color: Color) {
-    val palette = LocalHisaabPalette.current
-    Column {
-        Text(label.uppercase(), color = palette.muted, fontSize = 11.sp, letterSpacing = 1.sp)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "৳${amount.toInt()}",
-            color = color,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
-
-@Composable
 private fun TxnRow(
     display: TransactionRowDisplay,
-    palette: HisaabColors.Palette,
     onClick: () -> Unit,
 ) {
+    val palette = LocalHisaabPalette.current
+    // Sign logic preserved from original: INCOME/LEND/SETTLEMENT are positive, else negative.
+    val signedAmount = when (display.row.kind) {
+        TxnKind.INCOME, TxnKind.LEND, TxnKind.SETTLEMENT -> display.row.amount
+        else -> -display.row.amount
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(vertical = 14.dp),
+            .padding(vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        GlyphChip(
+            icon = TodayGlyph,
+            hue = categoryHue(display.categoryColor),
+            size = 40,
+        )
+        Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                display.merchantName ?: display.categoryName ?: "—",
-                color = palette.onBackground,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Spacer(Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    buildString {
-                        append(display.accountName)
-                        if (!display.categoryName.isNullOrBlank() && display.merchantName != null) {
-                            append(" · ")
-                            append(display.categoryName)
-                        }
-                    },
-                    fontSize = 12.sp,
-                    color = palette.muted,
+                    display.merchantName ?: display.categoryName ?: "—",
+                    color = palette.onBackground,
+                    style = MaterialTheme.typography.bodyLarge,
                 )
+                // Auto-capture indicator (gold "auto" pill, preserved from original)
                 if (display.row.captureId != null) {
                     Spacer(Modifier.width(6.dp))
                     Text(
@@ -183,16 +285,18 @@ private fun TxnRow(
                     )
                 }
             }
+            Text(
+                buildString {
+                    append(display.accountName)
+                    if (!display.categoryName.isNullOrBlank() && display.merchantName != null) {
+                        append(" · ")
+                        append(display.categoryName)
+                    }
+                },
+                fontSize = 13.sp,
+                color = palette.muted,
+            )
         }
-        val (sign, color) = when (display.row.kind) {
-            TxnKind.INCOME, TxnKind.LEND, TxnKind.SETTLEMENT -> "+" to palette.positive
-            else -> "−" to palette.negative
-        }
-        Text(
-            "$sign৳${display.row.amount.toInt()}",
-            color = color,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold,
-        )
+        MoneyText(amount = signedAmount, signed = true)
     }
 }
