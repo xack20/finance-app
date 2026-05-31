@@ -40,7 +40,7 @@ private fun BudgetRing(progress: BudgetProgress, palette: HisaabColors.Palette) 
     val pct = progress.percent.toFloat()
     val ringColor = when {
         pct >= 100f -> palette.negative
-        pct >= 80f -> palette.gold
+        pct >= 80f -> app.hisaab.design.HisaabColors.categoryHues.getValue("amber")
         else -> palette.accent
     }
     val track = palette.backgroundInset
@@ -66,7 +66,7 @@ private fun BudgetRing(progress: BudgetProgress, palette: HisaabColors.Palette) 
         Text(progress.budget.categoryName, color = palette.muted, fontSize = 12.sp)
         Text(
             "৳${progress.spent.toInt()}/৳${progress.budget.monthlyCapAmount.toInt()}",
-            color = palette.faint, fontSize = 11.sp,
+            color = palette.muted, fontSize = 11.sp,
         )
     }
 }

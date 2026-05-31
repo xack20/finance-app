@@ -55,8 +55,8 @@ fun PerDayLineChart(buckets: List<DayBucket>, palette: HisaabColors.Palette) {
         }
         Spacer(Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("৳0", color = palette.faint, fontSize = 11.sp)
-            Text("${maxAmount.toTaka()} peak", color = palette.faint, fontSize = 11.sp)
+            Text("৳0", color = palette.muted, fontSize = 11.sp)
+            Text("${maxAmount.toTaka()} peak", color = palette.muted, fontSize = 11.sp)
         }
     }
 }

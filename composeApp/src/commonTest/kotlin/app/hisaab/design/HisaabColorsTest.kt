@@ -1,6 +1,7 @@
 package app.hisaab.design
 
 import androidx.compose.ui.graphics.Color
+import app.hisaab.design.components.categoryHue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -47,5 +48,12 @@ class HisaabColorsTest {
     fun eight_category_hues_present() {
         assertEquals(8, HisaabColors.categoryHues.size)
         assertEquals(Color(0xFF8B7CFF), HisaabColors.categoryHues["violet"])
+    }
+
+    @Test
+    fun category_hue_resolves_and_falls_back_to_slate() {
+        assertEquals(HisaabColors.categoryHues["violet"], categoryHue("violet"))
+        assertEquals(HisaabColors.categoryHues["slate"], categoryHue(null))
+        assertEquals(HisaabColors.categoryHues["slate"], categoryHue("nope"))
     }
 }

@@ -20,6 +20,9 @@ class ContrastTest {
         aa(p.onAccent, p.accent, 4.5f, "dark onAccent/accent")
         aa(p.positive, p.background, 3.0f, "dark positive/bg")
         aa(p.negative, p.background, 3.0f, "dark negative/bg")
+        // on-card secondary text guarantee: muted is used for on-card labels (faint was replaced)
+        aa(p.muted, p.surface, 3.0f, "dark muted/surface")
+        aa(p.muted, p.surfaceRaised, 3.0f, "dark muted/surfaceRaised")
     }
 
     @Test
@@ -33,5 +36,8 @@ class ContrastTest {
         aa(p.onAccent, HisaabColors.LightAccentFill, 4.5f, "light onAccent/limeFill")
         aa(p.positive, p.surface, 4.5f, "light positive/surface")
         aa(p.negative, p.surface, 4.5f, "light negative/surface")
+        // on-card secondary text guarantee: muted is used for on-card labels (faint was replaced)
+        aa(p.muted, p.surface, 3.0f, "light muted/surface")
+        aa(p.muted, p.surfaceRaised, 3.0f, "light muted/surfaceRaised")
     }
 }

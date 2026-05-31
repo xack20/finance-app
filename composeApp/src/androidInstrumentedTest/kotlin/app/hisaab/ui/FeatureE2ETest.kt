@@ -12,6 +12,7 @@ import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -112,16 +113,16 @@ class FeatureE2ETest {
         settle()
         composeRule.onNodeWithText("No entries yet", substring = true).assertIsDisplayed()
 
-        composeRule.onNodeWithText("Month").performClick(); settle(4)
+        composeRule.onNodeWithTag("dock_MONTH").performClick(); settle(4)
         composeRule.onNodeWithText("PER-DAY SPENDING").assertIsDisplayed()
 
-        composeRule.onNodeWithText("People").performClick(); settle(4)
+        composeRule.onNodeWithTag("dock_PEOPLE").performClick(); settle(4)
         composeRule.onNodeWithText("No one yet", substring = true).assertIsDisplayed()
 
-        composeRule.onNodeWithText("Settings").performClick(); settle(4)
+        composeRule.onNodeWithTag("dock_SETTINGS").performClick(); settle(4)
         composeRule.onNodeWithText("Sign out").assertIsDisplayed()
 
-        composeRule.onNodeWithText("Today").performClick(); settle(4)
+        composeRule.onNodeWithTag("dock_TODAY").performClick(); settle(4)
         composeRule.onNodeWithText("No entries yet", substring = true).assertIsDisplayed()
     }
 

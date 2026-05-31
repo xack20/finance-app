@@ -3,10 +3,11 @@ package app.hisaab.design.components
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -15,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import app.hisaab.design.LocalHisaabPalette
 
@@ -28,7 +30,7 @@ fun HToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modi
             .size(width = 50.dp, height = 30.dp)
             .clip(RoundedCornerShape(999.dp))
             .background(if (checked) p.accent else p.surfaceRaised)
-            .clickable { onCheckedChange(!checked) },
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
         contentAlignment = Alignment.CenterStart,
     ) {
         Box(
@@ -48,7 +50,7 @@ fun HCheck(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modif
             .clip(RoundedCornerShape(8.dp))
             .background(if (checked) p.accent else p.surface)
             .border(1.dp, if (checked) p.accent else p.hair, RoundedCornerShape(8.dp))
-            .clickable { onCheckedChange(!checked) },
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange),
         contentAlignment = Alignment.Center,
     ) {
         if (checked) Text("✓", color = p.onAccent)
@@ -64,7 +66,7 @@ fun HRadio(selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier
             .size(22.dp)
             .clip(CircleShape)
             .border(2.dp, if (selected) p.accent else p.hair, CircleShape)
-            .clickable(onClick = onClick),
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         if (selected) Box(Modifier.size(11.dp).clip(CircleShape).background(p.accent))
