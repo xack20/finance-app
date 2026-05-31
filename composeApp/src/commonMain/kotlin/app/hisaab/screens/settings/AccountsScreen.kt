@@ -327,24 +327,19 @@ private fun clampDay(day: Int?): Int? = day?.coerceIn(1, 28)
 
 @Composable
 private fun RenameAccountDialog(current: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
-    val palette = LocalHisaabPalette.current
     var name by remember { mutableStateOf(current) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Rename account", color = palette.onBackground) },
-        text = {
-            OutlinedTextField(
-                value = name, onValueChange = { name = it },
-                singleLine = true, modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { if (name.isNotBlank() && name != current) onSave(name.trim()) }) {
-                Text("Save", color = palette.accent)
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = palette.muted) } },
-        containerColor = palette.surface,
-        shape = HisaabShapes.card,
-    )
+    MidnightDialog(
+        onDismiss = onDismiss,
+        title = "Rename account",
+        confirmLabel = "Save",
+        onConfirm = { onSave(name.trim()) },
+        confirmEnabled = name.isNotBlank() && name.trim() != current,
+    ) {
+        MidnightTextField(
+            value = name,
+            onValueChange = { name = it },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
