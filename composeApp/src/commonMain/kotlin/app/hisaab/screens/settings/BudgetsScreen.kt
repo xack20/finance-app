@@ -1,9 +1,10 @@
 package app.hisaab.screens.settings
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -11,7 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.*
 import app.hisaab.domain.Category
 import app.hisaab.domain.YearMonth
 import kotlinx.coroutines.launch
@@ -32,9 +35,15 @@ fun BudgetsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Budgets", color = palette.onBackground) },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back", color = palette.muted) } },
-                actions = { TextButton(onClick = { showAddSheet = true }) { Text("+ Add", color = palette.accent) } },
+                title = {},
+                navigationIcon = {
+                    TextButton(onClick = onBack) { Text("Back", color = palette.muted) }
+                },
+                actions = {
+                    TextButton(onClick = { showAddSheet = true }) {
+                        Text("+ Add", color = palette.accent)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = palette.background),
             )
         },
@@ -45,23 +54,41 @@ fun BudgetsScreen(onBack: () -> Unit) {
                 Text("No budgets yet. Tap + Add.", color = palette.muted)
             }
         } else {
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 22.dp)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = HisaabSpacing.gutter),
+                verticalArrangement = Arrangement.spacedBy(HisaabSpacing.sm),
+                contentPadding = PaddingValues(bottom = HisaabSpacing.xl),
+            ) {
+                item {
+                    SectionHeader("Budgets", modifier = Modifier.padding(vertical = HisaabSpacing.lg))
+                }
                 items(budgets, key = { it.id }) { budget ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(budget.categoryName, color = palette.onBackground)
-                            Spacer(Modifier.height(2.dp))
-                            Text("৳${budget.monthlyCapAmount.toInt()}/month · since ${budget.startsMonth.value}",
-                                color = palette.muted, fontSize = 11.sp)
+                    SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    budget.categoryName,
+                                    color = palette.onBackground,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                                Spacer(Modifier.height(HisaabSpacing.xs))
+                                Text(
+                                    "৳${budget.monthlyCapAmount.toInt()}/mo · since ${budget.startsMonth.value}",
+                                    color = palette.muted,
+                                    fontSize = 11.sp,
+                                )
+                            }
+                            TextButton(onClick = {
+                                coroutineScope.launch { container.budgetRepository.archive(budget.id) }
+                            }) { Text("Archive", color = palette.negative, fontSize = 12.sp) }
                         }
-                        TextButton(onClick = {
-                            coroutineScope.launch { container.budgetRepository.archive(budget.id) }
-                        }) { Text("Archive", color = palette.negative, fontSize = 12.sp) }
                     }
-                    HorizontalDivider(color = palette.rule)
                 }
             }
         }
@@ -93,46 +120,50 @@ private fun AddBudgetSheet(
     var selectedCategoryId by remember { mutableStateOf(categories.firstOrNull()?.id ?: "") }
     var amount by remember { mutableStateOf("") }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = palette.background) {
-        Column(modifier = Modifier.padding(22.dp).fillMaxWidth()) {
-            Text("New budget", color = palette.accent, fontSize = 13.sp)
-            Spacer(Modifier.height(12.dp))
-            Text("Category", color = palette.muted, fontSize = 12.sp)
-            Spacer(Modifier.height(4.dp))
+    MidnightSheet(onDismiss = onDismiss, sheetState = sheetState, title = "New budget") {
+        Text("Category", color = palette.muted, fontSize = 12.sp)
+        Spacer(Modifier.height(HisaabSpacing.xs))
+        // HRadio category list (replaces Material RadioButton)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 240.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
             categories.forEach { cat ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = HisaabSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    RadioButton(
+                    HRadio(
                         selected = cat.id == selectedCategoryId,
                         onClick = { selectedCategoryId = cat.id },
-                        colors = RadioButtonDefaults.colors(selectedColor = palette.accent),
                     )
+                    Spacer(Modifier.width(HisaabSpacing.md))
                     Text(cat.name, color = palette.onBackground)
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = amount,
-                onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
-                label = { Text("Monthly cap (৳)", color = palette.muted) },
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-            )
-            Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = {
-                    val a = amount.toDoubleOrNull()
-                    if (a != null && a > 0 && selectedCategoryId.isNotBlank()) {
-                        onAdd(selectedCategoryId, a)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(44.dp),
-                enabled = amount.toDoubleOrNull()?.let { it > 0 } == true && selectedCategoryId.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-            ) { Text("Save", color = palette.background) }
-            Spacer(Modifier.height(16.dp))
         }
+        Spacer(Modifier.height(HisaabSpacing.md))
+        OutlinedTextField(
+            value = amount,
+            onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
+            label = { Text("৳ Monthly cap", color = palette.muted) },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+        )
+        Spacer(Modifier.height(HisaabSpacing.lg))
+        PrimaryButton(
+            text = "Save",
+            onClick = {
+                val a = amount.toDoubleOrNull()
+                if (a != null && a > 0 && selectedCategoryId.isNotBlank()) {
+                    onAdd(selectedCategoryId, a)
+                }
+            },
+            enabled = amount.toDoubleOrNull()?.let { it > 0 } == true && selectedCategoryId.isNotBlank(),
+        )
     }
 }
 
