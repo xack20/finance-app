@@ -39,6 +39,8 @@ class HisaabTypographyTest {
 
     @Test
     fun tabular_numerals_enabled_on_money() {
-        assertTrue("tnum" in (HisaabTypography.tabular.fontFeatureSettings ?: ""))
+        val features = HisaabTypography.tabular.fontFeatureSettings ?: ""
+        assertTrue("tnum" in features, "money figures need tabular nums (got: $features)")
+        assertTrue("lnum" in features, "money figures need lining nums (got: $features)")
     }
 }

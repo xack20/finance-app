@@ -21,6 +21,9 @@ object HisaabColors {
         val muted: Color,
         val faint: Color,
         val accent: Color,
+        // NOTE: in Dark, accentDim is darker than accent (a subdued lime). In the derived Light
+        // palette the relationship inverts — accentDim is the BRIGHTER hover/pressed fill, because
+        // `accent` there is dimmed for AA text contrast. Pick the role, not the name, per theme.
         val accentDim: Color,
         val onAccent: Color,
         val accentSoft: Color,

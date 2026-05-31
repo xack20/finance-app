@@ -52,7 +52,10 @@ fun HisaabTheme(
         )
     }
 
-    // Bind the bundled OFL families into the Midnight text scale (must happen in composition).
+    // Bind the bundled OFL families into the Midnight text scale. `families()` is @Composable
+    // (Compose-Resources Font loads in composition), so it can't be wrapped in remember {} — but
+    // HisaabTheme sits at the app root and rarely recomposes, and Compose Resources caches font
+    // loads, so reconstructing the FontFamilies here is negligible.
     val fams = HisaabTypography.families()
     val typography = Typography(
         displayLarge   = HisaabTypography.heroAmount.copy(fontFamily = fams.display),
