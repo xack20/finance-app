@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.domain.TxnKind
 import app.hisaab.util.toTaka
@@ -74,9 +74,9 @@ fun KindChipRow(kind: TxnKind, onSelect: (TxnKind) -> Unit, modifier: Modifier =
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
+                    .clip(HisaabShapes.pill)
                     .background(if (on) p.onBackground else Color.Transparent)
-                    .border(1.dp, if (on) p.onBackground else p.hair, RoundedCornerShape(999.dp))
+                    .border(1.dp, if (on) p.onBackground else p.hair, HisaabShapes.pill)
                     .clickable { onSelect(k) }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             )
@@ -109,7 +109,7 @@ private fun KeypadKey(key: Char, onKey: (Char) -> Unit, modifier: Modifier = Mod
         if (key == BACKSPACE) "⌫" else key.toString(),
         modifier = modifier
             .height(56.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(HisaabShapes.field)
             .background(p.surface)
             .clickable { onKey(key) }
             .padding(vertical = 14.dp),

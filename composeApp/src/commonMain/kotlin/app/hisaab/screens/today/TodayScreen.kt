@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.Eyebrow
 import app.hisaab.design.components.GlyphChip
@@ -123,7 +124,7 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
-                        .clip(RoundedCornerShape(999.dp))
+                        .clip(HisaabShapes.pill)
                         .background(palette.backgroundInset),
                 )
             } else {
@@ -131,7 +132,7 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
-                        .clip(RoundedCornerShape(999.dp))
+                        .clip(HisaabShapes.pill)
                         .background(palette.backgroundInset),
                 ) {
                     Box(
@@ -177,7 +178,7 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
             SurfaceCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(palette.accentSoft, RoundedCornerShape(22.dp))
+                    .background(palette.accentSoft, HisaabShapes.card)
                     .clickable { onReview() },
             ) {
                 Row(

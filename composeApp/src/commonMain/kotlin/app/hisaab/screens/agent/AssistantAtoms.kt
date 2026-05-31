@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.LocalReduceMotion
 
@@ -113,9 +114,9 @@ fun SuggestionChips(suggestions: List<String>, onPick: (String) -> Unit, modifie
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
+                    .clip(HisaabShapes.pill)
                     .background(p.glass)
-                    .border(1.dp, p.hair, RoundedCornerShape(999.dp))
+                    .border(1.dp, p.hair, HisaabShapes.pill)
                     .clickable { onPick(s) }
                     .padding(horizontal = 14.dp, vertical = 9.dp),
             )

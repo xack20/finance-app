@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -19,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabColors
+import app.hisaab.design.HisaabShapes
 import app.hisaab.domain.CategorySlice
 import app.hisaab.util.toTaka
 
@@ -38,7 +38,7 @@ fun CategoryBarChart(slices: List<CategorySlice>, palette: HisaabColors.Palette)
 @Composable
 private fun CategoryBar(slice: CategorySlice, palette: HisaabColors.Palette) {
     val barColor = parseColorOrAccent(slice.categoryColor, palette.accent)
-    val pill = RoundedCornerShape(999.dp)
+    val pill = HisaabShapes.pill
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(

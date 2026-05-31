@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.Eyebrow
 import app.hisaab.design.components.GradientAvatar
@@ -206,7 +207,7 @@ private fun LendBorrowRowItem(
                 Spacer(Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
+                        .clip(HisaabShapes.pill)
                         .background(palette.accentSoft)
                         .clickable { onSettle() }
                         .padding(vertical = 8.dp, horizontal = 16.dp),

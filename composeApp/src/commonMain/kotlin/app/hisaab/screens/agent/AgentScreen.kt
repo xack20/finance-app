@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.agent.AgentAvailability
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.SurfaceCard
 import app.hisaab.domain.AgentRole
@@ -379,7 +380,7 @@ fun AgentScreenContent(
                     disabledBorderColor = palette.hair,
                 ),
                 maxLines = 4,
-                shape = RoundedCornerShape(999.dp),
+                shape = HisaabShapes.pill,
                 enabled = !inputDisabled,
             )
 
