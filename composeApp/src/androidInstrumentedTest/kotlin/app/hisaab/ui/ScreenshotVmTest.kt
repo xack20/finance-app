@@ -210,7 +210,7 @@ class ScreenshotVmTest {
 
         var idx by mutableIntStateOf(0)
         rule.setContent {
-            HisaabTheme(darkTheme = false) {
+            HisaabTheme(darkTheme = true) {
                 CompositionLocalProvider(LocalAppContainer provides container) {
                     Box(Modifier.fillMaxSize().background(LocalHisaabPalette.current.background)) {
                         pages[idx].second()

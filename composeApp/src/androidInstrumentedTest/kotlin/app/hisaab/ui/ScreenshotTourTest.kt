@@ -26,6 +26,7 @@ import app.hisaab.screens.onboarding.BiometricSetupScreen
 import app.hisaab.screens.onboarding.OtpScreen
 import app.hisaab.screens.onboarding.ProfileSetupScreen
 import app.hisaab.screens.onboarding.RecoveryPhraseScreen
+import app.hisaab.screens.SplashScreen
 import app.hisaab.screens.onboarding.WelcomeScreen
 import app.hisaab.agent.ProposedWrite
 import app.hisaab.domain.BudgetProgress
@@ -96,6 +97,7 @@ class ScreenshotTourTest {
     @Test
     fun capture_pages() {
         val pages: List<Pair<String, @Composable () -> Unit>> = listOf(
+            "00-splash" to { SplashScreen() },
             "01-welcome-default" to { WelcomeScreen(onSendOtp = {}) },
             "01-welcome-loading" to { WelcomeScreen(onSendOtp = {}, isLoading = true) },
             "01-welcome-error" to { WelcomeScreen(onSendOtp = {}, error = "Couldn't send code. Try again.") },
@@ -216,7 +218,7 @@ class ScreenshotTourTest {
 
         var idx by mutableIntStateOf(0)
         rule.setContent {
-            HisaabTheme(darkTheme = false) {
+            HisaabTheme(darkTheme = true) {
                 Box(Modifier.fillMaxSize().background(LocalHisaabPalette.current.background)) {
                     pages[idx].second()
                 }
