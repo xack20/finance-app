@@ -30,6 +30,7 @@ import app.hisaab.design.components.FloatingDock
 import app.hisaab.design.components.GlassButton
 import app.hisaab.design.components.GlassCard
 import app.hisaab.design.components.GlyphChip
+import app.hisaab.design.components.GradientAvatar
 import app.hisaab.design.components.HCheck
 import app.hisaab.design.components.HRadio
 import app.hisaab.design.components.HToggle
@@ -48,6 +49,10 @@ import app.hisaab.screens.entry.BigAmount
 import app.hisaab.screens.entry.KindChipRow
 import app.hisaab.screens.entry.NumericKeypad
 import app.hisaab.screens.entry.applyAmountKey
+import app.hisaab.screens.agent.ListeningEqualizer
+import app.hisaab.screens.agent.SparkleOrb
+import app.hisaab.screens.agent.SuggestionChips
+import app.hisaab.screens.agent.TypingDots
 import app.hisaab.screens.month.BudgetProgressList
 import app.hisaab.screens.month.PerDayLineChart
 
@@ -133,6 +138,16 @@ fun ComponentGallery() {
                     },
                 palette = LocalHisaabPalette.current,
             )
+
+            Eyebrow("Assistant + People")
+            Row(horizontalArrangement = Arrangement.spacedBy(HisaabSpacing.sm)) {
+                GradientAvatar("Arif Hasan")
+                GradientAvatar("Karim Uddin")
+                SparkleOrb(size = 44)
+                TypingDots()
+                ListeningEqualizer()
+            }
+            SuggestionChips(listOf("Set a food budget", "I paid 500 for lunch"), onPick = {})
         }
     }
 }
