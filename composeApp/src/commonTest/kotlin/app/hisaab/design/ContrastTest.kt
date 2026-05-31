@@ -4,6 +4,14 @@ import androidx.compose.ui.graphics.Color
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
+/** Flatten a translucent fg token over an opaque bg, matching how Compose composites it. */
+private fun flatten(fg: Color, bg: Color): Color = Color(
+    red = fg.red * fg.alpha + bg.red * (1 - fg.alpha),
+    green = fg.green * fg.alpha + bg.green * (1 - fg.alpha),
+    blue = fg.blue * fg.alpha + bg.blue * (1 - fg.alpha),
+    alpha = 1f,
+)
+
 class ContrastTest {
 
     private fun aa(fg: Color, bg: Color, min: Float, label: String) {
@@ -23,6 +31,16 @@ class ContrastTest {
         // on-card secondary text guarantee: muted is used for on-card labels (faint was replaced)
         aa(p.muted, p.surface, 3.0f, "dark muted/surface")
         aa(p.muted, p.surfaceRaised, 3.0f, "dark muted/surfaceRaised")
+        val glassBg = flatten(p.glass, p.background)
+        val bioBg = flatten(p.accentSoft, p.background)
+        aa(p.faint, p.surface, 3.0f, "dark placeholder faint/surface")
+        aa(p.faint, p.surfaceRaised, 3.0f, "dark disabled-label faint/surfaceRaised")
+        aa(p.onBackground, p.surface, 4.5f, "dark input/otp/word text onBackground/surface")
+        aa(p.accent, p.surface, 4.5f, "dark mono-prefix/recovery-index accent/surface")
+        aa(p.accent, p.surface, 3.0f, "dark otp active border accent/surface (UI)")
+        aa(p.negative, p.surface, 4.5f, "dark negative text/surface")
+        aa(p.onBackground, glassBg, 4.5f, "dark glass-button label/glass-over-bg")
+        aa(p.accent, bioBg, 3.0f, "dark biometric glyph accent/accentSoft-over-bg")
     }
 
     @Test
@@ -39,5 +57,13 @@ class ContrastTest {
         // on-card secondary text guarantee: muted is used for on-card labels (faint was replaced)
         aa(p.muted, p.surface, 3.0f, "light muted/surface")
         aa(p.muted, p.surfaceRaised, 3.0f, "light muted/surfaceRaised")
+        val glassBgL = flatten(p.glass, p.background)
+        val bioBgL = flatten(p.accentSoft, p.background)
+        aa(p.faint, p.surface, 3.0f, "light placeholder faint/surface")
+        aa(p.faint, p.surfaceRaised, 3.0f, "light disabled-label faint/surfaceRaised")
+        aa(p.accent, p.surface, 4.5f, "light mono-prefix/recovery-index accent/surface")
+        aa(p.accent, p.surface, 3.0f, "light otp active border accent/surface (UI)")
+        aa(p.onBackground, glassBgL, 4.5f, "light glass-button label/glass-over-bg")
+        aa(p.accent, bioBgL, 3.0f, "light biometric glyph accent/accentSoft-over-bg")
     }
 }
