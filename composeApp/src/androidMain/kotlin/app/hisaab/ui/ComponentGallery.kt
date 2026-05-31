@@ -20,10 +20,15 @@ import androidx.compose.ui.unit.dp
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.HisaabTheme
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.DockTab
 import app.hisaab.design.components.Eyebrow
+import app.hisaab.design.components.FloatingDock
 import app.hisaab.design.components.GlassButton
 import app.hisaab.design.components.GlassCard
 import app.hisaab.design.components.GlyphChip
+import app.hisaab.design.components.HCheck
+import app.hisaab.design.components.HRadio
+import app.hisaab.design.components.HToggle
 import app.hisaab.design.components.MoneyText
 import app.hisaab.design.components.MoneyTone
 import app.hisaab.design.components.PrimaryButton
@@ -70,6 +75,23 @@ fun ComponentGallery() {
             PrimaryButton("Continue", onClick = {})
             PrimaryButton("Disabled", onClick = {}, enabled = false)
             GlassButton("Maybe later", onClick = {})
+            Row(horizontalArrangement = Arrangement.spacedBy(HisaabSpacing.md)) {
+                HToggle(checked = true, onCheckedChange = {})
+                HToggle(checked = false, onCheckedChange = {})
+                HCheck(checked = true, onCheckedChange = {})
+                HRadio(selected = true, onClick = {})
+            }
+            FloatingDock(
+                tabs = listOf(
+                    DockTab("TODAY", "◉", "Today"),
+                    DockTab("MONTH", "◑", "Month"),
+                    DockTab("PEOPLE", "○", "People"),
+                    DockTab("SETTINGS", "⚙", "Settings"),
+                ),
+                selectedKey = "TODAY",
+                onTabSelect = {},
+                onFabClick = {},
+            )
         }
     }
 }
