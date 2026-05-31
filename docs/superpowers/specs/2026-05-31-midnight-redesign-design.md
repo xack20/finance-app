@@ -1,7 +1,7 @@
 # Spec: Hisaab "Midnight" Redesign — Compose Port
 
 **Date:** 2026-05-31
-**Status:** Draft for review
+**Status:** Approved (2026-05-31) — light palette to be derived + AA-verified during implementation
 **Source of truth:** `docs/design/design_handoff_hisaab_midnight/` (Claude Design handoff — `README.md`, `BUILD_ORDER.md`, `src/neo-theme.css`, `src/*.jsx`, `CHAT_TRANSCRIPT.md`)
 **Live prototype:** `Hisaab Neo.html` (served locally; open the sidebar to walk every screen + state)
 
