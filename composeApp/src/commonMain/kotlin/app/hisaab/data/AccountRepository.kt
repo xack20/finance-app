@@ -91,6 +91,12 @@ class AccountRepository(private val db: HisaabDatabase) {
         db.accountQueriesQueries.accountBalances().executeAsList()
             .associate { it.account_id to it.balance }
 
+    /** Reactive per-account net balance — reuses [accountBalances] query, re-emits when `txn` changes. */
+    fun observeAccountBalances(): Flow<Map<String, Double>> =
+        db.accountQueriesQueries.accountBalances().asFlow()
+            .mapToList(Dispatchers.Default)
+            .map { rows -> rows.associate { it.account_id to it.balance } }
+
     /** Signed card debt: purchases (EXPENSE) raise it; refunds (INCOME) and payments (TRANSFER) lower it. */
     suspend fun cardOutstanding(accountId: String): Double =
         db.accountQueriesQueries.cardOutstanding(accountId).executeAsOne()

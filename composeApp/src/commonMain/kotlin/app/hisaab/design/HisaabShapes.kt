@@ -7,6 +7,8 @@ import androidx.compose.ui.unit.dp
 object HisaabShapes {
     val field = RoundedCornerShape(16.dp)
     val card  = RoundedCornerShape(22.dp)
+    val cardCompact = RoundedCornerShape(18.dp) // accounts/budgets list cards (neo-settings.jsx:52,105)
+    val bar = RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp, bottomStart = 3.dp, bottomEnd = 3.dp) // per-day chart bars (neo.jsx:320)
     val sheet = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
     val pill  = RoundedCornerShape(999.dp)
 

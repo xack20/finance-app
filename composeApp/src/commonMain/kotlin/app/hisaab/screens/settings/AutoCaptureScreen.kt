@@ -44,7 +44,9 @@ import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.GlassButton
 import app.hisaab.design.components.HRadio
 import app.hisaab.design.components.HToggle
+import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.MidnightSlider
+import app.hisaab.design.components.NeoTopBar
 import app.hisaab.design.components.SurfaceCard
 import app.hisaab.domain.BankType
 import app.hisaab.domain.CaptureChannel
@@ -87,13 +89,7 @@ fun AutoCaptureScreen(
     val permissionDenied by viewModel.permissionDenied.collectAsState()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Auto-capture", color = palette.onBackground) },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back", color = palette.muted) } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = palette.background),
-            )
-        },
+        topBar = { NeoTopBar(title = "Auto-capture", onBack = onBack) },
         containerColor = palette.background,
     ) { padding ->
         val c = cfg ?: return@Scaffold
@@ -125,27 +121,25 @@ fun AutoCaptureScreen(
                         .border(1.dp, palette.negative, HisaabShapes.card),
                 ) {
                     Row(
-                        verticalAlignment = Alignment.Top,
+                        verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(HisaabSpacing.sm),
                     ) {
-                        Text("⚠", color = palette.negative, fontSize = 16.sp)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "SMS permission was denied. Grant notification access instead, or enable SMS in system settings.",
-                                color = palette.negative,
-                                fontSize = 12.sp,
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            // Re-toggle affordance styled as a lime pill
-                            Row(
-                                modifier = Modifier
-                                    .clip(HisaabShapes.pill)
-                                    .background(palette.accent)
-                                    .clickable { viewModel.setCaptureEnabled(true) }
-                                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                            ) {
-                                Text("Grant", color = palette.onAccent, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                            }
+                        HisaabIcon("warn", tint = palette.negative, size = 18.dp)
+                        Text(
+                            "SMS permission denied",
+                            color = palette.negative,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Row(
+                            modifier = Modifier
+                                .clip(HisaabShapes.pill)
+                                .background(palette.accent)
+                                .clickable { viewModel.setCaptureEnabled(true) }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                        ) {
+                            Text("Grant", color = palette.onAccent, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -161,15 +155,19 @@ fun AutoCaptureScreen(
                 Spacer(Modifier.height(16.dp))
                 Label("Provider", palette)
                 SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-                    CloudProvider.entries.forEachIndexed { index, provider ->
-                        RadioRow(
-                            provider.name.lowercase().replaceFirstChar { it.uppercase() },
-                            c.cloudProvider == provider, palette,
-                        ) {
+                    // Design order: Claude, OpenAI, Gemini (neo-settings.jsx:151).
+                    val providerOrder = listOf(CloudProvider.CLAUDE, CloudProvider.OPENAI, CloudProvider.GEMINI)
+                    providerOrder.forEachIndexed { index, provider ->
+                        val label = when (provider) {
+                            CloudProvider.CLAUDE -> "Claude"
+                            CloudProvider.OPENAI -> "OpenAI"
+                            CloudProvider.GEMINI -> "Gemini"
+                        }
+                        RadioRow(label, c.cloudProvider == provider, palette) {
                             viewModel.setCloudProvider(provider, c.cloudModel)
                         }
-                        if (index < CloudProvider.entries.size - 1) {
-                            HorizontalDivider(color = palette.hair)
+                        if (index < providerOrder.size - 1) {
+                            HorizontalDivider(color = palette.hair2)
                         }
                     }
                 }
@@ -199,8 +197,8 @@ fun AutoCaptureScreen(
                                 when (keyValidation) {
                                     KeyValidation.IDLE -> ""
                                     KeyValidation.CHECKING -> "Checking…"
-                                    KeyValidation.VALID -> "Key valid ✓"
-                                    KeyValidation.INVALID -> "Key invalid"
+                                    KeyValidation.VALID -> "Valid key"
+                                    KeyValidation.INVALID -> "Invalid key"
                                 },
                                 color = when (keyValidation) {
                                     KeyValidation.VALID -> palette.positive
@@ -217,7 +215,7 @@ fun AutoCaptureScreen(
                     }
                     SettingRow(
                         "Cloud consent",
-                        if (c.cloudConsentAt != null) "Granted" else "Required",
+                        "Review",
                         palette,
                         valueColor = palette.accent,
                         chevron = true,
@@ -362,31 +360,49 @@ fun EnginePicker(
     onSelect: (EngineMode) -> Unit,
 ) {
     SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onSelect(EngineMode.ON_DEVICE) }
-                .padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(HisaabSpacing.md),
-        ) {
-            HRadio(selected = mode == EngineMode.ON_DEVICE, onClick = { onSelect(EngineMode.ON_DEVICE) })
-            Text("On-device (private, offline)", color = palette.onBackground, modifier = Modifier.weight(1f))
-            if (mode == EngineMode.ON_DEVICE) Text("✓", color = palette.accent)
+        EngineOption(
+            icon = "shield",
+            title = "On-device",
+            sub = "Private, offline",
+            active = mode == EngineMode.ON_DEVICE,
+            palette = palette,
+            onClick = { onSelect(EngineMode.ON_DEVICE) },
+        )
+        HorizontalDivider(color = palette.hair2)
+        EngineOption(
+            icon = "cloud",
+            title = "Cloud",
+            sub = "Your own API key",
+            active = mode == EngineMode.CLOUD,
+            palette = palette,
+            onClick = { onSelect(EngineMode.CLOUD) },
+        )
+    }
+}
+
+@Composable
+private fun EngineOption(
+    icon: String,
+    title: String,
+    sub: String,
+    active: Boolean,
+    palette: HisaabColors.Palette,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(HisaabSpacing.lg),
+    ) {
+        HisaabIcon(name = icon, tint = if (active) palette.accent else palette.faint, size = 22.dp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = palette.onBackground, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(sub, color = palette.muted, fontSize = 13.sp)
         }
-        HorizontalDivider(color = palette.hair)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onSelect(EngineMode.CLOUD) }
-                .padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(HisaabSpacing.md),
-        ) {
-            HRadio(selected = mode == EngineMode.CLOUD, onClick = { onSelect(EngineMode.CLOUD) })
-            Text("Cloud (your own API key)", color = palette.onBackground, modifier = Modifier.weight(1f))
-            if (mode == EngineMode.CLOUD) Text("✓", color = palette.accent)
-        }
+        if (active) HisaabIcon("check", tint = palette.accent, size = 20.dp, strokeWidth = 2.4f)
     }
 }
 
@@ -437,14 +453,22 @@ private fun NewSenderPrompt(count: Int, firstName: String, palette: HisaabColors
 
 @Composable
 private fun Label(text: String, palette: HisaabColors.Palette) {
-    Text(text.uppercase(), color = palette.accent, letterSpacing = 2.sp, fontSize = 11.sp)
-    Spacer(Modifier.height(4.dp))
+    // Faint eyebrow per .eyebrow token (neo-theme.css:57 → var(--faint)), not lime.
+    Text(
+        text.uppercase(),
+        color = palette.faint,
+        letterSpacing = 1.54.sp,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Spacer(Modifier.height(HisaabSpacing.md))
 }
 
 @Composable
 private fun ToggleRow(label: String, checked: Boolean, palette: HisaabColors.Palette, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = palette.muted, modifier = Modifier.weight(1f))
+        // Design: toggle-row labels are text/16/500 (neo-settings.jsx:166,172), not muted.
+        Text(label, color = palette.onBackground, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
         HToggle(checked = checked, onCheckedChange = onChange)
     }
 }
@@ -452,13 +476,13 @@ private fun ToggleRow(label: String, checked: Boolean, palette: HisaabColors.Pal
 @Composable
 private fun RadioRow(label: String, selected: Boolean, palette: HisaabColors.Palette, onSelect: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable { onSelect() }.padding(vertical = 12.dp),
+        Modifier.fillMaxWidth().clickable { onSelect() }.padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(HisaabSpacing.md),
     ) {
+        // No trailing check — the radio fill conveys selection (neo-settings.jsx:151).
         HRadio(selected = selected, onClick = onSelect)
-        Text(label, color = palette.onBackground, modifier = Modifier.weight(1f))
-        if (selected) Text("✓", color = palette.accent)
+        Text(label, color = palette.onBackground, fontSize = 16.sp, fontWeight = FontWeight.Medium)
     }
 }
 

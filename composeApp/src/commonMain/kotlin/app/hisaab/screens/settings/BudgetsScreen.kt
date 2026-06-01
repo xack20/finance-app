@@ -1,28 +1,39 @@
 package app.hisaab.screens.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.*
+import app.hisaab.domain.BudgetRow
 import app.hisaab.domain.Category
 import app.hisaab.domain.YearMonth
+import app.hisaab.util.toTaka
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Salary/transfer are never budgetable (neo-settings.jsx:102). */
+private val EXCLUDED_FROM_BUDGETS = setOf("salary", "transfer")
+
 @Composable
 fun BudgetsScreen(onBack: () -> Unit) {
     val palette = LocalHisaabPalette.current
@@ -32,63 +43,32 @@ fun BudgetsScreen(onBack: () -> Unit) {
     val categories by container.categoryRepository.observeAll().collectAsState(initial = emptyList())
     var showAddSheet by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    TextButton(onClick = onBack) { Text("Back", color = palette.muted) }
-                },
-                actions = {
-                    TextButton(onClick = { showAddSheet = true }) {
-                        Text("+ Add", color = palette.accent)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = palette.background),
-            )
-        },
-        containerColor = palette.background,
-    ) { padding ->
+    Column(modifier = Modifier.fillMaxSize().background(palette.background)) {
+        NeoTopBar(
+            title = "Budgets",
+            onBack = onBack,
+            rightLabel = "+ Add",
+            onRight = { showAddSheet = true },
+        )
         if (budgets.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No budgets yet. Tap + Add.", color = palette.muted)
             }
         } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
                     .padding(horizontal = HisaabSpacing.gutter),
-                verticalArrangement = Arrangement.spacedBy(HisaabSpacing.sm),
-                contentPadding = PaddingValues(bottom = HisaabSpacing.xl),
+                verticalArrangement = Arrangement.spacedBy(HisaabSpacing.md),
+                contentPadding = PaddingValues(top = HisaabSpacing.sm, bottom = HisaabSpacing.xl),
             ) {
-                item {
-                    SectionHeader("Budgets", modifier = Modifier.padding(vertical = HisaabSpacing.lg))
-                }
                 items(budgets, key = { it.id }) { budget ->
-                    SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    budget.categoryName,
-                                    color = palette.onBackground,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                )
-                                Spacer(Modifier.height(HisaabSpacing.xs))
-                                Text(
-                                    "৳${budget.monthlyCapAmount.toInt()}/mo · since ${budget.startsMonth.value}",
-                                    color = palette.muted,
-                                    fontSize = 11.sp,
-                                )
-                            }
-                            TextButton(onClick = {
-                                coroutineScope.launch { container.budgetRepository.archive(budget.id) }
-                            }) { Text("Archive", color = palette.negative, fontSize = 12.sp) }
-                        }
-                    }
+                    BudgetCard(
+                        budget = budget,
+                        onArchive = {
+                            coroutineScope.launch { container.budgetRepository.archive(budget.id) }
+                        },
+                    )
                 }
             }
         }
@@ -96,7 +76,7 @@ fun BudgetsScreen(onBack: () -> Unit) {
 
     if (showAddSheet) {
         AddBudgetSheet(
-            categories = categories.filter { it.id !in setOf("salary", "transfer") },
+            categories = categories.filter { it.id !in EXCLUDED_FROM_BUDGETS },
             onAdd = { categoryId, amount ->
                 coroutineScope.launch {
                     container.budgetRepository.set(categoryId, amount, currentYearMonth())
@@ -105,6 +85,36 @@ fun BudgetsScreen(onBack: () -> Unit) {
             },
             onDismiss = { showAddSheet = false },
         )
+    }
+}
+
+@Composable
+private fun BudgetCard(budget: BudgetRow, onArchive: () -> Unit) {
+    val palette = LocalHisaabPalette.current
+    SurfaceCard(modifier = Modifier.fillMaxWidth(), shape = HisaabShapes.cardCompact) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    budget.categoryName,
+                    color = palette.onBackground,
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+                )
+                Spacer(Modifier.height(HisaabSpacing.xs))
+                // mono sub-line, grouped cap (neo-settings.jsx:106).
+                Text(
+                    "${budget.monthlyCapAmount.toTaka()}/mo · since ${budget.startsMonth.value}",
+                    color = palette.muted,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                )
+            }
+            TextButton(onClick = onArchive) {
+                Text(
+                    "Archive",
+                    color = palette.negative,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold),
+                )
+            }
+        }
     }
 }
 
@@ -121,41 +131,47 @@ private fun AddBudgetSheet(
     var amount by remember { mutableStateOf("") }
 
     MidnightSheet(onDismiss = onDismiss, sheetState = sheetState, title = "New budget") {
-        Text("Category", color = palette.muted, fontSize = 12.sp)
-        Spacer(Modifier.height(HisaabSpacing.xs))
-        // HRadio category list (replaces Material RadioButton)
+        Eyebrow("Category")
+        Spacer(Modifier.height(HisaabSpacing.sm))
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 240.dp)
+                .heightIn(max = 230.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
             categories.forEach { cat ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = HisaabSpacing.sm),
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { selectedCategoryId = cat.id }
+                        .padding(vertical = 11.dp, horizontal = HisaabSpacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(HisaabSpacing.md),
                 ) {
-                    HRadio(
-                        selected = cat.id == selectedCategoryId,
-                        onClick = { selectedCategoryId = cat.id },
+                    HRadio(selected = cat.id == selectedCategoryId, onClick = { selectedCategoryId = cat.id })
+                    GlyphChip(iconName = cat.icon, hue = categoryHue(cat.color), size = 36)
+                    Text(
+                        cat.name,
+                        color = palette.onBackground,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
                     )
-                    Spacer(Modifier.width(HisaabSpacing.md))
-                    Text(cat.name, color = palette.onBackground)
                 }
             }
         }
         Spacer(Modifier.height(HisaabSpacing.md))
-        OutlinedTextField(
+        MidnightTextField(
             value = amount,
-            onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
-            label = { Text("৳ Monthly cap", color = palette.muted) },
-            modifier = Modifier.fillMaxWidth(), singleLine = true,
+            onValueChange = { amount = it.filter { c -> c.isDigit() } },
+            label = "Monthly cap",
+            prefix = "৳",
+            placeholder = "8000",
+            keyboardType = KeyboardType.Number,
+            modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(HisaabSpacing.lg))
         PrimaryButton(
-            text = "Save",
+            text = "Save budget",
             onClick = {
                 val a = amount.toDoubleOrNull()
                 if (a != null && a > 0 && selectedCategoryId.isNotBlank()) {

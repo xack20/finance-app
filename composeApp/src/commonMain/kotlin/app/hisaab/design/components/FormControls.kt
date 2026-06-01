@@ -54,7 +54,7 @@ fun HCheck(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modif
             .toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange),
         contentAlignment = Alignment.Center,
     ) {
-        if (checked) Text("✓", color = p.onAccent)
+        if (checked) HisaabIcon("check", tint = p.onAccent, size = 16.dp, strokeWidth = 2.6f)
     }
 }
 

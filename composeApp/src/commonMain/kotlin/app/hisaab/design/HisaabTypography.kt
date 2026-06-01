@@ -79,7 +79,7 @@ object HisaabTypography {
     )
     val eyebrow = TextStyle(
         fontFamily = ui.compose, fontWeight = FontWeight.SemiBold,
-        fontSize = 11.sp, letterSpacing = 1.5.sp, lineHeight = 14.sp,
+        fontSize = 11.sp, letterSpacing = 1.54.sp, lineHeight = 14.sp, // .14em × 11 (neo-theme.css:57)
     )
     val body = TextStyle(
         fontFamily = ui.compose, fontWeight = FontWeight.Normal,
@@ -97,7 +97,7 @@ object HisaabTypography {
     )
     val label = TextStyle(
         fontFamily = ui.compose, fontWeight = FontWeight.Medium,
-        fontSize = 11.sp, letterSpacing = 1.5.sp, lineHeight = 14.sp,
+        fontSize = 11.sp, letterSpacing = 1.54.sp, lineHeight = 14.sp, // .14em × 11
     )
     val tabular = TextStyle(
         fontFamily = mono.compose, fontWeight = FontWeight.Bold,

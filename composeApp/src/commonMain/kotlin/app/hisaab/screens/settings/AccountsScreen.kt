@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
@@ -22,6 +23,7 @@ import app.hisaab.domain.AccountKind
 import app.hisaab.domain.CardSummaryCalculator
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
@@ -39,80 +41,26 @@ fun AccountsScreen(onBack: () -> Unit) {
         value = container.accountRepository.accountBalances()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    TextButton(onClick = onBack) { Text("Back", color = palette.muted) }
-                },
-                actions = {
-                    TextButton(onClick = { showAddSheet = true }) {
-                        Text("+ Add", color = palette.accent)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = palette.background),
-            )
-        },
-        containerColor = palette.background,
-    ) { padding ->
+    Column(modifier = Modifier.fillMaxSize().background(palette.background)) {
+        NeoTopBar(
+            title = "Accounts",
+            onBack = onBack,
+            rightLabel = "+ Add",
+            onRight = { showAddSheet = true },
+        )
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .padding(horizontal = HisaabSpacing.gutter),
-            verticalArrangement = Arrangement.spacedBy(HisaabSpacing.sm),
-            contentPadding = PaddingValues(bottom = HisaabSpacing.xl),
+            verticalArrangement = Arrangement.spacedBy(HisaabSpacing.md),
+            contentPadding = PaddingValues(top = HisaabSpacing.sm, bottom = HisaabSpacing.xl),
         ) {
-            item {
-                SectionHeader("Accounts", modifier = Modifier.padding(vertical = HisaabSpacing.lg))
-            }
             items(accounts, key = { it.id }) { acc ->
-                SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-                    // Name + Eyebrow row with trailing balance
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { renamingAccount = acc },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                acc.name,
-                                color = palette.onBackground,
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            Spacer(Modifier.height(HisaabSpacing.xs))
-                            Eyebrow("${acc.kind} · ${acc.currency}")
-                        }
-                        MoneyText(
-                            amount = balances[acc.id] ?: 0.0,
-                            signed = true,
-                            tone = MoneyTone.Auto,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-
-                    // CARD extras
-                    if (acc.kind == AccountKind.CARD) {
-                        Spacer(Modifier.height(HisaabSpacing.md))
-                        HorizontalDivider(color = palette.hair, thickness = 0.5.dp)
-                        Spacer(Modifier.height(HisaabSpacing.md))
-                        CardSummaryRow(acc = acc)
-                    }
-
-                    // Archive affordance
-                    Spacer(Modifier.height(HisaabSpacing.sm))
-                    HorizontalDivider(color = palette.hair, thickness = 0.5.dp)
-                    Row(
-                        horizontalArrangement = Arrangement.End,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        TextButton(onClick = {
-                            coroutineScope.launch { container.accountRepository.archive(acc.id) }
-                        }) { Text("Archive", color = palette.negative, fontSize = 12.sp) }
-                    }
-                }
+                AccountCard(
+                    acc = acc,
+                    balance = balances[acc.id] ?: 0.0,
+                    onRename = { renamingAccount = acc },
+                )
             }
         }
     }
@@ -149,6 +97,52 @@ fun AccountsScreen(onBack: () -> Unit) {
 }
 
 @Composable
+private fun AccountCard(acc: Account, balance: Double, onRename: () -> Unit) {
+    val palette = LocalHisaabPalette.current
+    SurfaceCard(modifier = Modifier.fillMaxWidth(), shape = HisaabShapes.cardCompact) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onRename),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    acc.name,
+                    color = palette.onBackground,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                )
+                Spacer(Modifier.height(HisaabSpacing.xs))
+                Eyebrow("${acc.kind} · ${acc.currency}")
+            }
+            // Design: negative balances → neg (red), everything else → plain text color, unsigned.
+            MoneyText(
+                amount = balance,
+                signed = false,
+                tone = MoneyTone.Plain,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (balance < 0.0) palette.negative else palette.onBackground,
+                ),
+            )
+        }
+        if (acc.kind == AccountKind.CARD) {
+            CardSummaryRow(acc = acc)
+        }
+    }
+}
+
+private val SHORT_MONTHS = arrayOf(
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+)
+
+/** Friendly due-date label matching the design "15 Jun 2026" (neo-settings.jsx:58). */
+private fun LocalDate.toFriendlyDueLabel(): String =
+    "$dayOfMonth ${SHORT_MONTHS[monthNumber - 1]} $year"
+
+@Composable
 private fun CardSummaryRow(acc: Account) {
     val container = LocalAppContainer.current
     val palette = LocalHisaabPalette.current
@@ -160,55 +154,42 @@ private fun CardSummaryRow(acc: Account) {
     val outstanding by produceState(initialValue = null as Double?, acc.id) {
         value = container.accountRepository.cardOutstanding(acc.id)
     }
+    val os = outstanding ?: return
 
-    val os = outstanding
-    if (os != null) {
-        val available = if (cl != null) cl - os else null
-        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-        val nextDue = if (sd != null && dd != null) {
-            CardSummaryCalculator.nextDueDate(today, sd, dd)
-        } else null
+    val available = if (cl != null) cl - os else null
+    val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+    val nextDue = if (sd != null && dd != null) CardSummaryCalculator.nextDueDate(today, sd, dd) else null
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(HisaabSpacing.lg),
-        ) {
-            // Outstanding — negative tone (os is a positive debt amount; negate to render red)
-            Column {
-                Eyebrow("Outstanding")
-                Spacer(Modifier.height(HisaabSpacing.xs))
-                MoneyText(
-                    amount = -os,
-                    signed = false,
-                    tone = MoneyTone.Auto,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            if (available != null) {
-                Column {
-                    Eyebrow("Available")
-                    Spacer(Modifier.height(HisaabSpacing.xs))
-                    MoneyText(
-                        amount = available,
-                        signed = false,
-                        tone = MoneyTone.Auto,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-            // Due date is a LocalDate, not a money amount — render as plain labeled text
-            if (nextDue != null) {
-                Column {
-                    Eyebrow("Due")
-                    Spacer(Modifier.height(HisaabSpacing.xs))
-                    Text(
-                        nextDue.toString(),
-                        color = palette.muted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+    // Top border: hair-2, marginTop:14 paddingTop:14 (neo-settings.jsx:57).
+    Spacer(Modifier.height(14.dp))
+    HorizontalDivider(color = palette.hair2, thickness = 1.dp)
+    Spacer(Modifier.height(14.dp))
+
+    val chipStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+        ChipColumn("Outstanding") {
+            // Always neg-colored; magnitude (a positive debt rendered red), no sign.
+            MoneyText(amount = os, signed = false, tone = MoneyTone.Plain, style = chipStyle.copy(color = palette.negative))
+        }
+        if (available != null) {
+            ChipColumn("Available") {
+                MoneyText(amount = available, signed = false, tone = MoneyTone.Plain, style = chipStyle.copy(color = palette.positive))
             }
         }
+        if (nextDue != null) {
+            ChipColumn("Due") {
+                Text(nextDue.toFriendlyDueLabel(), color = palette.muted, style = chipStyle)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChipColumn(label: String, value: @Composable () -> Unit) {
+    Column {
+        Eyebrow(label)
+        Spacer(Modifier.height(HisaabSpacing.xs))
+        value()
     }
 }
 

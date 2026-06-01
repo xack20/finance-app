@@ -1,6 +1,10 @@
 package app.hisaab.screens.entry
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,8 +12,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -26,17 +32,76 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabShapes
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.HisaabIcon
+import app.hisaab.design.components.categoryHue
 import app.hisaab.design.components.midnightOutlinedColors
 import app.hisaab.domain.Account
 import app.hisaab.domain.Category
+
+/** Seeded category id -> (HisaabIcons name, categoryHue key) for the quick-row (neo.jsx:175). */
+private val QUICK_CATEGORY_TILES: List<Triple<String, String, String>> = listOf(
+    Triple("food", "food", "rose"),
+    Triple("shopping", "bag", "amber"),
+    Triple("transport", "car", "blue"),
+    Triple("bills", "receipt", "violet"),
+    Triple("health", "health", "teal"),
+    Triple("entertainment", "film", "pink"),
+)
+
+/**
+ * Horizontal no-scrollbar row of 50dp category quick-tiles: glyph at hue over a 16%-hue fill
+ * (radius 15), 2dp hue border + full opacity when selected (else .55). Stateless — [onSelect].
+ */
+@Composable
+fun CategoryQuickRow(
+    selectedId: String?,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalHisaabPalette.current
+    Row(
+        modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        QUICK_CATEGORY_TILES.forEach { (id, iconName, hueKey) ->
+            val hue = categoryHue(hueKey)
+            val selected = selectedId == id
+            Column(
+                modifier = Modifier.alpha(if (selected) 1f else 0.55f).clickable { onSelect(id) },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .clip(RoundedCornerShape(15.dp))
+                        .background(hue.copy(alpha = 0.16f))
+                        .border(2.dp, if (selected) hue else Color.Transparent, RoundedCornerShape(15.dp)),
+                    contentAlignment = Alignment.Center,
+                ) { HisaabIcon(iconName, tint = hue, size = 22.dp, strokeWidth = 1.9f) }
+                Text(
+                    id.replaceFirstChar { it.uppercase() },
+                    color = palette.muted,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
 
 /**
  * Hero amount input — large numeric field with currency symbol.
@@ -106,7 +171,7 @@ fun AccountPicker(
         Text(label, color = palette.muted, modifier = Modifier.weight(1f))
         Text(selectedName, color = palette.onBackground)
         Spacer(Modifier.width(6.dp))
-        Text("›", color = palette.muted)
+        HisaabIcon("chevron-right", tint = palette.muted, size = 18.dp)
     }
     HorizontalDivider(color = palette.rule)
 
@@ -132,7 +197,7 @@ fun AccountPicker(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(acc.name, color = palette.onBackground, modifier = Modifier.weight(1f))
-                        if (acc.id == selectedId) Text("✓", color = palette.accent)
+                        if (acc.id == selectedId) HisaabIcon("check", tint = palette.accent, size = 18.dp, strokeWidth = 2.4f)
                     }
                     HorizontalDivider(color = palette.rule)
                 }
@@ -169,7 +234,7 @@ fun CategoryPicker(
         Text("Category", color = palette.muted, modifier = Modifier.weight(1f))
         Text(selectedName, color = palette.onBackground)
         Spacer(Modifier.width(6.dp))
-        Text("›", color = palette.muted)
+        HisaabIcon("chevron-right", tint = palette.muted, size = 18.dp)
     }
     HorizontalDivider(color = palette.rule)
 
@@ -201,7 +266,7 @@ fun CategoryPicker(
                     ) {
                         cat.icon?.let { Text(it, modifier = Modifier.width(28.dp)) }
                         Text(cat.name, color = palette.onBackground, modifier = Modifier.weight(1f))
-                        if (cat.id == selectedId) Text("✓", color = palette.accent)
+                        if (cat.id == selectedId) HisaabIcon("check", tint = palette.accent, size = 18.dp, strokeWidth = 2.4f)
                     }
                     HorizontalDivider(color = palette.rule)
                 }

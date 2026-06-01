@@ -21,7 +21,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.LocalReduceMotion
@@ -40,7 +42,13 @@ fun SplashScreen() {
             Text(
                 text = "হিসাব",
                 color = palette.accent,
-                style = MaterialTheme.typography.displayMedium,
+                // displayMedium is unbound (Roboto fallback); use the bound Space Grotesk displayLarge.
+                style = MaterialTheme.typography.displayLarge.copy(
+                    fontSize = 58.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 60.sp,
+                    letterSpacing = (-1.16).sp, // -0.02em × 58 (.disp tracking)
+                ),
             )
             SplashPulseDots()
         }

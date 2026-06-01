@@ -99,7 +99,6 @@ fun ProfileSetupScreen(
         }
         PrimaryButton(
             text = "Start Hisaab",
-            trailingGlyph = "→",
             onClick = { onComplete(name, locale) },
             enabled = name.isNotBlank() && !isLoading,
             loading = isLoading,

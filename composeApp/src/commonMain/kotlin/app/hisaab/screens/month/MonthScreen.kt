@@ -25,6 +25,7 @@ import app.hisaab.LocalAppContainer
 import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.Eyebrow
+import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.MoneyText
 import app.hisaab.design.components.MoneyTone
 import app.hisaab.design.components.SurfaceCard
@@ -62,7 +63,7 @@ fun MonthScreen() {
             modifier = Modifier.fillMaxWidth(),
         ) {
             IconButton(onClick = { viewModel.previousMonth() }) {
-                Text("‹", fontSize = 28.sp, color = palette.muted)
+                HisaabIcon("chevron-left", tint = palette.muted, size = 22.dp, strokeWidth = 2f)
             }
             Text(
                 formatYearMonth(ym),
@@ -71,7 +72,7 @@ fun MonthScreen() {
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = { viewModel.nextMonth() }) {
-                Text("›", fontSize = 28.sp, color = palette.muted)
+                HisaabIcon("chevron-right", tint = palette.muted, size = 22.dp, strokeWidth = 2f)
             }
         }
 
@@ -109,6 +110,9 @@ fun MonthScreen() {
                     color = palette.muted,
                 )
             }
+            // Per-day bars live INSIDE the Net card, under the delta pill (neo.jsx:318-322).
+            Spacer(Modifier.height(22.dp))
+            PerDayBarChart(buckets = perDay, palette = palette)
         }
 
         Spacer(Modifier.height(24.dp))
@@ -118,15 +122,6 @@ fun MonthScreen() {
         Spacer(Modifier.height(10.dp))
         SurfaceCard(modifier = Modifier.fillMaxWidth()) {
             CategoryBarChart(slices = categories.take(5), palette = palette)
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        // Per-day spending
-        Eyebrow("Per-day spending")
-        Spacer(Modifier.height(10.dp))
-        SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-            PerDayLineChart(buckets = perDay, palette = palette)
         }
 
         Spacer(Modifier.height(24.dp))

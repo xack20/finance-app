@@ -15,10 +15,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -125,6 +129,12 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
                 KindChipRow(kind = state.kind, onSelect = { viewModel.setKind(it) })
                 Spacer(Modifier.height(20.dp))
                 BigAmount(amount = state.amount, kind = state.kind)
+                Spacer(Modifier.height(24.dp))
+                // Quick category tiles (neo.jsx:243-249); the full picker below covers the rest.
+                CategoryQuickRow(
+                    selectedId = state.categoryId,
+                    onSelect = { viewModel.setCategory(it) },
+                )
                 Spacer(Modifier.height(20.dp))
 
                 AccountPicker(
@@ -210,9 +220,28 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
                 Spacer(Modifier.height(16.dp))
             }
 
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
+            // Keypad + Save on a raised bg-2 panel with a top hairline + rounded top (neo.jsx:264-269).
+            val hairColor = palette.hair
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                    .background(palette.surfaceRaised)
+                    .drawBehind {
+                        drawLine(
+                            color = hairColor,
+                            start = Offset(0f, 0f),
+                            end = Offset(size.width, 0f),
+                            strokeWidth = 1.dp.toPx(),
+                        )
+                    }
+                    .padding(horizontal = 14.dp)
+                    .padding(top = 12.dp)
+                    .navigationBarsPadding()
+                    .padding(bottom = 14.dp),
+            ) {
                 NumericKeypad(onKey = { viewModel.setAmount(applyAmountKey(state.amount, it)) })
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 PrimaryButton(
                     text = if (state.isSaving) "Saving…" else "Save entry",
                     onClick = { viewModel.save(onDone) },

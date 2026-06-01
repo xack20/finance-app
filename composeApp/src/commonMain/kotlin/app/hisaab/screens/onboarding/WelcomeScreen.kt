@@ -57,8 +57,11 @@ fun WelcomeScreen(
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            // Two-tone wordmark eyebrow: হিসাব (lime display 26) · faint dot · "HISAAB" tracked eyebrow.
-            Row(verticalAlignment = Alignment.Bottom) {
+            // Two-tone wordmark eyebrow: হিসাব (lime display 26) + "HISAAB" tracked eyebrow (.28em).
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 Text(
                     text = "হিসাব",
                     color = palette.accent,
@@ -68,17 +71,11 @@ fun WelcomeScreen(
                         lineHeight = 28.sp,
                     ),
                 )
-                Spacer(Modifier.size(10.dp))
-                Box(
-                    Modifier.padding(bottom = 6.dp).size(4.dp).clip(CircleShape).background(palette.faint),
-                )
-                Spacer(Modifier.size(10.dp))
                 Text(
                     text = "HISAAB",
                     color = palette.faint,
                     style = MaterialTheme.typography.labelLarge,
-                    letterSpacing = 4.5.sp,
-                    modifier = Modifier.padding(bottom = 2.dp),
+                    letterSpacing = 3.08.sp, // .28em × 11sp (neo-onboarding.jsx:36)
                 )
             }
             Spacer(Modifier.height(30.dp))

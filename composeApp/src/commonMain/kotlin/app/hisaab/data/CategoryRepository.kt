@@ -74,19 +74,21 @@ class CategoryRepository(private val db: HisaabDatabase) {
     )
 
     private companion object {
+        // color = a HisaabColors.categoryHues key, icon = a HisaabIcons name (mirrors neo.jsx NCAT).
+        // This makes GlyphChip render the on-brand stroke icon + hue everywhere (Today/Detail/Review/Categories).
         val DEFAULT_CATEGORIES = listOf(
-            DefaultCategory("food",          "Food & dining",  "#ad6b2a", "🍽"),
-            DefaultCategory("transport",     "Transport",      "#5b8fb9", "🚗"),
-            DefaultCategory("bills",         "Bills",          "#7a5c9e", "🧾"),
-            DefaultCategory("salary",        "Salary",         "#2e7d4f", "💼"),
-            DefaultCategory("lend",          "Lent",           "#c8964a", "↗"),
-            DefaultCategory("borrow",        "Borrowed",       "#b5402c", "↙"),
-            DefaultCategory("health",        "Health",         "#d68945", "🩺"),
-            DefaultCategory("education",     "Education",      "#6b8e23", "📚"),
-            DefaultCategory("shopping",      "Shopping",       "#9e6b9e", "🛍"),
-            DefaultCategory("entertainment", "Entertainment",  "#c8964a", "🎬"),
-            DefaultCategory("other",         "Other",          "#6f6453", "•"),
-            DefaultCategory("transfer",      "Transfer",       "#6f6453", "⇄"),
+            DefaultCategory("food",          "Food & dining",  "rose",   "food"),
+            DefaultCategory("transport",     "Transport",      "blue",   "car"),
+            DefaultCategory("bills",         "Bills",          "violet", "receipt"),
+            DefaultCategory("salary",        "Salary",         "lime",   "case"),
+            DefaultCategory("lend",          "Lent",           "lime",   "lend"),
+            DefaultCategory("borrow",        "Borrowed",       "amber",  "borrow"),
+            DefaultCategory("health",        "Health",         "teal",   "health"),
+            DefaultCategory("education",     "Education",      "blue",   "book"),
+            DefaultCategory("shopping",      "Shopping",       "amber",  "bag"),
+            DefaultCategory("entertainment", "Entertainment",  "pink",   "film"),
+            DefaultCategory("other",         "Other",          "slate",  "dot"),
+            DefaultCategory("transfer",      "Transfer",       "slate",  "swap"),
         )
     }
 }

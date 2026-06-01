@@ -61,7 +61,7 @@ import app.hisaab.screens.agent.SparkleOrb
 import app.hisaab.screens.agent.SuggestionChips
 import app.hisaab.screens.agent.TypingDots
 import app.hisaab.screens.month.BudgetProgressList
-import app.hisaab.screens.month.PerDayLineChart
+import app.hisaab.screens.month.PerDayBarChart
 
 /** Trivial tintable glyph (avoids a material-icons dependency) for the gallery demo only. */
 private val DemoGlyph: ImageVector = ImageVector.Builder(
@@ -125,7 +125,7 @@ fun ComponentGallery() {
             NumericKeypad(onKey = { amt = applyAmountKey(amt, it) })
 
             Eyebrow("Charts")
-            PerDayLineChart(
+            PerDayBarChart(
                 buckets = listOf(400.0, 1200.0, 300.0, 900.0, 1800.0, 600.0)
                     .mapIndexed { i, v -> DayBucket(epochDay = 20000L + i, total = v) },
                 palette = LocalHisaabPalette.current,
