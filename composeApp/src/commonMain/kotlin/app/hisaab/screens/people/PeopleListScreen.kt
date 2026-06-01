@@ -151,7 +151,8 @@ private fun PersonCard(pwb: PersonWithBalance, onClick: () -> Unit) {
                     amount = pwb.balance,
                     signed = true,
                     decimals = 0,
-                    style = MaterialTheme.typography.bodyMedium,
+                    // List amount: Space Mono tabular, 16/700.
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold),
                 )
             }
         }

@@ -85,6 +85,16 @@ object HisaabTypography {
         fontFamily = ui.compose, fontWeight = FontWeight.Normal,
         fontSize = 15.sp, lineHeight = 22.sp,
     )
+    /** 16px Hanken body — list merchant names, banner titles (design body/UI face, not Roboto). */
+    val bodyLarge = TextStyle(
+        fontFamily = ui.compose, fontWeight = FontWeight.Normal,
+        fontSize = 16.sp, lineHeight = 22.sp,
+    )
+    /** 18px/700 Hanken — card titles ("Log transactions automatically"). */
+    val titleMedium = TextStyle(
+        fontFamily = ui.compose, fontWeight = FontWeight.Bold,
+        fontSize = 18.sp, lineHeight = 24.sp, letterSpacing = (-0.2).sp,
+    )
     val label = TextStyle(
         fontFamily = ui.compose, fontWeight = FontWeight.Medium,
         fontSize = 11.sp, letterSpacing = 1.5.sp, lineHeight = 14.sp,

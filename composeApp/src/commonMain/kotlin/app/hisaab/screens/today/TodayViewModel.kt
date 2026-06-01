@@ -25,6 +25,7 @@ data class TransactionRowDisplay(
     val merchantName: String?,
     val categoryName: String?,
     val categoryColor: String?,
+    val categoryIcon: String? = null,
 )
 
 class TodayViewModel(
@@ -61,6 +62,7 @@ class TodayViewModel(
                 merchantName = txn.merchantId?.let { merchantsById[it]?.name },
                 categoryName = txn.categoryId?.let { catsById[it]?.name },
                 categoryColor = txn.categoryId?.let { catsById[it]?.color },
+                categoryIcon = txn.categoryId?.let { catsById[it]?.icon },
             )
         }
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())

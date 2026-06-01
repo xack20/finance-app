@@ -47,6 +47,7 @@ class TransactionDetailViewModel(
                 merchantName = mer?.name,
                 categoryName = cat?.name,
                 categoryColor = cat?.color,
+                categoryIcon = cat?.icon,
             )
         }
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)

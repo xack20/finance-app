@@ -51,9 +51,10 @@ fun BigAmount(amount: String, kind: TxnKind, modifier: Modifier = Modifier) {
         display,
         modifier = modifier.fillMaxWidth(),
         color = color,
-        fontSize = 56.sp,
+        fontSize = 64.sp,
         fontWeight = FontWeight.SemiBold,
-        style = MaterialTheme.typography.displayLarge,
+        // Space Mono tabular (bodySmall family), matching the design's `disp mono` hero amount.
+        style = MaterialTheme.typography.bodySmall,
     )
 }
 

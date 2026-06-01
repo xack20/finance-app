@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.GlassButton
+import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.PrimaryButton
 import app.hisaab.design.components.SurfaceCard
 
@@ -43,11 +44,7 @@ fun CaptureOptInCard(
                 .background(palette.accentSoft, RoundedCornerShape(13.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = "✉",
-                color = palette.accent,
-                fontSize = 22.sp,
-            )
+            HisaabIcon("sms", tint = palette.accent, size = 22.dp)
         }
 
         Spacer(Modifier.height(HisaabSpacing.md))
@@ -64,7 +61,7 @@ fun CaptureOptInCard(
 
         // Body — preserved verbatim
         Text(
-            text = "Hisaab can read your bKash, Nagad and bank SMS to log transactions for you — on-device by default, fully private. You can turn this off anytime.",
+            text = "Hisaab reads your bKash, Nagad and bank SMS to log transactions for you — on-device by default, fully private. Turn off anytime.",
             style = MaterialTheme.typography.bodyMedium,
             color = palette.muted,
         )

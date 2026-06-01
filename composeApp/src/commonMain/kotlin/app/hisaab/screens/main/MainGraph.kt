@@ -249,9 +249,10 @@ private fun MainTab.label(): String = when (this) {
     MainTab.SETTINGS -> "Settings"
 }
 
+/** HisaabIcon name for each tab (today/month/people/gear), per neo.jsx:52. */
 private fun MainTab.iconChar(): String = when (this) {
-    MainTab.TODAY -> "•"
-    MainTab.MONTH -> "☷"
-    MainTab.PEOPLE -> "○"
-    MainTab.SETTINGS -> "⚙"
+    MainTab.TODAY -> "today"
+    MainTab.MONTH -> "month"
+    MainTab.PEOPLE -> "people"
+    MainTab.SETTINGS -> "gear"
 }

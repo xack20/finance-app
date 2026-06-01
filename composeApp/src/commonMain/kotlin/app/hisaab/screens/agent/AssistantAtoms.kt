@@ -25,22 +25,47 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.LocalReduceMotion
+import app.hisaab.design.components.HisaabIcon
 
-/** Glowing lime sparkle tile (assistant avatar / empty-state hero). */
+/**
+ * Lime sparkle tile (assistant avatar / empty-state hero / header orb). When [glow] is true the
+ * tile pulses a lime drop-shadow — the `neo-glow` animation the design applies to the header orb
+ * (neo.jsx:367). Honors reduce-motion (static glow). Uses the real `sparkle` stroke icon.
+ */
 @Composable
-fun SparkleOrb(modifier: Modifier = Modifier, size: Int = 38) {
+fun SparkleOrb(modifier: Modifier = Modifier, size: Int = 38, glow: Boolean = false) {
     val p = LocalHisaabPalette.current
+    val reduceMotion = LocalReduceMotion.current
+    val elevation = when {
+        glow && !reduceMotion -> {
+            val t = rememberInfiniteTransition(label = "orbGlow")
+            val e by t.animateFloat(
+                0f, 16f,
+                infiniteRepeatable(tween(1500), RepeatMode.Reverse),
+                label = "orbGlowE",
+            )
+            e
+        }
+        glow -> 8f
+        else -> 0f
+    }
+    val shape = RoundedCornerShape((size / 3).dp)
     Box(
-        modifier.size(size.dp).clip(RoundedCornerShape((size / 3).dp)).background(p.accentSoft),
+        modifier
+            .size(size.dp)
+            .shadow(elevation.dp, shape, clip = false, ambientColor = p.accent, spotColor = p.accent)
+            .clip(shape)
+            .background(p.accentSoft),
         contentAlignment = Alignment.Center,
     ) {
-        Text("✦", color = p.accent, fontSize = (size * 0.5f).sp)
+        HisaabIcon("sparkle", tint = p.accent, size = (size * 0.52f).dp)
     }
 }
 

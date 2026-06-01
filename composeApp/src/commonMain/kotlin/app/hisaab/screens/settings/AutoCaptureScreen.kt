@@ -215,7 +215,14 @@ fun AutoCaptureScreen(
                     SettingRow("Model", c.cloudModel ?: "default", palette) {
                         // Model text entry handled inline; left as a tap target for a future picker.
                     }
-                    SettingRow("Cloud consent", if (c.cloudConsentAt != null) "Granted ›" else "Required ›", palette, onConsent)
+                    SettingRow(
+                        "Cloud consent",
+                        if (c.cloudConsentAt != null) "Granted" else "Required",
+                        palette,
+                        valueColor = palette.accent,
+                        chevron = true,
+                        onClick = onConsent,
+                    )
                 }
             }
 

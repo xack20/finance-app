@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -109,10 +110,10 @@ fun ComponentGallery() {
             }
             FloatingDock(
                 tabs = listOf(
-                    DockTab("TODAY", "◉", "Today"),
-                    DockTab("MONTH", "◑", "Month"),
-                    DockTab("PEOPLE", "○", "People"),
-                    DockTab("SETTINGS", "⚙", "Settings"),
+                    DockTab("TODAY", "today", "Today"),
+                    DockTab("MONTH", "month", "Month"),
+                    DockTab("PEOPLE", "people", "People"),
+                    DockTab("SETTINGS", "gear", "Settings"),
                 ),
                 selectedKey = "TODAY",
                 onTabSelect = {},
@@ -169,9 +170,14 @@ fun ComponentGallery() {
             var demoPhone by remember { mutableStateOf("") }
             MidnightTextField(value = demoPhone, onValueChange = { demoPhone = it }, label = "Phone number", placeholder = "1X XXXX XXXX", prefix = "+880", keyboardType = KeyboardType.Phone)
 
-            Eyebrow("OtpCells")
+            Eyebrow("OtpCells + NumericKeypad")
             var demoCode by remember { mutableStateOf("") }
-            OtpCells(value = demoCode, onValueChange = { if (it.length <= 6 && it.all(Char::isDigit)) demoCode = it })
+            OtpCells(value = demoCode)
+            Spacer(Modifier.height(12.dp))
+            app.hisaab.design.components.NumericKeypad(
+                onDigit = { if (demoCode.length < 6) demoCode += it },
+                onBackspace = { demoCode = demoCode.dropLast(1) },
+            )
 
             Eyebrow("RecoveryWordGrid")
             RecoveryWordGrid(words = listOf("abandon","ability","able","about","above","absent","absorb","abstract","absurd","abuse","access","accident"), modifier = Modifier.height(220.dp))

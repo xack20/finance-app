@@ -1,7 +1,10 @@
 package app.hisaab.screens.entry
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -11,11 +14,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -24,7 +30,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -36,6 +41,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
@@ -43,6 +49,7 @@ import app.hisaab.design.HisaabColors
 import app.hisaab.design.HisaabShapes
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.PrimaryButton
 import app.hisaab.design.components.midnightOutlinedColors
 import app.hisaab.domain.TxnKind
@@ -80,12 +87,28 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("New entry", color = palette.onBackground) },
-                navigationIcon = {
-                    TextButton(onClick = onDone) { Text("Cancel", color = palette.muted) }
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        "New entry",
+                        color = palette.onBackground,
+                        style = MaterialTheme.typography.displayLarge.copy(fontSize = 17.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+                    )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = palette.background),
+                navigationIcon = {
+                    // Round glass × close button (replaces the "Cancel" text button).
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(palette.glass)
+                            .border(1.dp, palette.hair, CircleShape)
+                            .clickable(onClick = onDone),
+                        contentAlignment = Alignment.Center,
+                    ) { HisaabIcon("close", tint = palette.onBackground, size = 19.dp) }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = palette.background),
             )
         },
         containerColor = palette.background,
@@ -230,7 +253,7 @@ private fun FieldRow(label: String, value: String, onClick: () -> Unit, palette:
         Text(label, color = palette.muted, modifier = Modifier.weight(1f))
         Text(value, color = palette.onBackground)
         Spacer(Modifier.width(6.dp))
-        Text("›", color = palette.muted)
+        HisaabIcon("chevron-right", tint = palette.faint, size = 18.dp)
     }
     HorizontalDivider(color = palette.rule)
 }
@@ -297,7 +320,7 @@ private fun AttachmentRow(
             color = if (hasAttachment) palette.accent else palette.onBackground,
         )
         Spacer(Modifier.width(6.dp))
-        Text("›", color = palette.muted)
+        HisaabIcon("chevron-right", tint = palette.faint, size = 18.dp)
     }
     HorizontalDivider(color = palette.rule)
 }

@@ -60,7 +60,9 @@ fun HisaabTheme(
     val typography = Typography(
         displayLarge   = HisaabTypography.heroAmount.copy(fontFamily = fams.display),
         headlineMedium = HisaabTypography.title.copy(fontFamily = fams.display),
+        titleMedium    = HisaabTypography.titleMedium.copy(fontFamily = fams.ui),
         labelLarge     = HisaabTypography.eyebrow.copy(fontFamily = fams.ui),
+        bodyLarge      = HisaabTypography.bodyLarge.copy(fontFamily = fams.ui),
         bodyMedium     = HisaabTypography.body.copy(fontFamily = fams.ui),
         labelSmall     = HisaabTypography.label.copy(fontFamily = fams.ui),
         bodySmall      = HisaabTypography.tabular.copy(fontFamily = fams.mono),

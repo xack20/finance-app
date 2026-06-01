@@ -18,9 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.Eyebrow
+import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.PrimaryButton
 import app.hisaab.platform.BiometricResult
 import kotlinx.coroutines.launch
@@ -32,6 +34,7 @@ fun LockScreen(onUnlock: () -> Unit) {
     val scope = rememberCoroutineScope()
     var error by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    var noEnroll by remember { mutableStateOf(false) }
 
     // Loads the persisted master_secret, opens the SQLCipher DB, and proceeds. Shared by the
     // biometric-success path and the no-biometric path.
@@ -73,7 +76,9 @@ fun LockScreen(onUnlock: () -> Unit) {
                 }
                 BiometricResult.NotAvailable -> {
                     isLoading = false
-                    error = "Biometric not available on this device."
+                    // Design's neg "No fingerprints enrolled" variant.
+                    noEnroll = true
+                    error = null
                 }
                 is BiometricResult.Error -> {
                     isLoading = false
@@ -96,7 +101,7 @@ fun LockScreen(onUnlock: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            // Lock tile — surface square with hairline border and lime lock glyph.
+            // Lock tile — surface square with hairline border and lime lock stroke icon.
             Box(
                 modifier = Modifier
                     .size(84.dp)
@@ -105,23 +110,26 @@ fun LockScreen(onUnlock: () -> Unit) {
                     .border(1.dp, palette.hair, tileShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "🔒",
-                    fontSize = 36.sp,
-                    color = palette.accent,
-                )
+                HisaabIcon("lock", tint = palette.accent, size = 36.dp)
             }
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Eyebrow("Locked")
+                // Lime হিসাব wordmark above the headline.
+                Text(
+                    text = "হিসাব",
+                    color = palette.accent,
+                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 30.sp, fontWeight = FontWeight.Bold),
+                )
                 Text(
                     text = "Hisaab is locked",
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 24.sp, fontWeight = FontWeight.SemiBold),
                     color = palette.onBackground,
                 )
+                // Only the neg variant shows an eyebrow (no fingerprints enrolled).
+                if (noEnroll) Eyebrow("No fingerprints enrolled", color = palette.negative)
             }
 
             error?.let { msg ->
@@ -134,7 +142,7 @@ fun LockScreen(onUnlock: () -> Unit) {
 
             PrimaryButton(
                 text = "Unlock with biometric",
-                leadingGlyph = "☝",
+                leadingIcon = "finger",
                 onClick = { attemptUnlock() },
                 enabled = !isLoading,
                 loading = isLoading,

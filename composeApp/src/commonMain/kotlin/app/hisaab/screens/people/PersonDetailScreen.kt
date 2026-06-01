@@ -19,11 +19,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -33,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
@@ -41,11 +39,14 @@ import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.Eyebrow
 import app.hisaab.design.components.GradientAvatar
 import app.hisaab.design.components.HRadio
+import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.MidnightSheet
 import app.hisaab.design.components.MoneyText
+import app.hisaab.design.components.NeoTopBar
 import app.hisaab.design.components.PrimaryButton
 import app.hisaab.design.components.SurfaceCard
 import app.hisaab.design.components.midnightOutlinedColors
+import kotlin.math.abs
 import app.hisaab.domain.Account
 import app.hisaab.domain.LendBorrowDirection
 import app.hisaab.domain.LendBorrowRow
@@ -68,28 +69,17 @@ fun PersonDetailScreen(personId: String, onBack: () -> Unit) {
     val accounts by viewModel.activeAccounts.collectAsState()
     var settleRecord by remember { mutableStateOf<LendBorrowRow?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(detail?.person?.name ?: "Person", color = palette.onBackground) },
-                navigationIcon = {
-                    TextButton(onClick = onBack) { Text("Back", color = palette.muted) }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = palette.background),
-            )
-        },
-        containerColor = palette.background,
-    ) { padding ->
+    Column(modifier = Modifier.fillMaxSize().background(palette.background)) {
+        NeoTopBar(title = detail?.person?.name ?: "Person", onBack = onBack)
         val d = detail
         if (d == null) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = palette.accent)
             }
         } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
                     .padding(horizontal = 20.dp),
             ) {
                 // Balance card
@@ -109,11 +99,12 @@ fun PersonDetailScreen(personId: String, onBack: () -> Unit) {
                                     else -> "Settled"
                                 }
                                 Eyebrow(text = balanceLabel)
+                                // Hero shows the magnitude only (sign conveyed by the label), mono 40.
                                 MoneyText(
-                                    amount = d.balance,
-                                    signed = true,
+                                    amount = abs(d.balance),
+                                    signed = false,
                                     decimals = 0,
-                                    style = MaterialTheme.typography.displayLarge,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 40.sp, fontWeight = FontWeight.SemiBold),
                                 )
                             }
                         }
@@ -179,10 +170,10 @@ private fun LendBorrowRowItem(
                     .background(if (isLent) palette.positiveSoft else palette.negativeSoft),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = if (isLent) "↑" else "↓",
-                    color = if (isLent) palette.positive else palette.negative,
-                    fontSize = 18.sp,
+                HisaabIcon(
+                    name = if (isLent) "lend" else "borrow",
+                    tint = if (isLent) palette.positive else palette.negative,
+                    size = 20.dp,
                 )
             }
             Spacer(Modifier.width(12.dp))

@@ -18,12 +18,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.GlassButton
+import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.PrimaryButton
 import app.hisaab.design.components.SectionHeader
 
@@ -51,19 +52,16 @@ fun BiometricSetupScreen(
                 .wrapContentHeight(Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // 96dp accentSoft tile with a lime fingerprint glyph
+            // 96dp accentSoft tile with the lime fingerprint stroke icon + soft lime glow.
             Box(
                 modifier = Modifier
                     .size(96.dp)
+                    .shadow(14.dp, RoundedCornerShape(28.dp), clip = false, ambientColor = palette.accent, spotColor = palette.accent)
                     .clip(RoundedCornerShape(28.dp))
                     .background(palette.accentSoft),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "☝",
-                    fontSize = 48.sp,
-                    color = palette.accent,
-                )
+                HisaabIcon("finger", tint = palette.accent, size = 48.dp, strokeWidth = 1.7f)
             }
 
             Spacer(Modifier.height(HisaabSpacing.xl))
@@ -71,6 +69,7 @@ fun BiometricSetupScreen(
             SectionHeader(
                 title = "Unlock with your\nface or finger",
                 eyebrow = "Secure",
+                eyebrowColor = palette.accent,
             )
 
             Spacer(Modifier.height(HisaabSpacing.md))

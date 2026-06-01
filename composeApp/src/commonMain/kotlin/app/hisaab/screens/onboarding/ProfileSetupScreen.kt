@@ -22,11 +22,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabShapes
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.Eyebrow
 import app.hisaab.design.components.MidnightTextField
 import app.hisaab.design.components.PrimaryButton
 import app.hisaab.design.components.SectionHeader
@@ -49,7 +53,7 @@ fun ProfileSetupScreen(
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            SectionHeader(title = "What should we call you?", eyebrow = "Almost done")
+            SectionHeader(title = "What should we call you?", eyebrow = "Almost done", eyebrowColor = palette.accent)
             Spacer(Modifier.height(HisaabSpacing.xl))
             MidnightTextField(
                 value = name,
@@ -60,6 +64,8 @@ fun ProfileSetupScreen(
                 big = true,
             )
             Spacer(Modifier.height(HisaabSpacing.lg))
+            Eyebrow("Language")
+            Spacer(Modifier.height(10.dp))
             // Inline 2-up segmented locale control (screen-local, not a new primitive).
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -70,9 +76,10 @@ fun ProfileSetupScreen(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(50.dp)
+                            .height(54.dp)
                             .clip(HisaabShapes.pill)
-                            .background(if (selected) palette.accent else palette.glass)
+                            // Selected = lime fill; unselected = transparent with a hairline border.
+                            .background(if (selected) palette.accent else Color.Transparent)
                             .then(
                                 if (!selected) Modifier.border(1.dp, palette.hair, HisaabShapes.pill)
                                 else Modifier
@@ -83,6 +90,8 @@ fun ProfileSetupScreen(
                         Text(
                             text = label,
                             color = if (selected) palette.onAccent else palette.onBackground,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
                         )
                     }
                 }

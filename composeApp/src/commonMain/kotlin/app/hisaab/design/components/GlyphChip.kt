@@ -37,3 +37,24 @@ fun GlyphChip(
         Icon(imageVector = icon, contentDescription = null, tint = hue)
     }
 }
+
+/**
+ * Category glyph chip driven by a [HisaabIcons] name (e.g. "food", "cart"): the stroke icon in the
+ * [hue] over a 16%-alpha fill of the same hue (radius 14). Unknown/absent names fall back to "receipt".
+ */
+@Composable
+fun GlyphChip(
+    iconName: String?,
+    hue: Color,
+    modifier: Modifier = Modifier,
+    size: Int = 40,
+) {
+    Box(
+        modifier = modifier
+            .size(size.dp)
+            .background(hue.copy(alpha = 0.16f), RoundedCornerShape(14.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        HisaabIcon(name = iconName ?: "receipt", tint = hue, size = (size * 0.5f).dp)
+    }
+}

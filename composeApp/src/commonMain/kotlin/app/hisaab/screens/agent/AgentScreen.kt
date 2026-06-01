@@ -2,6 +2,7 @@ package app.hisaab.screens.agent
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -44,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import app.hisaab.agent.AgentAvailability
 import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.SurfaceCard
 import app.hisaab.domain.AgentRole
 import kotlinx.serialization.json.JsonObject
@@ -103,25 +106,30 @@ fun AgentScreenContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(palette.background)
-                .padding(horizontal = 8.dp, vertical = 10.dp),
+                .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            TextButton(onClick = onClose) {
-                Text("Close", color = palette.muted, fontSize = 15.sp)
-            }
+            // Circular glass back button (chevron-left) — replaces the "Close" text button.
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(palette.glass)
+                    .border(1.dp, palette.hair, CircleShape)
+                    .clickable(onClick = onClose)
+                    .testTag("agent_back"),
+                contentAlignment = Alignment.Center,
+            ) { HisaabIcon("chevron-left", tint = palette.onBackground, size = 19.dp) }
 
-            Spacer(Modifier.width(4.dp))
-
-            SparkleOrb(size = 36)
-
-            Spacer(Modifier.width(10.dp))
+            SparkleOrb(size = 38, glow = true)
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Assistant",
                     color = palette.onBackground,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
+                    fontSize = 17.sp,
                 )
                 Text(
                     text = "On-device · private",
@@ -200,7 +208,7 @@ fun AgentScreenContent(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item { Spacer(Modifier.height(8.dp)) }
@@ -221,24 +229,14 @@ fun AgentScreenContent(
                             text = "Ask about your money",
                             color = palette.onBackground,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 18.sp,
+                            fontSize = 23.sp,
                         )
                         Text(
-                            text = "Your data stays on device — nothing is shared.",
+                            text = "Try “I lent Karim 2000” or “How much on food this month?” — or tap the mic to speak.",
                             color = palette.muted,
-                            fontSize = 13.sp,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        SuggestionChips(
-                            suggestions = listOf(
-                                "Set a food budget",
-                                "I paid 500 for lunch",
-                                "Move 1000 to cash",
-                            ),
-                            onPick = { text ->
-                                onInput(text)
-                                onSend()
-                            },
+                            fontSize = 15.sp,
+                            modifier = Modifier.widthIn(max = 260.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                     }
                 }
@@ -282,6 +280,7 @@ fun AgentScreenContent(
                             text = msg.content,
                             color = if (isUser) palette.onAccent else palette.onBackground,
                             fontSize = 15.5.sp,
+                            fontWeight = if (isUser) FontWeight.SemiBold else FontWeight.Normal,
                         )
                     }
                 }
@@ -351,27 +350,47 @@ fun AgentScreenContent(
             }
         }
 
-        // ── Input bar — pinned at bottom ────────────────────────────────────────
+        // ── Persistent suggestion row — above the input, when the gate allows input ──
         val inputDisabled = state.gate is AgentAvailability.Unavailable
+        if (!inputDisabled) {
+            SuggestionChips(
+                suggestions = listOf(
+                    "Set a food budget",
+                    "I paid 500 for lunch",
+                    "Move 1000 to cash",
+                ),
+                onPick = { text ->
+                    onInput(text)
+                    onSend()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 10.dp),
+            )
+        }
+
+        // ── Input bar — transparent row pinned at bottom (no glass fill / top border) ──
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(palette.glass)
-                .border(width = 1.dp, color = palette.hair)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             OutlinedTextField(
                 value = state.input,
                 onValueChange = onInput,
                 placeholder = {
-                    Text("Ask something…", color = palette.muted)
+                    Text(if (state.listening) "Listening…" else "Ask anything…", color = palette.muted)
                 },
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 50.dp)
                     .testTag("agent_input"),
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = palette.surface,
+                    unfocusedContainerColor = palette.surface,
+                    disabledContainerColor = palette.surface,
                     focusedBorderColor = palette.accent,
                     unfocusedBorderColor = if (state.listening) palette.accent else palette.hair,
                     focusedTextColor = palette.onBackground,
@@ -384,35 +403,37 @@ fun AgentScreenContent(
                 enabled = !inputDisabled,
             )
 
-            Spacer(Modifier.width(8.dp))
-
-            // Send button — enabled when input is non-blank and not inFlight.
+            // Send button — lime only when there is trimmed input; arrow-up stroke icon.
             val canSend = state.input.isNotBlank() && !state.inFlight && !inputDisabled
+            val sendActive = state.input.isNotBlank() && !inputDisabled
             IconButton(
                 onClick = onSend,
                 enabled = canSend,
                 modifier = Modifier
                     .size(50.dp)
                     .clip(CircleShape)
-                    .background(if (state.input.isNotBlank()) palette.accent else palette.surfaceRaised)
+                    .background(if (sendActive) palette.accent else palette.surfaceRaised)
                     .testTag("agent_send"),
             ) {
-                Text(
-                    text = "↑",
-                    color = if (state.input.isNotBlank()) palette.onAccent else palette.faint,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
+                HisaabIcon(
+                    "arrow-up",
+                    tint = if (sendActive) palette.onAccent else palette.faint,
+                    size = 22.dp,
+                    strokeWidth = 2.0f,
                 )
             }
 
-            Spacer(Modifier.width(6.dp))
-
-            // Mic button — push-to-talk on-device STT; tinted while listening.
+            // Mic button — push-to-talk on-device STT; lime fill + lime glow while listening.
             IconButton(
                 onClick = onMicTap,
                 enabled = state.voiceAvailable && !inputDisabled,
                 modifier = Modifier
                     .size(50.dp)
+                    .then(
+                        if (state.listening) {
+                            Modifier.shadow(14.dp, CircleShape, clip = false, ambientColor = palette.accent, spotColor = palette.accent)
+                        } else Modifier,
+                    )
                     .clip(CircleShape)
                     .background(if (state.listening) palette.accent else palette.surface)
                     .testTag("agent_mic")
@@ -424,10 +445,10 @@ fun AgentScreenContent(
                         }
                     },
             ) {
-                Text(
-                    text = "🎙",
-                    fontSize = 20.sp,
-                    color = if (state.listening) palette.onAccent else palette.onBackground,
+                HisaabIcon(
+                    "mic",
+                    tint = if (state.listening) palette.onAccent else palette.muted,
+                    size = 20.dp,
                 )
             }
         }

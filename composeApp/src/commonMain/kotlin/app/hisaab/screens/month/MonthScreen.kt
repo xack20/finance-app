@@ -81,10 +81,12 @@ fun MonthScreen() {
         SurfaceCard(modifier = Modifier.fillMaxWidth()) {
             Eyebrow("Net this month")
             Spacer(Modifier.height(8.dp))
+            // Net renders plain white and unsigned (no +/−, no red/green), per neo.jsx Money default.
             MoneyText(
                 amount = totals.net,
-                signed = true,
-                style = MaterialTheme.typography.displayLarge,
+                signed = false,
+                tone = MoneyTone.Plain,
+                style = MaterialTheme.typography.displayLarge.copy(color = palette.onBackground),
             )
             Spacer(Modifier.height(12.dp))
             // Delta pill vs last month

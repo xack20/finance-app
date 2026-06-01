@@ -18,6 +18,7 @@ import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.Eyebrow
 import app.hisaab.design.components.HToggle
+import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.MidnightDialog
 import app.hisaab.design.components.MidnightSheet
 import app.hisaab.design.components.SectionHeader
@@ -60,6 +61,7 @@ fun SettingsScreen(
                 value = formatLockTimeout(lockMs),
                 palette = palette,
                 onClick = { showLockSheet = true },
+                chevron = true,
             )
             // Biometric row: HToggle replaces Switch
             Row(
@@ -92,9 +94,9 @@ fun SettingsScreen(
         // — Data group —
         Eyebrow("Data", Modifier.padding(bottom = 8.dp))
         SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-            SettingRow(label = "Accounts",   value = "›", palette = palette, onClick = onAccounts)
-            SettingRow(label = "Categories", value = "›", palette = palette, onClick = onCategories)
-            SettingRow(label = "Budgets",    value = "›", palette = palette, onClick = onBudgets)
+            SettingRow(label = "Accounts",   value = "", palette = palette, onClick = onAccounts, chevron = true)
+            SettingRow(label = "Categories", value = "", palette = palette, onClick = onCategories, chevron = true)
+            SettingRow(label = "Budgets",    value = "", palette = palette, onClick = onBudgets, chevron = true)
         }
 
         Spacer(Modifier.height(24.dp))
@@ -102,7 +104,14 @@ fun SettingsScreen(
         // — Capture group —
         Eyebrow("Capture", Modifier.padding(bottom = 8.dp))
         SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-            SettingRow(label = "Auto-capture", value = "›", palette = palette, onClick = onAutoCapture)
+            SettingRow(
+                label = "Auto-capture",
+                value = "",
+                palette = palette,
+                onClick = onAutoCapture,
+                sub = "On-device · private",
+                chevron = true,
+            )
         }
 
         Spacer(Modifier.height(24.dp))
@@ -143,7 +152,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(label, color = palette.onBackground, modifier = Modifier.weight(1f))
-                    if (ms == lockMs) Text("✓", color = palette.accent)
+                    if (ms == lockMs) HisaabIcon("check", tint = palette.accent, size = 20.dp, strokeWidth = 2.4f)
                 }
                 HorizontalDivider(color = palette.hair)
             }
@@ -154,7 +163,7 @@ fun SettingsScreen(
         MidnightDialog(
             onDismiss = { showSignOutDialog = false },
             title = "Sign out of Hisaab?",
-            body = "This will clear your encrypted data on this device. Make sure your 24-word recovery phrase is saved.",
+            body = "This clears your encrypted data on this device. You'll need your recovery phrase to restore.",
             confirmLabel = "Sign out",
             onConfirm = { viewModel.signOut(onSignedOut) },
             destructive = true,

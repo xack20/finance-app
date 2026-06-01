@@ -29,6 +29,7 @@ fun PrimaryButton(
     enabled: Boolean = true,
     loading: Boolean = false,
     leadingGlyph: String? = null,
+    leadingIcon: String? = null,
     trailingGlyph: String? = null,
     fillMaxWidth: Boolean = true,
 ) {
@@ -51,6 +52,7 @@ fun PrimaryButton(
         if (loading) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), color = p.onAccent, strokeWidth = 2.dp)
         } else {
+            if (leadingIcon != null) { HisaabIcon(leadingIcon, tint = p.onAccent, size = 19.dp); Spacer(Modifier.width(8.dp)) }
             if (leadingGlyph != null) { Text(leadingGlyph); Spacer(Modifier.width(8.dp)) }
             Text(text)
             if (trailingGlyph != null) { Spacer(Modifier.width(8.dp)); Text(trailingGlyph) }

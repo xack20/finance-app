@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,10 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
@@ -36,6 +34,7 @@ import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.Eyebrow
 import app.hisaab.design.components.GlyphChip
+import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.MoneyText
 import app.hisaab.design.components.MoneyTone
 import app.hisaab.design.components.SectionHeader
@@ -44,22 +43,6 @@ import app.hisaab.design.components.categoryHue
 import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.TxnKind
 import app.hisaab.screens.onboarding.CaptureOptInCard
-
-/** Neutral filled-rectangle glyph for transaction rows (category hue supplies the color signal). */
-private val TodayGlyph: ImageVector = ImageVector.Builder(
-    defaultWidth = 24.dp,
-    defaultHeight = 24.dp,
-    viewportWidth = 24f,
-    viewportHeight = 24f,
-).apply {
-    path(fill = SolidColor(Color.White)) {
-        moveTo(7f, 5f)
-        lineTo(17f, 5f)
-        lineTo(17f, 19f)
-        lineTo(7f, 19f)
-        close()
-    }
-}.build()
 
 @Composable
 fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCapture: () -> Unit) {
@@ -159,14 +142,14 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Eyebrow("In")
+                    Text("In", color = palette.positive, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
                     Spacer(Modifier.width(6.dp))
                     MoneyText(amount = net.income, tone = MoneyTone.Plain)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     MoneyText(amount = net.expense, tone = MoneyTone.Plain)
                     Spacer(Modifier.width(6.dp))
-                    Eyebrow("Out")
+                    Text("Out", color = palette.negative, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
                 }
             }
         }
@@ -184,12 +167,23 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Column {
+                    // Solid-lime sparkle tile.
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(palette.accent),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        HisaabIcon("sparkle", tint = palette.onAccent, size = 20.dp)
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "$pendingCount to review",
+                            if (pendingCount == 1L) "1 transaction to review" else "$pendingCount transactions to review",
                             style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
                             color = palette.onBackground,
                         )
                         Text(
@@ -198,7 +192,7 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
                             color = palette.muted,
                         )
                     }
-                    Text("›", fontSize = 22.sp, color = palette.accent)
+                    HisaabIcon("chevron-right", tint = palette.accent, size = 20.dp)
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -260,7 +254,7 @@ private fun TxnRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         GlyphChip(
-            icon = TodayGlyph,
+            iconName = display.categoryIcon,
             hue = categoryHue(display.categoryColor),
             size = 40,
         )
@@ -272,18 +266,10 @@ private fun TxnRow(
                     color = palette.onBackground,
                     style = MaterialTheme.typography.bodyLarge,
                 )
-                // Auto-capture indicator ("auto" pill, preserved from original)
+                // Auto-capture indicator — lime sparkle next to the merchant name.
                 if (display.row.captureId != null) {
                     Spacer(Modifier.width(6.dp))
-                    Text(
-                        "auto",
-                        fontSize = 10.sp,
-                        color = palette.background,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(palette.accentDim)
-                            .padding(horizontal = 5.dp, vertical = 1.dp),
-                    )
+                    HisaabIcon("sparkle", tint = palette.accent, size = 13.dp)
                 }
             }
             Text(

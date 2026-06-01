@@ -13,10 +13,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.hisaab.agent.ProposedWrite
 import app.hisaab.design.LocalHisaabPalette
-import app.hisaab.design.components.Eyebrow
 import app.hisaab.design.components.HCheck
 import app.hisaab.design.components.MoneyText
 import app.hisaab.design.components.PrimaryButton
@@ -46,7 +47,13 @@ fun ReviewCard(
     val palette = LocalHisaabPalette.current
 
     SurfaceCard(modifier = modifier.fillMaxWidth()) {
-        Eyebrow(text = "Review & apply")
+        // Plain 16/700 heading (not an eyebrow), per neo-detail.jsx:81.
+        Text(
+            "Review & apply",
+            color = palette.onBackground,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
+        )
 
         Spacer(Modifier.height(10.dp))
 
@@ -59,9 +66,9 @@ fun ReviewCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .alpha(if (isIncluded) 1f else 0.4f)
                     .padding(vertical = 4.dp),
             ) {
+                // Checkbox + label stay fully legible; only the amount line dims by include state.
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -79,17 +86,19 @@ fun ReviewCard(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
                     )
-                    if (hasAmount) {
-                        MoneyText(
-                            amount = amountDouble,
-                            signed = false,
-                            decimals = 0,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
                 }
 
                 if (hasAmount) {
+                    // Big display-mono amount, indented under the label, dimmed when excluded.
+                    MoneyText(
+                        amount = amountDouble,
+                        signed = false,
+                        decimals = 0,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 34.sp, fontWeight = FontWeight.SemiBold),
+                        modifier = Modifier
+                            .padding(start = 38.dp, top = 2.dp)
+                            .alpha(if (isIncluded) 1f else 0.4f),
+                    )
                     AmountField(
                         value = amountStr,
                         onChange = { newAmt -> onEdit(index, write.withAmount(newAmt)) },
