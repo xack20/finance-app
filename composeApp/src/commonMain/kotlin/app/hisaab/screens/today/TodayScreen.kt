@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -226,9 +227,16 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
         if (accountCards.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
             LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = (-20).dp), // bleed to the screen edges
+                // Full-bleed to the screen edges: cancel the parent's 20.dp gutter on both sides via a
+                // layout widener (Modifier.padding cannot be negative — it throws). contentPadding keeps
+                // the first/last card aligned to the 20.dp gutter.
+                modifier = Modifier.layout { measurable, constraints ->
+                    val extra = 40.dp.roundToPx()
+                    val placeable = measurable.measure(
+                        constraints.copy(maxWidth = constraints.maxWidth + extra),
+                    )
+                    layout(placeable.width, placeable.height) { placeable.place(-20.dp.roundToPx(), 0) }
+                },
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(horizontal = 20.dp),
             ) {

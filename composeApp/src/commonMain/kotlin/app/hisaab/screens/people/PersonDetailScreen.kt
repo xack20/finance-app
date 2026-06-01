@@ -42,6 +42,7 @@ import app.hisaab.design.components.HRadio
 import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.MidnightSheet
 import app.hisaab.design.components.MoneyText
+import app.hisaab.design.components.MoneyTone
 import app.hisaab.design.components.NeoTopBar
 import app.hisaab.design.components.PrimaryButton
 import app.hisaab.design.components.SurfaceCard
@@ -99,12 +100,19 @@ fun PersonDetailScreen(personId: String, onBack: () -> Unit) {
                                     else -> "Settled"
                                 }
                                 Eyebrow(text = balanceLabel)
-                                // Hero shows the magnitude only (sign conveyed by the label), mono 40.
+                                // Magnitude only, always plain text color (the label conveys direction) —
+                                // matches the design's Money, which is always --text. tone=Plain avoids
+                                // Auto coloring abs() as a positive (which rendered debts green).
                                 MoneyText(
                                     amount = abs(d.balance),
                                     signed = false,
                                     decimals = 0,
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 40.sp, fontWeight = FontWeight.SemiBold),
+                                    tone = MoneyTone.Plain,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontSize = 40.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = palette.onBackground,
+                                    ),
                                 )
                             }
                         }

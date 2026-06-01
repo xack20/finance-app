@@ -4,11 +4,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,23 +21,27 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabColors
 import app.hisaab.domain.BudgetProgress
 import app.hisaab.util.toTaka
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BudgetProgressList(budgets: List<BudgetProgress>, palette: HisaabColors.Palette) {
     if (budgets.isEmpty()) {
         Text("Set a budget in Settings → Budgets.", color = palette.muted, fontSize = 13.sp)
         return
     }
-    // Single evenly-distributed row (CSS justify-content: space-around) — neo.jsx:335.
-    Row(
+    // Evenly-distributed rings (CSS space-around) that WRAP to a new line instead of clipping when
+    // there are many budgets (neo.jsx:335).
+    FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceAround,
-        verticalAlignment = Alignment.Top,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         budgets.forEach { BudgetRing(it, palette) }
     }
@@ -50,7 +56,7 @@ private fun BudgetRing(progress: BudgetProgress, palette: HisaabColors.Palette) 
         else -> palette.accent
     }
     val track = palette.backgroundInset
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier = Modifier.width(88.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.size(64.dp)) {
                 val stroke = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
@@ -81,12 +87,20 @@ private fun BudgetRing(progress: BudgetProgress, palette: HisaabColors.Palette) 
             color = palette.onBackground,
             fontSize = 12.5.sp,
             fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
         // value: mono, 11, muted (neo.jsx:302)
         Text(
             "${progress.spent.toTaka()}/${progress.budget.monthlyCapAmount.toTaka()}",
             color = palette.muted,
             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Normal),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
