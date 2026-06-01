@@ -59,6 +59,8 @@ xcuserdata/
 iosApp/iosApp.xcodeproj/
 iosApp/*.xcworkspace/
 iosApp/Pods/
+# iOS secrets (Supabase keys injected into Info.plist via xcconfig) — never commit; copy from Secrets.xcconfig.example
+iosApp/Secrets.xcconfig
 iosApp/Podfile.lock
 
 

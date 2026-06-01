@@ -4,6 +4,13 @@ options:
   deploymentTarget:
     iOS: "15.0"
   createIntermediateGroups: true
+# Register Secrets.xcconfig in the project tree so it has a parent group. Without this, attaching it
+# via `configFiles` leaves the file reference unparented and CocoaPods' `pod install` aborts with
+# "[Xcodeproj] Consistency issue: no parent for object `Secrets.xcconfig`".
+fileGroups:
+  - Config-Debug.xcconfig
+  - Config-Release.xcconfig
+  - Secrets.xcconfig
 targets:
   iosApp:
     type: application
@@ -25,20 +32,37 @@ targets:
         NSFaceIDUsageDescription: "Unlock Hisaab with Face ID."
         NSMicrophoneUsageDescription: "Hisaab uses the microphone for voice entry to the assistant."
         NSSpeechRecognitionUsageDescription: "Hisaab transcribes your voice on-device to fill in the assistant."
+        # Supabase config — substituted from the gitignored Secrets.xcconfig (build settings below).
+        SUPABASE_URL: "$(SUPABASE_URL)"
+        SUPABASE_ANON_KEY: "$(SUPABASE_ANON_KEY)"
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+    configFiles:
+      Debug: Config-Debug.xcconfig
+      Release: Config-Release.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.hisaab
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1"
-        # Simulator builds: no signing needed.
-        CODE_SIGNING_ALLOWED: "NO"
-        CODE_SIGNING_REQUIRED: "NO"
+        # ── Code signing ──
+        # Free "Personal Team": the FIRST time, pick your team in Xcode ▸ (target) ▸ Signing &
+        # Capabilities — Xcode then creates the cert + provisioning profile (a free Apple ID works; the
+        # installed app expires after 7 days). To make the team survive future `xcodegen generate` runs,
+        # grab your 10-char Team ID after that first signing with:
+        #   security find-identity -v -p codesigning      # -> "Apple Development: ... (XXXXXXXXXX)"
+        # then uncomment the line below and paste it in. Simulator builds ignore signing.
+        # DEVELOPMENT_TEAM: "PASTE_TEAM_ID_HERE"
+        CODE_SIGN_STYLE: Automatic
         # The gradle build-phase reads files outside the Xcode sandbox.
         ENABLE_USER_SCRIPT_SANDBOXING: "NO"
-        # Locate the Kotlin/Native static framework built by gradle.
+        # Locate the Kotlin/Native static framework built by gradle — per SDK (device vs simulator).
         FRAMEWORK_SEARCH_PATHS:
+          - "$(inherited)"
+        "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]":
+          - "$(inherited)"
+          - "$(SRCROOT)/../composeApp/build/bin/iosArm64/debugFramework"
+        "FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]":
           - "$(inherited)"
           - "$(SRCROOT)/../composeApp/build/bin/iosSimulatorArm64/debugFramework"
         OTHER_LDFLAGS:
@@ -50,8 +74,13 @@ targets:
       - name: "Build Kotlin/Native framework"
         basedOnDependencyAnalysis: false
         script: |
+          export JAVA_HOME="${JAVA_HOME:-$HOME/.sdkman/candidates/java/21.0.10-amzn}"
           cd "$SRCROOT/.."
-          ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64
+          if [[ "$SDK_NAME" == iphoneos* ]]; then
+            ./gradlew :composeApp:linkDebugFrameworkIosArm64
+          else
+            ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64
+          fi
 # Explicit SHARED scheme so `xcodebuild -workspace` (CocoaPods) can resolve build destinations.
 schemes:
   iosApp:

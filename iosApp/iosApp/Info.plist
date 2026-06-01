@@ -28,6 +28,10 @@
 	<string>Hisaab uses the microphone for voice entry to the assistant.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Hisaab transcribes your voice on-device to fill in the assistant.</string>
+	<key>SUPABASE_ANON_KEY</key>
+	<string>$(SUPABASE_ANON_KEY)</string>
+	<key>SUPABASE_URL</key>
+	<string>$(SUPABASE_URL)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
