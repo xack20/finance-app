@@ -6,3 +6,9 @@
 // fresh clone without secrets.
 #include? "Pods/Target Support Files/Pods-iosApp/Pods-iosApp.release.xcconfig"
 #include? "Secrets.xcconfig"
+
+// SECURITY: the build-config Gemini key is a DEBUG/dev convenience only. Blank it for Release so a
+// distributable build never embeds a billable third-party API key in Info.plist — and so the
+// consent bypass + apiKey fallback that depend on it stay OFF in Release. On a release build users
+// bring their own key in-app (-> Keychain) and go through the explicit cloud-consent flow.
+GEMINI_API_KEY =

@@ -112,8 +112,13 @@ actual class AppContainer {
 
     actual val speechToText: SpeechToText = IosSpeechToText()
 
-    /** A Gemini key injected via build config (Secrets.xcconfig -> Info.plist) pre-enables the cloud
-     *  assistant with no in-app setup; null if not provided. */
+    /**
+     * Build-config Gemini key (Secrets.xcconfig -> Info.plist) — a DEBUG/dev convenience that pre-enables
+     * the cloud assistant with no in-app setup. It is intentionally BLANK in Release builds
+     * (Config-Release.xcconfig overrides it to empty), so on a release build this returns null and the
+     * dependent provider-default, apiKey fallback, and consent bypass are all inert: users must bring
+     * their own key in-app (-> Keychain) and pass the explicit cloud-consent flow.
+     */
     private fun geminiApiKeyFromConfig(): String? =
         (NSBundle.mainBundle.objectForInfoDictionaryKey("GEMINI_API_KEY") as? String)?.takeIf { it.isNotBlank() }
 
