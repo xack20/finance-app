@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.ButtonSize
 import app.hisaab.design.components.GlassButton
 import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.PrimaryButton
@@ -36,7 +37,7 @@ fun CaptureOptInCard(
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalHisaabPalette.current
-    SurfaceCard(modifier = modifier.fillMaxWidth()) {
+    SurfaceCard(modifier = modifier.fillMaxWidth(), contentPadding = 22.dp) {
         // Icon tile
         Box(
             modifier = Modifier
@@ -71,19 +72,21 @@ fun CaptureOptInCard(
         // Two-up CTA row
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             PrimaryButton(
                 text = "Turn on",
                 onClick = onTurnOn,
                 modifier = Modifier.weight(1f),
                 fillMaxWidth = false,
+                size = ButtonSize.Md,
             )
             GlassButton(
                 text = "Maybe later",
                 onClick = onMaybeLater,
                 modifier = Modifier.weight(1f),
                 fillMaxWidth = false,
+                size = ButtonSize.Md,
             )
         }
     }

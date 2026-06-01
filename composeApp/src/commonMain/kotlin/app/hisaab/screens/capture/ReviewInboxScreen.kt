@@ -39,7 +39,6 @@ import app.hisaab.LocalAppContainer
 import app.hisaab.design.HisaabColors
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.GlassButton
-import app.hisaab.design.components.GlyphChip
 import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.MoneyText
 import app.hisaab.design.components.NeoTopBar
@@ -194,9 +193,8 @@ private fun CandidateCard(
             .border(1.dp, palette.hair, RoundedCornerShape(22.dp))
             .padding(20.dp),
     ) {
-        // Hero: category glyph + signed mono amount (grouped).
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            GlyphChip(iconName = null, hue = categoryHue(null), size = 40)
+        // Hero: signed mono amount, flush-left (design has no leading glyph chip — neo-detail.jsx:42).
+        Row(verticalAlignment = Alignment.CenterVertically) {
             if (c.amount != null) {
                 MoneyText(
                     amount = signedAmount,

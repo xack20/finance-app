@@ -26,6 +26,7 @@ import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.Eyebrow
 import app.hisaab.design.components.HisaabIcon
+import kotlin.math.abs
 import app.hisaab.design.components.MoneyText
 import app.hisaab.design.components.MoneyTone
 import app.hisaab.design.components.SurfaceCard
@@ -90,24 +91,28 @@ fun MonthScreen() {
                 style = MaterialTheme.typography.displayLarge.copy(color = palette.onBackground),
             )
             Spacer(Modifier.height(12.dp))
-            // Delta pill vs last month
+            // Delta pill vs last month (neo.jsx:317): pos/neg-soft bg, semantic text + direction arrow.
             val delta = totals.net - totals.previousMonthNet
+            val deltaUp = delta >= 0.0
+            val deltaColor = if (deltaUp) palette.positive else palette.negative
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .background(palette.accentSoft, HisaabShapes.pill)
+                    .background(if (deltaUp) palette.positiveSoft else palette.negativeSoft, HisaabShapes.pill)
                     .padding(horizontal = 10.dp, vertical = 5.dp),
             ) {
+                HisaabIcon(if (deltaUp) "arrow-up" else "arrow-down", tint = deltaColor, size = 13.dp)
                 MoneyText(
-                    amount = delta,
-                    signed = true,
-                    tone = MoneyTone.Plain,
+                    amount = abs(delta),
+                    signed = false,
+                    color = deltaColor,
+                    modifier = Modifier.padding(start = 5.dp),
                     style = MaterialTheme.typography.labelLarge,
                 )
                 Text(
                     " vs last month",
                     style = MaterialTheme.typography.labelLarge,
-                    color = palette.muted,
+                    color = deltaColor,
                 )
             }
             // Per-day bars live INSIDE the Net card, under the delta pill (neo.jsx:318-322).

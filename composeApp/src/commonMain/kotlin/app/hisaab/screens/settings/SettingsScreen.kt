@@ -74,7 +74,7 @@ fun SettingsScreen(
                     onCheckedChange = { viewModel.setBiometricEnabled(it) },
                 )
             }
-            HorizontalDivider(color = palette.hair)
+            HorizontalDivider(color = palette.hair2)
             // Recovery phrase row: value "Reveal" shown in accent
             Row(
                 modifier = Modifier
@@ -86,7 +86,6 @@ fun SettingsScreen(
                 Text("Recovery phrase", color = palette.onBackground, modifier = Modifier.weight(1f))
                 Text("Reveal", color = palette.accent)
             }
-            HorizontalDivider(color = palette.hair)
         }
 
         Spacer(Modifier.height(24.dp))
@@ -96,7 +95,7 @@ fun SettingsScreen(
         SurfaceCard(modifier = Modifier.fillMaxWidth()) {
             SettingRow(label = "Accounts",   value = "", palette = palette, onClick = onAccounts, chevron = true)
             SettingRow(label = "Categories", value = "", palette = palette, onClick = onCategories, chevron = true)
-            SettingRow(label = "Budgets",    value = "", palette = palette, onClick = onBudgets, chevron = true)
+            SettingRow(label = "Budgets",    value = "", palette = palette, onClick = onBudgets, chevron = true, divider = false)
         }
 
         Spacer(Modifier.height(24.dp))
@@ -111,6 +110,7 @@ fun SettingsScreen(
                 onClick = onAutoCapture,
                 sub = "On-device · private",
                 chevron = true,
+                divider = false,
             )
         }
 
@@ -119,7 +119,7 @@ fun SettingsScreen(
         // — About group —
         Eyebrow("About", Modifier.padding(bottom = 8.dp))
         SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-            SettingRow(label = "Version", value = "0.1.0-p0c", palette = palette, onClick = null)
+            SettingRow(label = "Version", value = "0.1.0-p0c", palette = palette, onClick = null, divider = false)
         }
 
         Spacer(Modifier.height(16.dp))

@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.hisaab.design.HisaabShapes
 import app.hisaab.design.HisaabSpacing
@@ -23,6 +24,7 @@ fun SurfaceCard(
     modifier: Modifier = Modifier,
     glass: Boolean = false,
     shape: RoundedCornerShape = HisaabShapes.card,
+    contentPadding: Dp = HisaabSpacing.lg,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val p = LocalHisaabPalette.current
@@ -31,7 +33,7 @@ fun SurfaceCard(
             .clip(shape)
             .background(if (glass) p.glass else p.surface, shape)
             .border(1.dp, p.hair, shape)
-            .padding(HisaabSpacing.lg),
+            .padding(contentPadding),
         content = content,
     )
 }

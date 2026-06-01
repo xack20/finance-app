@@ -155,6 +155,7 @@ fun AgentScreenContent(
             }
             is AgentAvailability.Unavailable -> {
                 SurfaceCard(
+                    shape = HisaabShapes.field,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -163,13 +164,14 @@ fun AgentScreenContent(
                     Text(
                         text = gate.reason,
                         color = palette.onBackground,
-                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.5.sp,
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
-                        text = "Enable in Settings to continue.",
+                        text = "Enable in Settings → Auto-capture → Cloud.",
                         color = palette.muted,
-                        fontSize = 12.sp,
+                        fontSize = 13.5.sp,
                     )
                 }
             }
@@ -218,13 +220,12 @@ fun AgentScreenContent(
                 item {
                     Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 48.dp, bottom = 32.dp),
+                            .fillParentMaxSize()
+                            .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
                     ) {
                         SparkleOrb(size = 64)
-                        Spacer(Modifier.height(4.dp))
                         Text(
                             text = "Ask about your money",
                             color = palette.onBackground,

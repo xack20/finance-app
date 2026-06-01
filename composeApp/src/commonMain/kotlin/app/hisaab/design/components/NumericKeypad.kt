@@ -28,8 +28,9 @@ private const val BACKSPACE = '\b'
 /**
  * The Midnight 3×4 on-screen numeric keypad (neo-onboarding.jsx:63-65 / neo.jsx:266). Rows are
  * 1-2-3 / 4-5-6 / 7-8-9 / [extraKey|blank]-0-backspace. Keys are surface tiles with a hairline
- * border, the digit in the display face; backspace uses the chevron-left stroke icon (matching the
- * entry keypad). Used by the OTP screen so it doesn't rely on the OS keyboard.
+ * border, the digit in the display face; backspace renders the '⌫' (U+232B) glyph as text styled
+ * exactly like the digit keys (neo-onboarding.jsx:64). Used by the OTP screen so it doesn't rely on
+ * the OS keyboard.
  */
 @Composable
 fun NumericKeypad(
@@ -54,7 +55,11 @@ fun NumericKeypad(
                     when (key) {
                         EMPTY_SLOT -> Box(Modifier.weight(1f))
                         BACKSPACE -> KeypadTile(Modifier.weight(1f), keyHeight, onClick = onBackspace) {
-                            HisaabIcon("chevron-left", tint = LocalHisaabPalette.current.muted, size = 22.dp)
+                            Text(
+                                "⌫",
+                                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
+                                color = LocalHisaabPalette.current.onBackground,
+                            )
                         }
                         else -> KeypadTile(
                             Modifier.weight(1f),

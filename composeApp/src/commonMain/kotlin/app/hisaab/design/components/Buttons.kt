@@ -13,9 +13,18 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
+
+/** Button height variants matching the design's NBtn `size` prop (neo.jsx:23).
+ *  [Lg] is the default full-size CTA; [Md] is the compact 46dp variant used in dense
+ *  two-up rows like the CaptureOptIn consent card (neo-onboarding.jsx:124). */
+enum class ButtonSize(val height: Dp) {
+    Lg(54.dp),
+    Md(46.dp),
+}
 
 /** Full-width lime primary CTA (dark onAccent label), pill shape, 54dp tall.
  *  [loading] shows an onAccent spinner in place of the label and blocks taps (fill stays lime).
@@ -31,14 +40,16 @@ fun PrimaryButton(
     leadingGlyph: String? = null,
     leadingIcon: String? = null,
     trailingGlyph: String? = null,
+    trailingIcon: String? = null,
     fillMaxWidth: Boolean = true,
+    size: ButtonSize = ButtonSize.Lg,
 ) {
     val p = LocalHisaabPalette.current
     val widthMod = if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier
     Button(
         onClick = onClick,
         enabled = enabled && !loading,
-        modifier = modifier.then(widthMod).height(54.dp),
+        modifier = modifier.then(widthMod).height(size.height),
         shape = HisaabShapes.pill,
         colors = ButtonDefaults.buttonColors(
             containerColor = p.accent,
@@ -56,6 +67,7 @@ fun PrimaryButton(
             if (leadingGlyph != null) { Text(leadingGlyph); Spacer(Modifier.width(8.dp)) }
             Text(text)
             if (trailingGlyph != null) { Spacer(Modifier.width(8.dp)); Text(trailingGlyph) }
+            if (trailingIcon != null) { Spacer(Modifier.width(8.dp)); HisaabIcon(trailingIcon, tint = p.onAccent, size = 19.dp) }
         }
     }
 }
@@ -68,13 +80,14 @@ fun GlassButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     fillMaxWidth: Boolean = true,
+    size: ButtonSize = ButtonSize.Lg,
 ) {
     val p = LocalHisaabPalette.current
     val widthMod = if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.then(widthMod).height(54.dp),
+        modifier = modifier.then(widthMod).height(size.height),
         shape = HisaabShapes.pill,
         colors = ButtonDefaults.buttonColors(
             containerColor = p.glass,

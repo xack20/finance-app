@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -43,6 +45,9 @@ fun ProfileSetupScreen(
     val palette = LocalHisaabPalette.current
     var name by remember { mutableStateOf("") }
     var locale by remember { mutableStateOf("en") }
+    val nameFocus = remember { FocusRequester() }
+    // Autofocus the name field on entry (design: NField autoFocus, neo-onboarding.jsx:107).
+    LaunchedEffect(Unit) { nameFocus.requestFocus() }
 
     Column(
         modifier = Modifier
@@ -53,7 +58,7 @@ fun ProfileSetupScreen(
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            SectionHeader(title = "What should we call you?", eyebrow = "Almost done", eyebrowColor = palette.accent)
+            SectionHeader(title = "What should\nwe call you?", eyebrow = "Almost done", eyebrowColor = palette.accent)
             Spacer(Modifier.height(HisaabSpacing.xl))
             MidnightTextField(
                 value = name,
@@ -62,6 +67,7 @@ fun ProfileSetupScreen(
                 placeholder = "Name",
                 imeAction = ImeAction.Next,
                 big = true,
+                focusRequester = nameFocus,
             )
             Spacer(Modifier.height(HisaabSpacing.lg))
             Eyebrow("Language")
@@ -102,6 +108,7 @@ fun ProfileSetupScreen(
             onClick = { onComplete(name, locale) },
             enabled = name.isNotBlank() && !isLoading,
             loading = isLoading,
+            trailingIcon = "arrow-right",
         )
     }
 }

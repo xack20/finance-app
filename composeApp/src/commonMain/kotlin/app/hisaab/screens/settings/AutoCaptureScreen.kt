@@ -231,9 +231,9 @@ fun AutoCaptureScreen(
                 ToggleRow("Redact PII before cloud calls", c.redactionEnabled, palette) { viewModel.setRedaction(it) }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Redaction masks account and phone numbers. Amount and merchant still leave the device when using cloud.",
+                    "Masks account and phone numbers. Amount and merchant still leave the device when using cloud.",
                     color = palette.muted,
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                 )
             }
 
@@ -297,7 +297,7 @@ fun AutoCaptureScreen(
                                 Text(sender.displayName, color = palette.onBackground)
                                 val mappedName = sender.accountId?.let { id -> accounts.firstOrNull { it.id == id }?.name }
                                 if (mappedName != null) {
-                                    Text(mappedName, color = palette.muted, fontSize = 11.sp)
+                                    Text(mappedName, color = palette.muted, fontSize = 12.5.sp)
                                 } else {
                                     // "new sender detected" → inline "map this sender" affordance.
                                     Row {
@@ -311,7 +311,7 @@ fun AutoCaptureScreen(
                                             )
                                         }
                                         if (accounts.isEmpty()) {
-                                            Text("No account", color = palette.muted, fontSize = 11.sp)
+                                            Text("No account", color = palette.muted, fontSize = 12.5.sp)
                                         }
                                     }
                                 }

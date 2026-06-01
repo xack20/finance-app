@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,10 +25,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
-import app.hisaab.design.components.GlassButton
+import app.hisaab.design.components.Eyebrow
 import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.PrimaryButton
-import app.hisaab.design.components.SectionHeader
 
 @Composable
 fun BiometricSetupScreen(
@@ -66,16 +67,22 @@ fun BiometricSetupScreen(
 
             Spacer(Modifier.height(HisaabSpacing.xl))
 
-            SectionHeader(
-                title = "Unlock with your\nface or finger",
-                eyebrow = "Secure",
-                eyebrowColor = palette.accent,
+            Eyebrow("Secure", color = palette.accent)
+
+            Spacer(Modifier.height(HisaabSpacing.sm))
+
+            Text(
+                "Unlock with your\nface or finger",
+                style = MaterialTheme.typography.headlineMedium,
+                color = palette.onBackground,
+                textAlign = TextAlign.Center,
             )
 
             Spacer(Modifier.height(HisaabSpacing.md))
 
             Text(
                 "Your biometric unlocks Hisaab. Your data never leaves this device.",
+                modifier = Modifier.widthIn(max = 280.dp),
                 color = palette.muted,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
@@ -96,10 +103,11 @@ fun BiometricSetupScreen(
                 loading = isLoading,
             )
             Spacer(Modifier.height(HisaabSpacing.sm))
-            GlassButton(
-                text = "Skip (not recommended)",
-                onClick = onSkip,
-            )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                TextButton(onClick = onSkip) {
+                    Text("Skip (not recommended)", color = palette.muted)
+                }
+            }
         }
     }
 }

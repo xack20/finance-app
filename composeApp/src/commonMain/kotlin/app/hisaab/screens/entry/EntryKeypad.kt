@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.HisaabIcon
 import app.hisaab.domain.TxnKind
 import app.hisaab.util.toTaka
 
@@ -130,19 +132,27 @@ fun NumericKeypad(onKey: (Char) -> Unit, modifier: Modifier = Modifier) {
 @Composable
 private fun KeypadKey(key: Char, onKey: (Char) -> Unit, modifier: Modifier = Modifier) {
     val p = LocalHisaabPalette.current
-    Text(
-        if (key == BACKSPACE) "⌫" else key.toString(),
-        modifier = modifier
+    Box(
+        modifier
             .height(56.dp)
             .clip(HisaabShapes.field)
             .background(p.surface)
-            .clickable { onKey(key) }
-            .padding(vertical = 14.dp),
-        color = if (key == BACKSPACE) p.muted else p.onBackground,
-        fontSize = 24.sp,
-        fontWeight = FontWeight.SemiBold,
-        textAlign = TextAlign.Center,
-        // Space Grotesk display face for keypad digits (neo.jsx:266).
-        style = MaterialTheme.typography.displayLarge,
-    )
+            .clickable { onKey(key) },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (key == BACKSPACE) {
+            // 'del' renders as the chevron-left stroke icon, muted, 22px (neo.jsx:266).
+            HisaabIcon("chevron-left", tint = p.muted, size = 22.dp)
+        } else {
+            Text(
+                key.toString(),
+                color = p.onBackground,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                // Space Grotesk display face for keypad digits (neo.jsx:266).
+                style = MaterialTheme.typography.displayLarge,
+            )
+        }
+    }
 }

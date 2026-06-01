@@ -62,7 +62,7 @@ fun PeopleListScreen(onPersonClick: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(palette.background)) {
         // Header
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SectionHeader(title = "People", modifier = Modifier.weight(1f))
@@ -115,6 +115,7 @@ fun PeopleListScreen(onPersonClick: (String) -> Unit) {
 private fun PersonCard(pwb: PersonWithBalance, onClick: () -> Unit) {
     val palette = LocalHisaabPalette.current
     SurfaceCard(
+        shape = HisaabShapes.cardCompact,
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },

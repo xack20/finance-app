@@ -21,7 +21,9 @@ import app.hisaab.design.components.HisaabIcon
 /**
  * Shared label/value row (the design's NRow) with an optional tap target and a trailing divider.
  * [sub] adds a muted line under the label; [valueColor] tints the value (defaults to muted);
- * [chevron] draws a faint chevron-right icon (replacing the old literal "›" string). Used by
+ * [chevron] draws a faint chevron-right icon (replacing the old literal "›" string). [divider]
+ * draws the inner hairline below the row (faint hair2 token) and must be set false on the LAST
+ * row of a grouped card so no rule leaks beneath the final row. Used by
  * [SettingsScreen] and [AutoCaptureScreen].
  */
 @Composable
@@ -32,6 +34,7 @@ fun SettingRow(
     sub: String? = null,
     valueColor: Color? = null,
     chevron: Boolean = false,
+    divider: Boolean = true,
     onClick: (() -> Unit)? = null,
 ) {
     Row(
@@ -53,5 +56,5 @@ fun SettingRow(
             HisaabIcon("chevron-right", tint = palette.faint, size = 19.dp)
         }
     }
-    HorizontalDivider(color = palette.hair)
+    if (divider) HorizontalDivider(color = palette.hair2)
 }

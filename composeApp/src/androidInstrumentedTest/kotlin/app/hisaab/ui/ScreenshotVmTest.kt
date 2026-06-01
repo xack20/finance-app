@@ -87,7 +87,7 @@ class ScreenshotVmTest {
             name = "bKash", kind = app.hisaab.domain.AccountKind.MFS, institution = "bKash",
         )
 
-        val groceriesCatId = categories.add(name = "Groceries", color = "#3f7d52", icon = "🛒", parentId = null)
+        val groceriesCatId = categories.add(name = "Groceries", color = "green", icon = "cart", parentId = null)
 
         val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
         val day = 86_400_000L

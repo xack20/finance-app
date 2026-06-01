@@ -33,6 +33,7 @@ object HisaabIcons {
         "check" to "M4 12.5l5 5 11-11",
         "close" to "M5 5l14 14M19 5L5 19",
         "arrow-up" to "M12 19V5M5 12l7-7 7 7",
+        "arrow-down" to "M12 5v14M5 12l7 7 7-7",
         "arrow-right" to "M5 12h14M13 6l6 6-6 6",
         "lend" to "M6 18L18 6M10 6h8v8",
         "borrow" to "M18 6L6 18M6 10v8h8",
