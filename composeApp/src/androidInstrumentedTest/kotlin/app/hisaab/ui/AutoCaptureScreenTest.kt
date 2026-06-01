@@ -36,10 +36,9 @@ class AutoCaptureScreenTest {
                 )
             }
         }
-        composeRule.onNodeWithText("Cloud (your own API key)").assertIsDisplayed()
-        composeRule.onNodeWithText("Cloud (your own API key)").performClick()
+        // Engine rows now render a title + a sub-line ("Your own API key") + a vector check icon.
+        composeRule.onNodeWithText("Your own API key").assertIsDisplayed()
+        composeRule.onNodeWithText("Your own API key").performClick()
         assertEquals(EngineMode.CLOUD, captured)
-        // The real row re-renders with the selection check next to the chosen mode.
-        composeRule.onNodeWithText("✓").assertIsDisplayed()
     }
 }

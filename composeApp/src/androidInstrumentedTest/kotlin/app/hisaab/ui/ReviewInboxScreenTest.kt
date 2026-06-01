@@ -97,7 +97,7 @@ class ReviewInboxScreenTest {
                 )
             }
         }
-        composeRule.onNodeWithText("Nothing to review.", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Nothing to review", substring = true).assertIsDisplayed()
         assertTrue(true)
     }
 }

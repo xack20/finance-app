@@ -72,8 +72,12 @@ class OnboardingE2ETest {
 
         // sendOtp (fake) → otp screen.
         composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("Verify").fetchSemanticsNodes().isNotEmpty() }
-        composeRule.onNodeWithText("6-digit code").performTextInput("123456")
-        composeRule.waitForIdle()
+        // OTP is entered via the on-screen numeric keypad (no OS text field). "123456" has all-distinct
+        // digits, so each keypad key is unambiguous at click time.
+        listOf("1", "2", "3", "4", "5", "6").forEach {
+            composeRule.onNodeWithText(it).performClick()
+            composeRule.waitForIdle()
+        }
         // "Verify" matches both the eyebrow label and the button — target the clickable one.
         composeRule.onAllNodesWithText("Verify").filterToOne(hasClickAction()).performClick()
 
@@ -88,10 +92,10 @@ class OnboardingE2ETest {
         composeRule.onNodeWithText("I've saved them").performClick()
 
         // Profile → name + start. completeProfile opens the DB inline + inserts the profile + onComplete.
-        composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("Start Hisaab →").fetchSemanticsNodes().isNotEmpty() }
+        composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("Start Hisaab").fetchSemanticsNodes().isNotEmpty() }
         composeRule.onNodeWithText("Name").performTextInput("Zakaria")
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Start Hisaab →").performClick()
+        composeRule.onNodeWithText("Start Hisaab").performClick()
 
         // Authenticated shell (MainGraph → TodayScreen).
         composeRule.waitUntil(10_000) { composeRule.onAllNodesWithText("Today").fetchSemanticsNodes().isNotEmpty() }

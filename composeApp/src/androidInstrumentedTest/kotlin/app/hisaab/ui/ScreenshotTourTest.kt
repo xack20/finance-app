@@ -46,7 +46,7 @@ import app.hisaab.screens.capture.ReviewCandidate
 import app.hisaab.screens.capture.ReviewInboxContent
 import app.hisaab.screens.month.BudgetProgressList
 import app.hisaab.screens.month.CategoryBarChart
-import app.hisaab.screens.month.PerDayLineChart
+import app.hisaab.screens.month.PerDayBarChart
 import app.hisaab.screens.month.RecurringList
 import app.hisaab.screens.onboarding.CaptureOptInCard
 import app.hisaab.screens.settings.CloudConsentScreen
@@ -165,7 +165,7 @@ class ScreenshotTourTest {
                 )
             },
             "31-chart-perday" to {
-                PerDayLineChart(
+                PerDayBarChart(
                     buckets = listOf(
                         DayBucket(epochDay = 20240L, total = 350.0),
                         DayBucket(epochDay = 20243L, total = 1200.0),

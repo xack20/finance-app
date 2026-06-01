@@ -114,7 +114,8 @@ class FeatureE2ETest {
         composeRule.onNodeWithText("No entries yet", substring = true).assertIsDisplayed()
 
         composeRule.onNodeWithTag("dock_MONTH").performClick(); settle(4)
-        composeRule.onNodeWithText("PER-DAY SPENDING").assertIsDisplayed()
+        // Per-day chart moved inside the Net card; assert the Net card eyebrow instead.
+        composeRule.onNodeWithText("NET THIS MONTH").assertIsDisplayed()
 
         composeRule.onNodeWithTag("dock_PEOPLE").performClick(); settle(4)
         composeRule.onNodeWithText("No one yet", substring = true).assertIsDisplayed()
@@ -151,9 +152,9 @@ class FeatureE2ETest {
         composeRule.waitForIdle()
         composeRule.onNodeWithText("New category").assertIsDisplayed()
         composeRule.onNodeWithText("Name").performTextInput("Subscriptions")
-        composeRule.onNodeWithText("Emoji (optional)").performTextInput("📺")
+        // The emoji field is gone — the icon is chosen from a glyph grid (a default icon is pre-selected).
         composeRule.waitForIdle()
-        composeRule.onAllNodesWithText("Add").filterToOne(hasClickAction()).performClick()
+        composeRule.onAllNodesWithText("Add category").filterToOne(hasClickAction()).performClick()
         settle()
 
         val categories = runBlocking { container.categoryRepository.observeAll().first() }
@@ -172,9 +173,10 @@ class FeatureE2ETest {
         // siblings, so a sibling matcher is ambiguous — select the first category radio.
         composeRule.onAllNodes(isSelectable()).onFirst().performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Monthly cap (৳)").performTextInput("4500")
+        // The cap is now a MidnightTextField ("Monthly cap", ৳ prefix); target the single editable field.
+        composeRule.onNode(hasSetTextAction()).performTextInput("4500")
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Save").performClick()
+        composeRule.onNodeWithText("Save budget").performClick()
         settle()
 
         val budgets = runBlocking { container.budgetRepository.observeActive().first() }
