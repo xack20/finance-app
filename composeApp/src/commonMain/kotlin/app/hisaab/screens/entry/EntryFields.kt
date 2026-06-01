@@ -1,7 +1,6 @@
 package app.hisaab.screens.entry
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,8 +13,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
@@ -34,10 +31,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.hisaab.design.HisaabShapes
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.midnightOutlinedColors
 import app.hisaab.domain.Account
 import app.hisaab.domain.Category
-import app.hisaab.domain.TxnKind
 
 /**
  * Hero amount input — large numeric field with currency symbol.
@@ -118,7 +117,7 @@ fun AccountPicker(
             sheetState = sheetState,
             containerColor = palette.background,
         ) {
-            Column(modifier = Modifier.padding(22.dp).fillMaxWidth()) {
+            Column(modifier = Modifier.padding(HisaabSpacing.gutter).fillMaxWidth()) {
                 Text("Account", color = palette.accent, fontSize = 13.sp)
                 Spacer(Modifier.height(8.dp))
                 accounts.forEach { acc ->
@@ -183,7 +182,7 @@ fun CategoryPicker(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(22.dp)
+                    .padding(HisaabSpacing.gutter)
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
             ) {
@@ -213,38 +212,6 @@ fun CategoryPicker(
 }
 
 /**
- * Transaction kind chip selector — a horizontal row of buttons for EXPENSE, INCOME,
- * LEND, BORROW, TRANSFER.
- * Stateless: caller owns [kind]; [onSelect] receives the chosen [TxnKind].
- */
-@Composable
-fun KindSelector(
-    kind: TxnKind,
-    onSelect: (TxnKind) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val palette = LocalHisaabPalette.current
-    val kinds = listOf(
-        TxnKind.EXPENSE to "Expense",
-        TxnKind.INCOME to "Income",
-        TxnKind.LEND to "Lend",
-        TxnKind.BORROW to "Borrow",
-        TxnKind.TRANSFER to "Transfer",
-    )
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        kinds.forEach { (k, label) ->
-            Button(
-                onClick = { onSelect(k) },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (kind == k) palette.accent else palette.surface,
-                    contentColor = if (kind == k) palette.background else palette.onBackground,
-                ),
-            ) { Text(label, fontSize = 13.sp) }
-        }
-    }
-}
-
-/**
  * Notes multi-line text field.
  * Stateless: caller owns [value]; [onChange] receives the updated string.
  */
@@ -262,5 +229,7 @@ fun NotesField(
         modifier = modifier.fillMaxWidth(),
         minLines = 2,
         maxLines = 4,
+        shape = HisaabShapes.field,
+        colors = midnightOutlinedColors(),
     )
 }

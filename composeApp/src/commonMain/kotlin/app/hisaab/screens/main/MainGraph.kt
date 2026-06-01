@@ -1,16 +1,11 @@
 package app.hisaab.screens.main
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,7 +16,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
+import app.hisaab.design.components.DockTab
+import app.hisaab.design.components.FloatingDock
+import app.hisaab.design.components.MidnightSheet
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -67,78 +65,13 @@ fun MainGraph() {
     )
 
     Scaffold(
-        bottomBar = {
-            if (showNavAndFab) {
-                NavigationBar(containerColor = palette.surface) {
-                    MainTab.entries.forEach { tab ->
-                        NavigationBarItem(
-                            selected = currentRoute == tab.name,
-                            onClick = {
-                                navController.navigate(tab.name) {
-                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = {
-                                Text(
-                                    tab.iconChar(),
-                                    fontSize = 18.sp,
-                                    color = if (currentRoute == tab.name) palette.accent else palette.muted,
-                                )
-                            },
-                            label = { Text(tab.label()) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = palette.accent,
-                                selectedTextColor = palette.accent,
-                                indicatorColor = palette.background,
-                                unselectedIconColor = palette.muted,
-                                unselectedTextColor = palette.muted,
-                            ),
-                        )
-                    }
-                }
-            }
-        },
-        floatingActionButton = {
-            if (currentRoute in setOf(MainTab.TODAY.name, MainTab.MONTH.name, MainTab.PEOPLE.name)) {
-                var showChooser by remember { mutableStateOf(false) }
-                Box {
-                    FloatingActionButton(
-                        onClick = { showChooser = true },
-                        containerColor = palette.accent,
-                    ) {
-                        Text("+", color = palette.background, fontSize = 28.sp)
-                    }
-                    DropdownMenu(
-                        expanded = showChooser,
-                        onDismissRequest = { showChooser = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Add manually", color = palette.onBackground) },
-                            onClick = {
-                                showChooser = false
-                                navController.navigate("entry")
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Ask the assistant", color = palette.accent) },
-                            onClick = {
-                                showChooser = false
-                                navController.navigate(AGENT_ROUTE)
-                            },
-                        )
-                    }
-                }
-            }
-        },
         containerColor = palette.background,
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             NavHost(
                 navController = navController,
                 startDestination = MainTab.TODAY.name,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().padding(bottom = if (showNavAndFab) 106.dp else 0.dp),
             ) {
                 composable(MainTab.TODAY.name) {
                     TodayScreen(
@@ -257,9 +190,56 @@ fun MainGraph() {
                 }
             }
             // Mount the auto-post snackbar host once; it collects captureEvents and shows Undo snackbars.
-            AutoPostSnackbarHost(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth())
+            AutoPostSnackbarHost(
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .padding(bottom = if (showNavAndFab) 106.dp else 0.dp),
+            )
+            // Midnight dock: always shows all 4 tabs + the center add-FAB (incl. Settings).
+            // Intentional change from the old NavigationBar, where the FAB was hidden on Settings.
+            if (showNavAndFab) {
+                var showChooser by remember { mutableStateOf(false) }
+                val tabs = MainTab.entries.map { DockTab(it.name, it.iconChar(), it.label()) }
+                FloatingDock(
+                    tabs = tabs,
+                    selectedKey = currentRoute,
+                    onTabSelect = { tab ->
+                        navController.navigate(tab.key) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onFabClick = { showChooser = true },
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp),
+                )
+                if (showChooser) {
+                    MidnightSheet(onDismiss = { showChooser = false }, title = "Add") {
+                        DockChooserRow("Add manually", palette.onBackground) {
+                            showChooser = false
+                            navController.navigate("entry")
+                        }
+                        DockChooserRow("Ask the assistant", palette.accent) {
+                            showChooser = false
+                            navController.navigate(AGENT_ROUTE)
+                        }
+                    }
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun DockChooserRow(text: String, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+    androidx.compose.material3.Text(
+        text,
+        color = color,
+        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+        modifier = androidx.compose.ui.Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp),
+    )
 }
 
 private fun MainTab.label(): String = when (this) {

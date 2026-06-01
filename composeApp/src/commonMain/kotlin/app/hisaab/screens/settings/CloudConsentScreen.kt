@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -19,7 +17,11 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.GlassButton
+import app.hisaab.design.components.PrimaryButton
+import app.hisaab.design.components.SectionHeader
 
 /**
  * Consent screen for cloud parsing. The caller (AutoCaptureScreen flow in MainGraph) owns the
@@ -53,33 +55,48 @@ fun CloudConsentScreen(
         containerColor = palette.background,
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().background(palette.background).padding(padding).padding(horizontal = 22.dp),
+            Modifier
+                .fillMaxSize()
+                .background(palette.background)
+                .padding(padding)
+                .padding(horizontal = HisaabSpacing.gutter),
         ) {
+            Spacer(Modifier.height(16.dp))
+            SectionHeader(
+                title = "Cloud parsing consent",
+                eyebrow = providerName,
+            )
             Spacer(Modifier.height(16.dp))
             Text(
                 "Your bank SMS text will be sent to $providerName for parsing.",
-                style = MaterialTheme.typography.titleMedium, color = palette.onBackground,
+                style = MaterialTheme.typography.bodyLarge,
+                color = palette.onBackground,
             )
             Spacer(Modifier.height(12.dp))
             Text(
                 "Hisaab's own servers never see this data — it goes directly from your device to $providerName using your API key. Redaction is on by default and masks account and phone numbers before sending.",
+                style = MaterialTheme.typography.bodyMedium,
                 color = palette.muted,
             )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(28.dp))
             if (consentGranted) {
-                Text("Consent granted.", color = palette.positive)
-                Spacer(Modifier.height(12.dp))
-                TextButton(onClick = onRevoke) {
-                    Text("Revoke consent", color = palette.negative)
-                }
+                Text(
+                    "Consent granted.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = palette.positive,
+                )
+                Spacer(Modifier.height(16.dp))
+                GlassButton(
+                    text = "Revoke consent",
+                    onClick = onRevoke,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             } else {
-                Button(
+                PrimaryButton(
+                    text = "I agree — use cloud parsing",
                     onClick = { onGrant(); onBack() },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-                ) {
-                    Text("I agree — use cloud parsing", color = palette.background)
-                }
+                )
             }
         }
     }

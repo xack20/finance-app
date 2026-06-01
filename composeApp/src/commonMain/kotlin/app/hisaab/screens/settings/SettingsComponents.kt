@@ -30,8 +30,8 @@ fun SettingRow(
             .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, color = palette.muted, modifier = Modifier.weight(1f))
-        Text(value, color = palette.onBackground)
+        Text(label, color = palette.onBackground, modifier = Modifier.weight(1f))
+        Text(value, color = palette.muted)
     }
-    HorizontalDivider(color = palette.rule)
+    HorizontalDivider(color = palette.hair)
 }

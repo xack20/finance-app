@@ -31,8 +31,9 @@ fun AgentConsentDialog(
         modifier = Modifier.testTag("agent_consent_dialog"),
         onDismissRequest = onDismiss,
         containerColor = palette.surface,
+        shape = app.hisaab.design.HisaabShapes.card,
         titleContentColor = palette.onBackground,
-        textContentColor = palette.onBackground,
+        textContentColor = palette.muted,
         title = {
             Text(
                 text = "Turn on the assistant",
@@ -45,7 +46,7 @@ fun AgentConsentDialog(
                 Text(
                     text = "The assistant is a cloud feature. To answer your questions it sends some information to the AI model.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = palette.onBackground,
+                    color = palette.muted,
                 )
 
                 Spacer(Modifier.height(12.dp))
@@ -61,7 +62,7 @@ fun AgentConsentDialog(
                         "• Amounts and card limits / due dates\n" +
                         "• Your conversation with the assistant",
                     style = MaterialTheme.typography.bodySmall,
-                    color = palette.onBackground,
+                    color = palette.muted,
                 )
 
                 Spacer(Modifier.height(10.dp))
@@ -76,7 +77,7 @@ fun AgentConsentDialog(
                         "• Your full transaction ledger\n" +
                         "• Audio or microphone data",
                     style = MaterialTheme.typography.bodySmall,
-                    color = palette.onBackground,
+                    color = palette.muted,
                 )
             }
         },

@@ -1,10 +1,9 @@
 package app.hisaab.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,9 +15,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.Eyebrow
+import app.hisaab.design.components.PrimaryButton
 import app.hisaab.platform.BiometricResult
 import kotlinx.coroutines.launch
 
@@ -83,26 +86,61 @@ fun LockScreen(onUnlock: () -> Unit) {
     // Auto-prompt on first composition.
     LaunchedEffect(Unit) { attemptUnlock() }
 
+    val tileShape = RoundedCornerShape(26.dp)
+
     Box(
         modifier = Modifier.fillMaxSize().background(palette.background),
         contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Text("Hisaab is locked", style = MaterialTheme.typography.headlineSmall, color = palette.onBackground)
-            error?.let {
-                Text(it, color = palette.negative, style = MaterialTheme.typography.labelSmall)
+            // Lock tile — surface square with hairline border and lime lock glyph.
+            Box(
+                modifier = Modifier
+                    .size(84.dp)
+                    .clip(tileShape)
+                    .background(palette.surface, tileShape)
+                    .border(1.dp, palette.hair, tileShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "🔒",
+                    fontSize = 36.sp,
+                    color = palette.accent,
+                )
             }
-            Button(
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Eyebrow("Locked")
+                Text(
+                    text = "Hisaab is locked",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = palette.onBackground,
+                )
+            }
+
+            error?.let { msg ->
+                Text(
+                    text = msg,
+                    color = palette.negative,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+
+            PrimaryButton(
+                text = "Unlock with biometric",
+                leadingGlyph = "☝",
                 onClick = { attemptUnlock() },
                 enabled = !isLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-            ) {
-                if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = palette.background)
-                else Text("Unlock with biometric", color = palette.background)
-            }
+                loading = isLoading,
+                fillMaxWidth = false,
+                modifier = Modifier.width(260.dp),
+            )
         }
     }
 }

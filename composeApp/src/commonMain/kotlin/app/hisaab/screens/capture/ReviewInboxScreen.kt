@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -42,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.HisaabColors
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.PrimaryButton
 import app.hisaab.domain.Direction
 
 /** Default auto-post threshold (matches CaptureConfig default 0.85) for the bulk action. */
@@ -117,13 +116,10 @@ fun ReviewInboxContent(
             val anyHigh = pending.any { (it.candidate.confidence ?: 0.0) >= HIGH_CONFIDENCE_THRESHOLD }
             if (anyHigh) {
                 Spacer(Modifier.height(8.dp))
-                Button(
+                PrimaryButton(
+                    text = "Confirm all high-confidence",
                     onClick = onConfirmAllHighConfidence,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-                ) {
-                    Text("Confirm all high-confidence", color = palette.background)
-                }
+                )
             }
             Spacer(Modifier.height(12.dp))
 
@@ -236,13 +232,12 @@ private fun CandidateCard(
 
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
+            PrimaryButton(
+                text = "Confirm",
                 onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
                 modifier = Modifier.weight(1f),
-            ) {
-                Text("Confirm", color = palette.background)
-            }
+                fillMaxWidth = false,
+            )
             TextButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
                 Text("Edit", color = palette.accent)
             }

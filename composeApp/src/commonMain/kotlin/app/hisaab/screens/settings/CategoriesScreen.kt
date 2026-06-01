@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -11,7 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.*
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,27 +29,63 @@ fun CategoriesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Categories", color = palette.onBackground) },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back", color = palette.muted) } },
-                actions = { TextButton(onClick = { showAddSheet = true }) { Text("+ Add", color = palette.accent) } },
+                title = {},
+                navigationIcon = {
+                    TextButton(onClick = onBack) { Text("Back", color = palette.muted) }
+                },
+                actions = {
+                    TextButton(onClick = { showAddSheet = true }) {
+                        Text("+ Add", color = palette.accent)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = palette.background),
             )
         },
         containerColor = palette.background,
     ) { padding ->
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 22.dp)) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = HisaabSpacing.gutter),
+            verticalArrangement = Arrangement.spacedBy(HisaabSpacing.sm),
+            contentPadding = PaddingValues(bottom = HisaabSpacing.xl),
+        ) {
+            item {
+                SectionHeader("Categories", modifier = Modifier.padding(vertical = HisaabSpacing.lg))
+            }
             items(categories, key = { it.id }) { cat ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    cat.icon?.let { Text(it, modifier = Modifier.width(28.dp), fontSize = 16.sp) }
-                    Text(cat.name, color = palette.onBackground, modifier = Modifier.weight(1f))
-                    if (cat.isDefault) {
-                        Text("default", color = palette.muted, fontSize = 10.sp, letterSpacing = 1.sp)
+                SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // Emoji/icon — wrap in a small hue tile
+                        if (cat.icon != null) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .background(
+                                        color = palette.surfaceRaised,
+                                        shape = RoundedCornerShape(10.dp),
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(cat.icon, fontSize = 16.sp)
+                            }
+                            Spacer(Modifier.width(HisaabSpacing.md))
+                        }
+                        Text(
+                            cat.name,
+                            color = palette.onBackground,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (cat.isDefault) {
+                            Eyebrow("Default")
+                        }
                     }
                 }
-                HorizontalDivider(color = palette.rule)
             }
         }
     }
@@ -72,29 +111,23 @@ private fun AddCategorySheet(onAdd: (String, String?) -> Unit, onDismiss: () -> 
     var name by remember { mutableStateOf("") }
     var icon by remember { mutableStateOf("") }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = palette.background) {
-        Column(modifier = Modifier.padding(22.dp).fillMaxWidth()) {
-            Text("New category", color = palette.accent, fontSize = 13.sp)
-            Spacer(Modifier.height(16.dp))
-            OutlinedTextField(
-                value = name, onValueChange = { name = it },
-                label = { Text("Name", color = palette.muted) },
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-            )
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = icon, onValueChange = { icon = it },
-                label = { Text("Emoji (optional)", color = palette.muted) },
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-            )
-            Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = { if (name.isNotBlank()) onAdd(name.trim(), icon.ifBlank { null }) },
-                modifier = Modifier.fillMaxWidth().height(44.dp),
-                enabled = name.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-            ) { Text("Add", color = palette.background) }
-            Spacer(Modifier.height(16.dp))
-        }
+    MidnightSheet(onDismiss = onDismiss, sheetState = sheetState, title = "New category") {
+        OutlinedTextField(
+            value = name, onValueChange = { name = it },
+            label = { Text("Name", color = palette.muted) },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+        )
+        Spacer(Modifier.height(HisaabSpacing.sm))
+        OutlinedTextField(
+            value = icon, onValueChange = { icon = it },
+            label = { Text("Emoji (optional)", color = palette.muted) },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+        )
+        Spacer(Modifier.height(HisaabSpacing.lg))
+        PrimaryButton(
+            text = "Add",
+            onClick = { if (name.isNotBlank()) onAdd(name.trim(), icon.ifBlank { null }) },
+            enabled = name.isNotBlank(),
+        )
     }
 }

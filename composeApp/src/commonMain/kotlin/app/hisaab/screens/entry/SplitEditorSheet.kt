@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -25,7 +23,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.hisaab.design.HisaabShapes
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.PrimaryButton
+import app.hisaab.design.components.midnightOutlinedColors
 import app.hisaab.domain.Category
 import app.hisaab.domain.NewSplitTransaction
 import app.hisaab.domain.TxnKind
@@ -64,7 +66,7 @@ fun SplitEditorSheet(
     ) {
         Column(
             modifier = Modifier
-                .padding(22.dp)
+                .padding(HisaabSpacing.gutter)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState()),
         ) {
@@ -99,12 +101,13 @@ fun SplitEditorSheet(
                 ) {
                     Text("Remove splits", color = palette.muted)
                 }
-                Button(
+                PrimaryButton(
+                    text = "Save",
                     onClick = { onSave(rows.toList()) },
                     modifier = Modifier.weight(1f),
                     enabled = matches && rows.all { it.amount > 0 },
-                    colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-                ) { Text("Save", color = palette.background) }
+                    fillMaxWidth = false,
+                )
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -130,6 +133,8 @@ private fun SplitRow(
             label = { Text("Amount", color = palette.muted, fontSize = 11.sp) },
             modifier = Modifier.weight(1f),
             singleLine = true,
+            shape = HisaabShapes.field,
+            colors = midnightOutlinedColors(),
         )
         Spacer(Modifier.width(8.dp))
         TextButton(onClick = onRemove) { Text("×", color = palette.muted, fontSize = 18.sp) }

@@ -2,23 +2,48 @@ package app.hisaab.screens.people
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
-import app.hisaab.design.HisaabColors
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.GlassButton
+import app.hisaab.design.components.midnightOutlinedColors
+import app.hisaab.design.components.GradientAvatar
+import app.hisaab.design.components.MidnightSheet
+import app.hisaab.design.components.MoneyText
+import app.hisaab.design.components.PrimaryButton
+import app.hisaab.design.components.SectionHeader
+import app.hisaab.design.components.SurfaceCard
 import app.hisaab.domain.PersonWithBalance
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PeopleListScreen(onPersonClick: (String) -> Unit) {
     val palette = LocalHisaabPalette.current
@@ -37,15 +62,10 @@ fun PeopleListScreen(onPersonClick: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(palette.background)) {
         // Header
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                "People",
-                style = MaterialTheme.typography.displaySmall,
-                color = palette.onBackground,
-                modifier = Modifier.weight(1f),
-            )
+            SectionHeader(title = "People", modifier = Modifier.weight(1f))
             TextButton(onClick = { showAddSheet = true }) {
                 Text("+ Add", color = palette.accent)
             }
@@ -60,11 +80,12 @@ fun PeopleListScreen(onPersonClick: (String) -> Unit) {
                 )
             }
         } else {
-            LazyColumn(modifier = Modifier.padding(horizontal = 22.dp)) {
+            LazyColumn(modifier = Modifier.padding(horizontal = 20.dp)) {
                 items(people, key = { it.person.id }) { pwb ->
-                    PersonRow(pwb = pwb, palette = palette, onClick = { onPersonClick(pwb.person.id) })
-                    HorizontalDivider(color = palette.rule)
+                    Spacer(Modifier.height(10.dp))
+                    PersonCard(pwb = pwb, onClick = { onPersonClick(pwb.person.id) })
                 }
+                item { Spacer(Modifier.height(10.dp)) }
             }
         }
     }
@@ -86,38 +107,54 @@ fun PeopleListScreen(onPersonClick: (String) -> Unit) {
             },
             contactPickerAvailable = container.contactPicker.isAvailable(),
             onDismiss = { showAddSheet = false },
-            palette = palette,
         )
     }
 }
 
 @Composable
-private fun PersonRow(pwb: PersonWithBalance, palette: HisaabColors.Palette, onClick: () -> Unit) {
-    Row(
+private fun PersonCard(pwb: PersonWithBalance, onClick: () -> Unit) {
+    val palette = LocalHisaabPalette.current
+    SurfaceCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clickable { onClick() },
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(pwb.person.name, color = palette.onBackground, style = MaterialTheme.typography.bodyLarge)
-            if (!pwb.person.contactRef.isNullOrBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Text(pwb.person.contactRef.orEmpty(), color = palette.muted, fontSize = 11.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GradientAvatar(name = pwb.person.name, size = 44)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = pwb.person.name,
+                    color = palette.onBackground,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                val statusText = when {
+                    pwb.balance > 0 -> "Owes you"
+                    pwb.balance < 0 -> "You owe"
+                    else -> "Settled"
+                }
+                Text(
+                    text = statusText,
+                    color = palette.muted,
+                    fontSize = 13.sp,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            if (pwb.balance == 0.0) {
+                Text("Settled", color = palette.muted, fontSize = 13.sp)
+            } else {
+                MoneyText(
+                    amount = pwb.balance,
+                    signed = true,
+                    decimals = 0,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
         }
-        val (sign, color) = when {
-            pwb.balance > 0 -> "+" to palette.positive   // they owe you
-            pwb.balance < 0 -> "−" to palette.negative   // you owe them
-            else -> "" to palette.muted
-        }
-        Text(
-            if (pwb.balance == 0.0) "Settled"
-            else "$sign৳${kotlin.math.abs(pwb.balance).toInt()}",
-            color = color,
-            fontWeight = FontWeight.SemiBold,
-        )
     }
 }
 
@@ -128,40 +165,33 @@ private fun AddPersonSheet(
     onAddFromContact: () -> Unit,
     contactPickerAvailable: Boolean,
     onDismiss: () -> Unit,
-    palette: HisaabColors.Palette,
 ) {
-    val sheetState = rememberModalBottomSheetState()
     var name by remember { mutableStateOf("") }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = palette.background,
+    MidnightSheet(
+        onDismiss = onDismiss,
+        title = "Add person",
     ) {
-        Column(modifier = Modifier.padding(22.dp).fillMaxWidth()) {
-            Text("Add person", color = palette.accent, fontSize = 13.sp)
-            Spacer(Modifier.height(16.dp))
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Name", color = palette.muted) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Name") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = HisaabShapes.field,
+            colors = midnightOutlinedColors(),
+        )
+        Spacer(Modifier.height(12.dp))
+        PrimaryButton(
+            text = "Add",
+            onClick = { if (name.isNotBlank()) onAddManual(name.trim()) },
+            enabled = name.isNotBlank(),
+        )
+        if (contactPickerAvailable) {
+            Spacer(Modifier.height(8.dp))
+            GlassButton(
+                text = "Or pick from contacts",
+                onClick = onAddFromContact,
             )
-            Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = { if (name.isNotBlank()) onAddManual(name.trim()) },
-                modifier = Modifier.fillMaxWidth().height(44.dp),
-                enabled = name.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-            ) { Text("Add", color = palette.background) }
-            if (contactPickerAvailable) {
-                Spacer(Modifier.height(8.dp))
-                TextButton(
-                    onClick = onAddFromContact,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Or pick from contacts", color = palette.accent) }
-            }
-            Spacer(Modifier.height(16.dp))
         }
     }
 }

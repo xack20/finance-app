@@ -1,12 +1,34 @@
 package app.hisaab.screens.onboarding
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import app.hisaab.design.HisaabShapes
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.MidnightTextField
+import app.hisaab.design.components.PrimaryButton
+import app.hisaab.design.components.SectionHeader
 
 @Composable
 fun ProfileSetupScreen(
@@ -18,57 +40,58 @@ fun ProfileSetupScreen(
     var locale by remember { mutableStateOf("en") }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(palette.background).padding(22.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(palette.background)
+            .padding(HisaabSpacing.gutter),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            Text("Almost done", color = palette.accent)
-            Spacer(Modifier.height(12.dp))
-            Text(
-                "What should\nwe call you?",
-                style = MaterialTheme.typography.headlineMedium,
-                color = palette.onBackground,
-            )
-            Spacer(Modifier.height(24.dp))
-            Text("Your name", color = palette.muted, style = MaterialTheme.typography.labelSmall)
-            Spacer(Modifier.height(6.dp))
-            OutlinedTextField(
+            SectionHeader(title = "What should we call you?", eyebrow = "Almost done")
+            Spacer(Modifier.height(HisaabSpacing.xl))
+            MidnightTextField(
                 value = name,
                 onValueChange = { name = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("Name", color = palette.muted) },
+                label = "Your name",
+                placeholder = "Name",
+                imeAction = ImeAction.Next,
+                big = true,
             )
-            Spacer(Modifier.height(20.dp))
-            Text("Language", color = palette.muted, style = MaterialTheme.typography.labelSmall)
-            Spacer(Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(
-                    onClick = { locale = "en" },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (locale == "en") palette.accent else palette.surface,
-                        contentColor = if (locale == "en") palette.background else palette.onBackground,
-                    ),
-                ) { Text("English") }
-                Button(
-                    onClick = { locale = "bn" },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (locale == "bn") palette.accent else palette.surface,
-                        contentColor = if (locale == "bn") palette.background else palette.onBackground,
-                    ),
-                ) { Text("বাংলা") }
+            Spacer(Modifier.height(HisaabSpacing.lg))
+            // Inline 2-up segmented locale control (screen-local, not a new primitive).
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                listOf("English" to "en", "বাংলা" to "bn").forEach { (label, value) ->
+                    val selected = locale == value
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp)
+                            .clip(HisaabShapes.pill)
+                            .background(if (selected) palette.accent else palette.glass)
+                            .then(
+                                if (!selected) Modifier.border(1.dp, palette.hair, HisaabShapes.pill)
+                                else Modifier
+                            )
+                            .clickable { locale = value },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (selected) palette.onAccent else palette.onBackground,
+                        )
+                    }
+                }
             }
         }
-        Button(
+        PrimaryButton(
+            text = "Start Hisaab",
+            trailingGlyph = "→",
             onClick = { onComplete(name, locale) },
-            modifier = Modifier.fillMaxWidth().height(48.dp),
             enabled = name.isNotBlank() && !isLoading,
-            colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-        ) {
-            if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = palette.background)
-            else Text("Start Hisaab →", color = palette.background)
-        }
+            loading = isLoading,
+        )
     }
 }

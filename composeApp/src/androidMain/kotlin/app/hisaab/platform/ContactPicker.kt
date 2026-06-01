@@ -38,8 +38,9 @@ actual class ContactPicker(private val activity: FragmentActivity) {
                     null,
                 )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
             }
-            if (name != null) {
-                resultFlow.tryEmit(ContactPick(displayName = name!!, phone = phone))
+            val resolvedName = name
+            if (resolvedName != null) {
+                resultFlow.tryEmit(ContactPick(displayName = resolvedName, phone = phone))
             } else {
                 resultFlow.tryEmit(null)
             }

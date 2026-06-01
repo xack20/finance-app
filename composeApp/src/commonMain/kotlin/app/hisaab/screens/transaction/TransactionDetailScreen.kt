@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
@@ -31,7 +30,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
 import app.hisaab.design.HisaabColors
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.MidnightDialog
 import app.hisaab.domain.ParsedBy
 import app.hisaab.domain.TxnKind
 import kotlinx.datetime.Instant
@@ -90,7 +91,7 @@ fun TransactionDetailScreen(txnId: String, onDone: () -> Unit) {
                     .fillMaxSize()
                     .background(palette.background)
                     .padding(padding)
-                    .padding(horizontal = 22.dp),
+                    .padding(horizontal = HisaabSpacing.gutter),
             ) {
                 Spacer(Modifier.height(12.dp))
                 val (sign, color) = when (d.row.kind) {
@@ -125,18 +126,16 @@ fun TransactionDetailScreen(txnId: String, onDone: () -> Unit) {
     }
 
     if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDeleteDialog = false
-                    viewModel.delete(onDone)
-                }) { Text("Delete", color = palette.negative) }
+        MidnightDialog(
+            onDismiss = { showDeleteDialog = false },
+            title = "Delete transaction",
+            body = "Delete this transaction? This can't be undone.",
+            confirmLabel = "Delete",
+            onConfirm = {
+                showDeleteDialog = false
+                viewModel.delete(onDone)
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
-            },
-            text = { Text("Delete this transaction? This can't be undone.") },
+            destructive = true,
         )
     }
 }

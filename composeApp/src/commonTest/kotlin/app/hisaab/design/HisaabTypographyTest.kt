@@ -7,45 +7,40 @@ import kotlin.test.assertTrue
 
 class HisaabTypographyTest {
     @Test
-    fun display_uses_serif_family() {
-        val name = HisaabTypography.display.familyDescription
+    fun display_is_space_grotesk() {
         assertTrue(
-            name.contains("serif", ignoreCase = true),
-            "display family should be serif (got: $name)",
+            HisaabTypography.display.familyDescription.contains("Space Grotesk", ignoreCase = true),
+            "display should be Space Grotesk (got: ${HisaabTypography.display.familyDescription})",
         )
     }
 
     @Test
-    fun ui_uses_sans_family() {
-        val name = HisaabTypography.ui.familyDescription
-        assertTrue(
-            name.contains("sans", ignoreCase = true) || name.contains("system", ignoreCase = true),
-            "ui family should be sans/system (got: $name)",
-        )
+    fun ui_is_hanken_grotesk() {
+        assertTrue(HisaabTypography.ui.familyDescription.contains("Hanken", ignoreCase = true))
     }
 
     @Test
-    fun mono_uses_monospace_family() {
-        val name = HisaabTypography.mono.familyDescription
-        assertTrue(
-            name.contains("mono", ignoreCase = true),
-            "mono family should be monospace (got: $name)",
-        )
+    fun mono_is_space_mono() {
+        assertTrue(HisaabTypography.mono.familyDescription.contains("Space Mono", ignoreCase = true))
     }
 
     @Test
-    fun heroAmount_is_large_and_regular() {
-        val style = HisaabTypography.heroAmount
-        assertTrue(style.fontSize.value >= 40f, "heroAmount should be ≥40sp (got ${style.fontSize})")
-        assertEquals(FontWeight.Normal, style.fontWeight)
+    fun heroAmount_is_oversized_semibold() {
+        val s = HisaabTypography.heroAmount
+        assertTrue(s.fontSize.value >= 48f, "heroAmount should be ≥48sp (got ${s.fontSize})")
+        assertEquals(FontWeight.SemiBold, s.fontWeight)
     }
 
     @Test
-    fun tabular_numerals_enabled_on_mono() {
+    fun eyebrow_is_tracked() {
+        val s = HisaabTypography.eyebrow
+        assertTrue(s.letterSpacing.value >= 1.0f, "eyebrow should be tracked (got ${s.letterSpacing})")
+    }
+
+    @Test
+    fun tabular_numerals_enabled_on_money() {
         val features = HisaabTypography.tabular.fontFeatureSettings ?: ""
-        assertTrue(
-            "tnum" in features,
-            "tabular style must enable tnum feature (got: $features)",
-        )
+        assertTrue("tnum" in features, "money figures need tabular nums (got: $features)")
+        assertTrue("lnum" in features, "money figures need lining nums (got: $features)")
     }
 }

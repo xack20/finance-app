@@ -8,14 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,10 +20,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import app.hisaab.LocalAppContainer
 import app.hisaab.crypto.BIP39_WORDLIST
+import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.MidnightTextField
+import app.hisaab.design.components.PrimaryButton
+import app.hisaab.design.components.SectionHeader
+import app.hisaab.design.components.SurfaceCard
 import kotlinx.coroutines.launch
 
 @Composable
@@ -71,14 +72,14 @@ fun RecoveryEntryScreen(onRecovered: () -> Unit) {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(palette.background).padding(22.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(palette.background)
+            .padding(HisaabSpacing.gutter),
     ) {
-        Text("Recover", color = palette.accent)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Enter your 24-word recovery phrase",
-            style = MaterialTheme.typography.headlineSmall,
-            color = palette.onBackground,
+        SectionHeader(
+            title = "Enter your 24-word recovery phrase",
+            eyebrow = "Recover",
         )
         Spacer(Modifier.height(4.dp))
         Text(
@@ -86,36 +87,46 @@ fun RecoveryEntryScreen(onRecovered: () -> Unit) {
             color = palette.muted,
             style = MaterialTheme.typography.bodySmall,
         )
-        error?.let {
+
+        error?.let { msg ->
             Spacer(Modifier.height(8.dp))
-            Text(it, color = palette.negative, style = MaterialTheme.typography.labelSmall)
+            SurfaceCard(
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    msg,
+                    color = palette.negative,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
         }
+
         Spacer(Modifier.height(16.dp))
 
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items((0 until 24).toList()) { index ->
-                OutlinedTextField(
+            itemsIndexed((0 until 24).toList()) { index, _ ->
+                MidnightTextField(
                     value = words[index],
                     onValueChange = { words[index] = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("${index + 1}", color = palette.accent) },
+                    label = "${index + 1}",
                     singleLine = true,
+                    imeAction = ImeAction.Next,
                 )
             }
         }
 
         Spacer(Modifier.height(12.dp))
-        Button(
+        PrimaryButton(
+            text = "Restore",
             onClick = { attemptRestore() },
-            modifier = Modifier.fillMaxWidth().height(48.dp),
+            modifier = Modifier.fillMaxWidth(),
             enabled = !isLoading,
-            colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-        ) {
-            if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = palette.background)
-            else Text("Restore", color = palette.background)
-        }
+            loading = isLoading,
+        )
     }
 }

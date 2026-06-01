@@ -1,0 +1,67 @@
+/* ============================================================
+   Hisaab — "MIDNIGHT" neo-bank direction · tokens
+   Deep ink canvas · electric-lime accent · oversized numerals
+   ============================================================ */
+:root {
+  --bg:        #0A0B0E;
+  --bg-2:      #101218;
+  --surface:   #161922;   /* glass card base */
+  --surface-2: #1D212B;
+  --hair:      rgba(255,255,255,0.07);
+  --hair-2:    rgba(255,255,255,0.04);
+  --glass:     rgba(255,255,255,0.045);
+
+  --text:      #F3F5F8;
+  --muted:     #98A0AD;
+  --faint:     #5C6470;
+
+  --lime:      #CBF24A;   /* electric accent */
+  --lime-dim:  #A9CE37;
+  --on-lime:   #0A0B0E;
+  --lime-soft: rgba(203,242,74,0.12);
+
+  --pos:       #46E08A;
+  --neg:       #FF6B5C;
+  --pos-soft:  rgba(70,224,138,0.12);
+  --neg-soft:  rgba(255,107,92,0.12);
+
+  /* vivid category hues */
+  --c-violet:  #8B7CFF;
+  --c-blue:    #4EA8FF;
+  --c-teal:    #2DD4BF;
+  --c-amber:   #FFB13C;
+  --c-pink:    #FF6FB5;
+  --c-lime:    #CBF24A;
+  --c-rose:    #FF6B5C;
+  --c-slate:   #8A93A3;
+
+  --display: "Space Grotesk", "Hind Siliguri", system-ui, sans-serif;
+  --sans:    "Hanken Grotesk", "Hind Siliguri", system-ui, sans-serif;
+  --mono:    "Space Mono", "Noto Sans Bengali", ui-monospace, monospace;
+
+  --r-card: 22px;
+  --r-field: 16px;
+  --r-pill: 999px;
+  --gut: 20px;
+  --dock-h: 76px;
+
+  --glow-lime: 0 0 0 1px rgba(203,242,74,.5), 0 8px 30px -6px rgba(203,242,74,.45);
+  --shadow-card: 0 1px 0 rgba(255,255,255,.04) inset, 0 20px 50px -24px rgba(0,0,0,.8);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: #050608; font-family: var(--sans); color: var(--text); -webkit-font-smoothing: antialiased; }
+
+.disp { font-family: var(--display); letter-spacing: -0.02em; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.no-scrollbar::-webkit-scrollbar { width:0; height:0; }
+.no-scrollbar { scrollbar-width: none; }
+.tap { transition: transform .12s ease, opacity .15s, background .15s, box-shadow .2s; }
+.tap:active { transform: scale(.97); }
+
+@keyframes neo-spin { to { transform: rotate(360deg); } }
+@keyframes neo-fade { from { opacity:0; transform: translateY(10px);} to {opacity:1; transform:none;} }
+@keyframes neo-up { from { transform: translateY(100%);} to { transform: translateY(0);} }
+@keyframes neo-pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+@keyframes neo-glow { 0%,100%{ box-shadow: 0 0 0 0 rgba(203,242,74,.0);} 50%{ box-shadow: 0 0 30px 4px rgba(203,242,74,.25);} }
