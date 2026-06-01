@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -67,10 +69,17 @@ fun NeoTopBar(
             color = p.onBackground,
             style = MaterialTheme.typography.displayLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
         )
-        Box(Modifier.width(70.dp), contentAlignment = Alignment.CenterEnd) {
+        Box(Modifier.widthIn(min = 70.dp), contentAlignment = Alignment.CenterEnd) {
             if (rightLabel != null) {
-                TextButton(onClick = onRight) {
-                    Text(rightLabel, color = rightColor ?: p.accent, fontWeight = FontWeight.Bold, fontSize = 15.5.sp)
+                TextButton(onClick = onRight, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)) {
+                    Text(
+                        rightLabel,
+                        color = rightColor ?: p.accent,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.5.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
                 }
             }
         }

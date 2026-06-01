@@ -90,10 +90,12 @@ fun ReviewCard(
 
                 if (hasAmount) {
                     // Big display-mono amount, indented under the label, dimmed when excluded.
+                    // Design (neo-detail.jsx:88) renders this in --text (near-white), not sign-colored.
                     MoneyText(
                         amount = amountDouble,
                         signed = false,
                         decimals = 0,
+                        color = palette.onBackground,
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 34.sp, fontWeight = FontWeight.SemiBold),
                         modifier = Modifier
                             .padding(start = 38.dp, top = 2.dp)

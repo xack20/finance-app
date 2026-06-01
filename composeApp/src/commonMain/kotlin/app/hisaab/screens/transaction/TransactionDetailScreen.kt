@@ -93,10 +93,12 @@ fun TransactionDetailScreen(txnId: String, onDone: () -> Unit) {
                 // Hero: category glyph chip + signed mono amount (grouped thousands).
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     GlyphChip(iconName = d.categoryIcon, hue = categoryHue(d.categoryColor), size = 48)
+                    // Design (neo-detail.jsx:17): credit → --pos (green), debit → --text (white), never red.
                     MoneyText(
                         amount = signedAmount,
                         signed = true,
                         decimals = 0,
+                        color = if (credit) palette.positive else palette.onBackground,
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 44.sp, fontWeight = FontWeight.SemiBold),
                     )
                 }

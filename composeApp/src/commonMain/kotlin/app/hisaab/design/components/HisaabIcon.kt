@@ -58,7 +58,9 @@ object HisaabIcons {
         "film" to "M4 4h16v16H4zM4 8h16M4 16h16M8 4v16M16 4v16",
         "food" to "M5 3v7a2 2 0 004 0V3M7 12v9M17 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4v9",
         "cart" to "M4 5h2l2 11h10l2-8H7M9 20a1 1 0 100-2 1 1 0 000 2zM18 20a1 1 0 100-2 1 1 0 000 2z",
-        "health" to "M12 8v8M8 12h8M12 3a9 9 0 100 18 9 9 0 000-18z",
+        // Plus inside a full circle. The original used mismatched arc flags (large=1 then large=0)
+        // which the path parser rendered as a half circle; two equal sweep=1 semicircles close it.
+        "health" to "M12 8v8M8 12h8M12 3a9 9 0 0 1 0 18a9 9 0 0 1 0 -18z",
         "case" to "M3 8h18v11H3zM8 8V6a2 2 0 012-2h4a2 2 0 012 2v2",
         "bag" to "M5 8h14l-1 12H6zM9 8V6a3 3 0 016 0v2",
         "car" to "M4 13l1.5-5h13L20 13M4 13h16v5H4zM7 18v1M17 18v1M7 15.5h.01M17 15.5h.01",

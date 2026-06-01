@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,17 +38,23 @@ fun OtpCells(
         repeat(length) { i ->
             val filled = i < value.length
             val active = i == value.length
+            // Design (neo-onboarding.jsx:60): the active caret cell wins — lime border + 4px lime-soft
+            // glow ring — even in the error state; only the *other* cells turn red. Background stays surface.
             val borderColor = when {
-                isError -> p.negative
                 active -> p.accent
+                isError -> p.negative
                 else -> p.hair
             }
             Box(
                 Modifier
                     .weight(1f)
+                    // Uniform 4dp inset on every cell keeps widths aligned; the active cell paints a
+                    // lime-soft ring in that margin (box-shadow 0 0 0 4px var(--lime-soft)).
+                    .then(if (active) Modifier.background(p.accentSoft, RoundedCornerShape(18.dp)) else Modifier)
+                    .padding(4.dp)
                     .height(58.dp)
                     .clip(HisaabShapes.field)
-                    .background(if (active) p.accentSoft else p.surface, HisaabShapes.field)
+                    .background(p.surface, HisaabShapes.field)
                     .border(1.5.dp, borderColor, HisaabShapes.field),
                 contentAlignment = Alignment.Center,
             ) {

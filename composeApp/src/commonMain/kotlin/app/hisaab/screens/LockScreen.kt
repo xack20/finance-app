@@ -16,10 +16,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import app.hisaab.LocalAppContainer
+import app.hisaab.design.HisaabTypography
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.Eyebrow
 import app.hisaab.design.components.HisaabIcon
@@ -121,7 +123,15 @@ fun LockScreen(onUnlock: () -> Unit) {
                 Text(
                     text = "হিসাব",
                     color = palette.accent,
-                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 30.sp, fontWeight = FontWeight.Bold),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false,
+                    style = MaterialTheme.typography.displayLarge.copy(
+                        fontFamily = HisaabTypography.wordmarkFamily(),
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
                 )
                 Text(
                     text = "Hisaab is locked",

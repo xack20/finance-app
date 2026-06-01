@@ -160,6 +160,9 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
             MoneyText(
                 amount = totalBalance,
                 tone = MoneyTone.Plain,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.displayLarge.copy(fontSize = 50.sp, color = palette.onBackground),
             )
             Spacer(Modifier.height(14.dp))

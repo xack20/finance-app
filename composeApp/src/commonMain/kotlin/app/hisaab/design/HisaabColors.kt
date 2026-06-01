@@ -101,6 +101,7 @@ object HisaabColors {
         "lime"   to Color(0xFFCBF24A),
         "rose"   to Color(0xFFFF6B5C),
         "slate"  to Color(0xFF8A93A3),
+        "green"  to Color(0xFF2F7D52), // design --pos category green (Salary, Groceries)
     )
 
 }

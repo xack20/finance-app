@@ -53,7 +53,12 @@ object HisaabTypography {
             Font(Res.font.space_grotesk_medium, FontWeight.Medium),
             Font(Res.font.space_grotesk_semibold, FontWeight.SemiBold),
             Font(Res.font.space_grotesk_bold, FontWeight.Bold),
+            // Bengali faces listed AFTER the Latin ones so Latin glyphs keep Space Grotesk; the
+            // হিসাব wordmark renders at Bold (Splash/Lock/Welcome) and SemiBold, so register the
+            // Bengali face at BOTH slots — otherwise Bold has no Bengali face and Compose measures
+            // with a wide fallback while rendering narrow (the wordmark wrapped / clipped its last glyph).
             Font(Res.font.hind_siliguri_semibold, FontWeight.SemiBold),
+            Font(Res.font.hind_siliguri_semibold, FontWeight.Bold),
         ),
         ui = FontFamily(
             Font(Res.font.hanken_grotesk_regular, FontWeight.Normal),
@@ -67,6 +72,20 @@ object HisaabTypography {
             Font(Res.font.space_mono_bold, FontWeight.Bold),
             Font(Res.font.noto_sans_bengali_regular, FontWeight.Normal),
         ),
+    )
+
+    /**
+     * Dedicated family for the হিসাব wordmark. Compose's FontFamily matcher selects ONE face per
+     * weight and, when that face lacks the glyph, falls back to the SYSTEM font (wide metrics) rather
+     * than a sibling face in the same family — so a mixed Latin+Bengali family measures the wordmark
+     * with one font and renders it with another, and the last glyph wraps/clips. Giving the wordmark
+     * a Hind-Siliguri-primary family makes measure == render. Use at SemiBold (the bundled weight).
+     */
+    @Composable
+    fun wordmarkFamily(): FontFamily = FontFamily(
+        // Noto Sans Bengali is the complete, bundled Bengali face — the bundled Hind Siliguri subset
+        // is missing the ব glyph, which silently dropped the last letter of হিসাব when used alone.
+        Font(Res.font.noto_sans_bengali_regular, FontWeight.Normal),
     )
 
     val heroAmount = TextStyle(

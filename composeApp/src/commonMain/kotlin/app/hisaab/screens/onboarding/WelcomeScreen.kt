@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabShapes
 import app.hisaab.design.HisaabSpacing
+import app.hisaab.design.HisaabTypography
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.MidnightTextField
@@ -65,9 +66,12 @@ fun WelcomeScreen(
                 Text(
                     text = "হিসাব",
                     color = palette.accent,
+                    maxLines = 1,
+                    softWrap = false,
                     style = MaterialTheme.typography.displayLarge.copy(
+                        fontFamily = HisaabTypography.wordmarkFamily(),
                         fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         lineHeight = 28.sp,
                     ),
                 )

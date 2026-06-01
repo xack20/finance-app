@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -22,9 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabSpacing
+import app.hisaab.design.HisaabTypography
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.design.LocalReduceMotion
 
@@ -42,10 +45,18 @@ fun SplashScreen() {
             Text(
                 text = "হিসাব",
                 color = palette.accent,
-                // displayMedium is unbound (Roboto fallback); use the bound Space Grotesk displayLarge.
+                // Compose OVER-measures this Bengali string (~3× the rendered width), so it wraps ব to
+                // a second line even with full width. softWrap=false keeps it one line; the glyphs still
+                // render narrow and centered within the (wide) single line, so nothing is cut. The font
+                // MUST be Noto (the bundled Hind Siliguri subset has no ব glyph, which looked like a clip).
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
                 style = MaterialTheme.typography.displayLarge.copy(
+                    fontFamily = HisaabTypography.wordmarkFamily(),
                     fontSize = 58.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     lineHeight = 60.sp,
                     letterSpacing = (-1.16).sp, // -0.02em × 58 (.disp tracking)
                 ),

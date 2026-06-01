@@ -80,7 +80,7 @@ class CategoryRepository(private val db: HisaabDatabase) {
             DefaultCategory("food",          "Food & dining",  "rose",   "food"),
             DefaultCategory("transport",     "Transport",      "blue",   "car"),
             DefaultCategory("bills",         "Bills",          "violet", "receipt"),
-            DefaultCategory("salary",        "Salary",         "lime",   "case"),
+            DefaultCategory("salary",        "Salary",         "green",  "case"),
             DefaultCategory("lend",          "Lent",           "lime",   "lend"),
             DefaultCategory("borrow",        "Borrowed",       "amber",  "borrow"),
             DefaultCategory("health",        "Health",         "teal",   "health"),

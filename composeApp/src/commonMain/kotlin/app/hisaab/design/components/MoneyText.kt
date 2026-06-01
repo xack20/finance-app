@@ -5,6 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import app.hisaab.design.LocalHisaabPalette
 import app.hisaab.util.toTaka
@@ -23,10 +24,13 @@ fun MoneyText(
     signed: Boolean = false,
     decimals: Int = 0,
     tone: MoneyTone = MoneyTone.Auto,
+    color: Color? = null,
+    maxLines: Int = Int.MAX_VALUE,
+    softWrap: Boolean = true,
     style: TextStyle = MaterialTheme.typography.bodySmall,
 ) {
     val p = LocalHisaabPalette.current
-    val color = when (tone) {
+    val resolved = color ?: when (tone) {
         MoneyTone.Accent -> p.accent
         MoneyTone.Plain -> LocalTextStyle.current.color
         MoneyTone.Auto -> when {
@@ -35,5 +39,12 @@ fun MoneyText(
             else -> p.onBackground
         }
     }
-    Text(text = amount.toTaka(signed = signed, decimals = decimals), modifier = modifier, style = style, color = color)
+    Text(
+        text = amount.toTaka(signed = signed, decimals = decimals),
+        modifier = modifier,
+        style = style,
+        color = resolved,
+        maxLines = maxLines,
+        softWrap = softWrap,
+    )
 }
