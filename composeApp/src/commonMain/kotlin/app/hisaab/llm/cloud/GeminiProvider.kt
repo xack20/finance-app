@@ -41,12 +41,13 @@ import kotlinx.serialization.json.putJsonObject
  * API key is passed in the x-goog-api-key request header; never logged or stored in a field.
  * Redactor runs before the network call when [redact] returns true (evaluated at call time).
  *
- * MODEL: gemini-2.0-flash (v1beta generateContent).
+ * MODEL: gemini-2.5-flash (v1beta generateContent). gemini-2.0-flash was retired for new API users
+ * (404 "no longer available to new users").
  */
 class GeminiProvider(
     httpClient: HttpClient,
     private val apiKey: () -> String?,
-    private val model: String = "gemini-2.0-flash",
+    private val model: String = "gemini-2.5-flash",
     private val redact: suspend () -> Boolean = { true },
 ) : LlmProvider, AgentProvider {
 
