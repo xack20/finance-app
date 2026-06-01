@@ -34,6 +34,7 @@ import app.hisaab.platform.SecureStorage
 import app.hisaab.agent.AgentProvider
 import app.hisaab.agent.NativeAgentRegistry
 import app.hisaab.agent.OnDeviceAgentProvider
+import platform.Foundation.NSBundle
 import app.hisaab.agent.AgentRuntime
 import app.hisaab.agent.WriteBatchCommitter
 import app.hisaab.agent.buildAgentToolRegistry
@@ -111,9 +112,16 @@ actual class AppContainer {
 
     actual val speechToText: SpeechToText = IosSpeechToText()
 
-    /** The user's selected cloud provider, if one is picked AND its API key is present. */
+    /** A Gemini key injected via build config (Secrets.xcconfig -> Info.plist) pre-enables the cloud
+     *  assistant with no in-app setup; null if not provided. */
+    private fun geminiApiKeyFromConfig(): String? =
+        (NSBundle.mainBundle.objectForInfoDictionaryKey("GEMINI_API_KEY") as? String)?.takeIf { it.isNotBlank() }
+
+    /** The selected cloud provider (or the build-config Gemini default), if its API key is present. */
     private suspend fun cloudAgentProvider(): AgentProvider? {
-        val adapter: LlmProvider? = when (captureConfigRepository.get().cloudProvider) {
+        val provider = captureConfigRepository.get().cloudProvider
+            ?: if (geminiApiKeyFromConfig() != null) CloudProvider.GEMINI else null
+        val adapter: LlmProvider? = when (provider) {
             CloudProvider.CLAUDE -> claudeProvider
             CloudProvider.GEMINI -> geminiProvider
             CloudProvider.OPENAI -> openAiProvider
@@ -147,11 +155,12 @@ actual class AppContainer {
                     "Add your cloud model's API key in Settings (Auto-capture → Engine → Cloud)."
             },
             // Cloud requires explicit consent; the on-device model does not (nothing leaves the device).
+            // A build-config Gemini key (provided deliberately by the developer) is implicitly consented.
             isConsented = {
-                if (cloudAgentProvider() != null) {
-                    secureStorage.loadString("agent_consent_at") != null
-                } else {
-                    true
+                when {
+                    geminiApiKeyFromConfig() != null -> true
+                    cloudAgentProvider() != null -> secureStorage.loadString("agent_consent_at") != null
+                    else -> true
                 }
             },
             accountNames = { accountRepository.observeActive().first().joinToString(", ") { it.name } },
@@ -175,7 +184,7 @@ actual class AppContainer {
     )
     private val geminiProvider: GeminiProvider = GeminiProvider(
         httpClient = llmHttpClient,
-        apiKey = { secureStorage.loadString("llm_api_key_GEMINI") },
+        apiKey = { secureStorage.loadString("llm_api_key_GEMINI") ?: geminiApiKeyFromConfig() },
         redact = { captureConfigRepository.get().redactionEnabled },
     )
     private val openAiProvider: OpenAiProvider = OpenAiProvider(
