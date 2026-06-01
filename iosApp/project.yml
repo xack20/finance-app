@@ -85,6 +85,10 @@ targets:
           else
             ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64
           fi
+          # Copy Compose Multiplatform resources (the bundled Space Grotesk / Hind Siliguri / etc. fonts)
+          # into the .app bundle. Android bundles these automatically; on iOS without this step the app
+          # crashes at launch in HisaabTheme with MissingResourceException for the font .ttf files.
+          ./gradlew :composeApp:syncComposeResourcesForIos
 # Explicit SHARED scheme so `xcodebuild -workspace` (CocoaPods) can resolve build destinations.
 schemes:
   iosApp:
