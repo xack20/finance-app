@@ -32,6 +32,7 @@ fun OtpScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(palette.background)
+            .imePadding()
             .padding(HisaabSpacing.gutter),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
