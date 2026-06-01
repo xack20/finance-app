@@ -111,6 +111,21 @@ actual class AppContainer {
 
     actual val speechToText: SpeechToText = IosSpeechToText()
 
+    /** The user's selected cloud provider, if one is picked AND its API key is present. */
+    private suspend fun cloudAgentProvider(): AgentProvider? {
+        val adapter: LlmProvider? = when (captureConfigRepository.get().cloudProvider) {
+            CloudProvider.CLAUDE -> claudeProvider
+            CloudProvider.GEMINI -> geminiProvider
+            CloudProvider.OPENAI -> openAiProvider
+            null -> null
+        }
+        return if (adapter != null && adapter.isAvailable()) adapter as? AgentProvider else null
+    }
+
+    /** Apple's on-device model, if the Swift FoundationModels bridge reports it available. */
+    private fun onDeviceAgentProvider(): AgentProvider? =
+        NativeAgentRegistry.bridge?.takeIf { it.isAvailable() }?.let { OnDeviceAgentProvider(it) }
+
     actual fun agentRuntime(): AgentRuntime {
         val db = requireDb()
         val txns = TransactionRepository(db, merchantRepository, tagRepository)
@@ -121,33 +136,23 @@ actual class AppContainer {
             ),
             // Resolve the user's SELECTED cloud provider at call time (agent consent is separate,
             // checked via isConsented — independent of the SMS-capture cloud consent).
-            agentProvider = {
-                // Prefer the on-device model (Apple Intelligence) when available; else fall back to the
-                // user's selected cloud provider.
-                val onDevice = NativeAgentRegistry.bridge?.takeIf { it.isAvailable() }
-                if (onDevice != null) {
-                    OnDeviceAgentProvider(onDevice)
-                } else {
-                    val adapter: LlmProvider? = when (captureConfigRepository.get().cloudProvider) {
-                        CloudProvider.CLAUDE -> claudeProvider
-                        CloudProvider.GEMINI -> geminiProvider
-                        CloudProvider.OPENAI -> openAiProvider
-                        null -> null
-                    }
-                    if (adapter != null && adapter.isAvailable()) adapter as? AgentProvider else null
-                }
-            },
+            // A configured cloud provider (the user brought a key) takes priority — it's the more capable
+            // model for the tool-calling agent. The on-device model (Apple Intelligence) is the private
+            // default + fallback when no cloud key is set.
+            agentProvider = { cloudAgentProvider() ?: onDeviceAgentProvider() },
             unavailableReason = {
                 if (captureConfigRepository.get().cloudProvider == null)
-                    "Enable Apple Intelligence for the on-device assistant, or pick a cloud model in Settings."
+                    "Add a cloud model + API key in Settings (Auto-capture → Engine → Cloud), or enable Apple Intelligence."
                 else
-                    "Add your cloud model's API key in Settings (or enable Apple Intelligence for on-device)."
+                    "Add your cloud model's API key in Settings (Auto-capture → Engine → Cloud)."
             },
-            // On-device (Apple Intelligence) needs no cloud consent — nothing leaves the device. The cloud
-            // path still requires explicit consent.
+            // Cloud requires explicit consent; the on-device model does not (nothing leaves the device).
             isConsented = {
-                NativeAgentRegistry.bridge?.isAvailable() == true ||
+                if (cloudAgentProvider() != null) {
                     secureStorage.loadString("agent_consent_at") != null
+                } else {
+                    true
+                }
             },
             accountNames = { accountRepository.observeActive().first().joinToString(", ") { it.name } },
             categoryNames = { categoryRepository.observeAll().first().joinToString(", ") { it.name } },
