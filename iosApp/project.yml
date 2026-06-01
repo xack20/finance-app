@@ -45,6 +45,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.hisaab
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1"
+        # SQLCipher's CocoaPods umbrella header uses a double-quoted include. The Podfile post_install
+        # suppresses the resulting diagnostic on the pod targets; also suppress it on the app target so
+        # module verification when iosApp imports SQLCipher passes on stricter (device) builds.
+        CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER: "NO"
         # ── Code signing ──
         # Free "Personal Team": the FIRST time, pick your team in Xcode ▸ (target) ▸ Signing &
         # Capabilities — Xcode then creates the cert + provisioning profile (a free Apple ID works; the
