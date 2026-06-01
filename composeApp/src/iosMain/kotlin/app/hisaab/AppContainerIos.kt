@@ -32,6 +32,8 @@ import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
 import app.hisaab.platform.SecureStorage
 import app.hisaab.agent.AgentProvider
+import app.hisaab.agent.NativeAgentRegistry
+import app.hisaab.agent.OnDeviceAgentProvider
 import app.hisaab.agent.AgentRuntime
 import app.hisaab.agent.WriteBatchCommitter
 import app.hisaab.agent.buildAgentToolRegistry
@@ -120,21 +122,33 @@ actual class AppContainer {
             // Resolve the user's SELECTED cloud provider at call time (agent consent is separate,
             // checked via isConsented — independent of the SMS-capture cloud consent).
             agentProvider = {
-                val adapter: LlmProvider? = when (captureConfigRepository.get().cloudProvider) {
-                    CloudProvider.CLAUDE -> claudeProvider
-                    CloudProvider.GEMINI -> geminiProvider
-                    CloudProvider.OPENAI -> openAiProvider
-                    null -> null
+                // Prefer the on-device model (Apple Intelligence) when available; else fall back to the
+                // user's selected cloud provider.
+                val onDevice = NativeAgentRegistry.bridge?.takeIf { it.isAvailable() }
+                if (onDevice != null) {
+                    OnDeviceAgentProvider(onDevice)
+                } else {
+                    val adapter: LlmProvider? = when (captureConfigRepository.get().cloudProvider) {
+                        CloudProvider.CLAUDE -> claudeProvider
+                        CloudProvider.GEMINI -> geminiProvider
+                        CloudProvider.OPENAI -> openAiProvider
+                        null -> null
+                    }
+                    if (adapter != null && adapter.isAvailable()) adapter as? AgentProvider else null
                 }
-                if (adapter != null && adapter.isAvailable()) adapter as? AgentProvider else null
             },
             unavailableReason = {
                 if (captureConfigRepository.get().cloudProvider == null)
-                    "Pick a cloud model in Settings to use the assistant."
+                    "Enable Apple Intelligence for the on-device assistant, or pick a cloud model in Settings."
                 else
-                    "Add your cloud model's API key in Settings to use the assistant."
+                    "Add your cloud model's API key in Settings (or enable Apple Intelligence for on-device)."
             },
-            isConsented = { secureStorage.loadString("agent_consent_at") != null },
+            // On-device (Apple Intelligence) needs no cloud consent — nothing leaves the device. The cloud
+            // path still requires explicit consent.
+            isConsented = {
+                NativeAgentRegistry.bridge?.isAvailable() == true ||
+                    secureStorage.loadString("agent_consent_at") != null
+            },
             accountNames = { accountRepository.observeActive().first().joinToString(", ") { it.name } },
             categoryNames = { categoryRepository.observeAll().first().joinToString(", ") { it.name } },
             committer = WriteBatchCommitter(
