@@ -50,28 +50,30 @@ class ImapReader(
             val inbox = store.getFolder("INBOX")
             inbox.open(Folder.READ_ONLY)
             try {
-                // Server-side filter by received date (day granularity), then refine by exact ms.
+                // Server-side filter by received date (day granularity). IMAP SEARCH returns ascending
+                // sequence order = arrival order = receivedDate order for the INBOX, so the first
+                // maxPerPass are the oldest unsynced — take just that page (bounds fetch/upload/memory).
                 val matched =
                     if (sinceMs > 0) inbox.search(ReceivedDateTerm(ComparisonTerm.GE, Date(sinceMs))) else inbox.messages
-                // Prefetch envelopes (date/from/subject) in ONE round trip so the sort below doesn't
-                // fetch per-message — essential when the window matches thousands of emails.
-                if (matched.isNotEmpty()) {
-                    inbox.fetch(matched, FetchProfile().apply { add(FetchProfile.Item.ENVELOPE) })
+                val page = matched.take(maxPerPass)
+                // Best-effort envelope prefetch for the page (one round trip). Wrapped: Gmail sometimes
+                // has a message jakarta.mail can't parse, and a batch fetch would otherwise throw
+                // "Failed to load IMAP envelope" and abort the whole pass.
+                if (page.isNotEmpty()) {
+                    runCatching { inbox.fetch(page.toTypedArray(), FetchProfile().apply { add(FetchProfile.Item.ENVELOPE) }) }
                 }
-                // Oldest-first, drop anything already past the cursor, then take at most maxPerPass so
-                // one pass never reads/uploads the whole window. The cursor advances to the last taken;
-                // the next tick resumes from there.
-                val ordered = matched
-                    .sortedBy { (it.receivedDate ?: it.sentDate ?: Date(0)).time }
-                    .filter { ((it.receivedDate ?: it.sentDate)?.time ?: 0L) > sinceMs }
-                    .take(maxPerPass)
-                for (m in ordered) {
-                    val ts = (m.receivedDate ?: m.sentDate ?: continue).time
-                    if (ts > newCursor) newCursor = ts // advance even when the body is skipped below
-                    val from = (m.from?.firstOrNull() as? InternetAddress)?.address
-                        ?: m.from?.firstOrNull()?.toString() ?: continue
-                    val (body, isHtml) = extractText(m) ?: continue
-                    captures += EmailCapture.toRawCapture(from, m.subject ?: "", body, isHtml, ts)
+                for (m in page) {
+                    // Every per-message access is defensive: skip an unparseable message rather than
+                    // failing the batch (one bad envelope shouldn't block months of good mail).
+                    val ts = runCatching { (m.receivedDate ?: m.sentDate)?.time }.getOrNull() ?: continue
+                    if (ts <= sinceMs) continue // day-granular search can include same-day older mail
+                    if (ts > newCursor) newCursor = ts
+                    val from = runCatching {
+                        (m.from?.firstOrNull() as? InternetAddress)?.address ?: m.from?.firstOrNull()?.toString()
+                    }.getOrNull() ?: continue
+                    val (body, isHtml) = runCatching { extractText(m) }.getOrNull() ?: continue
+                    val subject = runCatching { m.subject }.getOrNull() ?: ""
+                    captures += EmailCapture.toRawCapture(from, subject, body, isHtml, ts)
                 }
             } finally {
                 inbox.close(false)
