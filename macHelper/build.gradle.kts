@@ -61,6 +61,12 @@ compose.desktop {
             packageName = "HisaabCompanion"
             packageVersion = "1.0.0"
 
+            // Bundle the full JDK module set. Compose Desktop's jlink runtime otherwise omits modules
+            // that are only reached via reflection/JDBC: sqlite-jdbc needs `java.sql` (DriverManager)
+            // to read chat.db, and jakarta.mail/TLS pull `java.desktop` + crypto modules for IMAP.
+            // Size is irrelevant for a local companion; this avoids per-module whack-a-mole.
+            includeAllModules = true
+
             macOS {
                 bundleID = "app.hisaab.companion"
                 // Hardened-runtime entitlements: this JVM app JITs and loads bundled native libs
