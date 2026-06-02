@@ -29,21 +29,28 @@ class RelayPusher(
     private val loadCursor: () -> Long,
     private val saveCursor: (Long) -> Unit,
 ) {
-    /** Read → seal → upload → advance cursor. Returns how many captures were pushed. */
+    /** Read → seal → upload (in bounded chunks) → advance cursor. Returns how many were pushed. */
     suspend fun pushOnce(): Int {
         val cursor = loadCursor()
         val (captures, newCursor) = readSince(cursor)
-        if (captures.isNotEmpty()) {
+        // Upload in bounded chunks so a large backfill never POSTs one oversized batch — the relay
+        // would reject it, the cursor would never advance, and the same batch would retry forever.
+        for (chunk in captures.chunked(UPLOAD_CHUNK)) {
             uploader.upload(
-                captures.map { cap ->
+                chunk.map { cap ->
                     val sealed = relayCrypto.seal(cap, relayKey)
                     RelayUpload(deviceId, Base64.encode(sealed.nonce), Base64.encode(sealed.ciphertext))
                 },
             )
         }
-        // Advance only after a successful upload: if uploader.upload throws, we never reach here and
-        // the cursor stays put, so the batch is retried on the next pass.
+        // Advance only after every chunk uploaded: if any upload throws we never reach here, the cursor
+        // stays put, and the pass is retried next tick (the phone dedups any rows that did land).
         saveCursor(newCursor)
         return captures.size
+    }
+
+    private companion object {
+        /** Max rows per relay insert — bounds the POST body for large backfills. */
+        const val UPLOAD_CHUNK = 100
     }
 }

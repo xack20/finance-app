@@ -2,8 +2,8 @@ package app.hisaab.mac
 
 import app.hisaab.capture.EmailCapture
 import app.hisaab.capture.ImapConfig
-import app.hisaab.capture.ImapHosts
 import app.hisaab.domain.RawCapture
+import jakarta.mail.FetchProfile
 import jakarta.mail.Folder
 import jakarta.mail.Multipart
 import jakarta.mail.Part
@@ -17,10 +17,17 @@ import java.util.Properties
 /**
  * Reads transaction emails from the user's INBOX over IMAPS (Angus/Jakarta Mail, JVM) and maps each
  * to a [RawCapture] (channel=EMAIL) via the shared [EmailCapture]. Mirrors [ChatDbReader]: fetch
- * messages received after a cursor (Unix ms), oldest-first, advancing the cursor to the max seen.
+ * messages received after a cursor (Unix ms), oldest-first, advancing the cursor to the last one read.
  * Read-only; never modifies the mailbox.
+ *
+ * Backfill is PAGED: each call returns at most [maxPerPass] messages (oldest first) and advances the
+ * cursor to the last one taken, so successive poll ticks walk through a large 12-month window a page
+ * at a time instead of loading the whole inbox into memory / one giant relay upload.
  */
-class ImapReader(private val config: ImapConfig) {
+class ImapReader(
+    private val config: ImapConfig,
+    private val maxPerPass: Int = MAX_PER_PASS,
+) {
 
     data class Result(val captures: List<RawCapture>, val newCursor: Long)
 
@@ -36,7 +43,7 @@ class ImapReader(private val config: ImapConfig) {
             },
         )
         val captures = ArrayList<RawCapture>()
-        var maxMs = sinceMs
+        var newCursor = sinceMs
         val store = session.getStore("imaps")
         store.connect(config.host, config.email, config.password)
         try {
@@ -44,13 +51,23 @@ class ImapReader(private val config: ImapConfig) {
             inbox.open(Folder.READ_ONLY)
             try {
                 // Server-side filter by received date (day granularity), then refine by exact ms.
-                val messages =
+                val matched =
                     if (sinceMs > 0) inbox.search(ReceivedDateTerm(ComparisonTerm.GE, Date(sinceMs))) else inbox.messages
-                val ordered = messages.sortedBy { (it.receivedDate ?: it.sentDate ?: Date(0)).time }
+                // Prefetch envelopes (date/from/subject) in ONE round trip so the sort below doesn't
+                // fetch per-message — essential when the window matches thousands of emails.
+                if (matched.isNotEmpty()) {
+                    inbox.fetch(matched, FetchProfile().apply { add(FetchProfile.Item.ENVELOPE) })
+                }
+                // Oldest-first, drop anything already past the cursor, then take at most maxPerPass so
+                // one pass never reads/uploads the whole window. The cursor advances to the last taken;
+                // the next tick resumes from there.
+                val ordered = matched
+                    .sortedBy { (it.receivedDate ?: it.sentDate ?: Date(0)).time }
+                    .filter { ((it.receivedDate ?: it.sentDate)?.time ?: 0L) > sinceMs }
+                    .take(maxPerPass)
                 for (m in ordered) {
                     val ts = (m.receivedDate ?: m.sentDate ?: continue).time
-                    if (ts <= sinceMs) continue
-                    if (ts > maxMs) maxMs = ts
+                    if (ts > newCursor) newCursor = ts // advance even when the body is skipped below
                     val from = (m.from?.firstOrNull() as? InternetAddress)?.address
                         ?: m.from?.firstOrNull()?.toString() ?: continue
                     val (body, isHtml) = extractText(m) ?: continue
@@ -62,7 +79,7 @@ class ImapReader(private val config: ImapConfig) {
         } finally {
             store.close()
         }
-        return Result(captures, maxMs)
+        return Result(captures, newCursor)
     }
 
     /** Prefer a text/plain part; fall back to text/html (stripped later). Returns (body, isHtml). */
@@ -80,5 +97,10 @@ class ImapReader(private val config: ImapConfig) {
             return htmlFallback
         }
         return null
+    }
+
+    private companion object {
+        /** Max emails processed per poll tick — bounds memory, IMAP body fetches, and upload size. */
+        const val MAX_PER_PASS = 300
     }
 }
