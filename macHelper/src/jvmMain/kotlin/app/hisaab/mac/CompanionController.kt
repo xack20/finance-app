@@ -85,9 +85,12 @@ class CompanionController(
         val trimmed = email.trim()
         val hostPort = ImapHosts.forEmail(trimmed)
             ?: error("Unsupported provider — use a personal Gmail, Outlook.com, Yahoo, or iCloud address.")
-        val cfg = ImapConfig(trimmed, appPassword, hostPort.first, hostPort.second)
+        // Providers show app passwords in space-separated groups of 4 (e.g. Gmail's 16-char code);
+        // IMAP auth needs them with NO spaces, so strip whitespace before validating/storing.
+        val password = appPassword.filterNot { it.isWhitespace() }
+        val cfg = ImapConfig(trimmed, password, hostPort.first, hostPort.second)
         ImapReader(cfg).readSince(System.currentTimeMillis()) // validates connect/auth (returns nothing)
-        MacKeychain.savePassword(trimmed, appPassword)
+        MacKeychain.savePassword(trimmed, password)
         emailAccountFile.parentFile?.mkdirs()
         emailAccountFile.writeText(trimmed)
         // On first connect, seed the cursor 12 months back so historical bank emails are captured
@@ -103,7 +106,7 @@ class CompanionController(
     private fun restoreEmail() {
         if (imapConfig != null) return
         val email = runCatching { emailAccountFile.readText().trim() }.getOrNull()?.takeIf { it.isNotBlank() } ?: return
-        val password = MacKeychain.loadPassword(email) ?: return
+        val password = (MacKeychain.loadPassword(email) ?: return).filterNot { it.isWhitespace() }
         val hostPort = ImapHosts.forEmail(email) ?: return
         imapConfig = ImapConfig(email, password, hostPort.first, hostPort.second)
         emailConnected = true
