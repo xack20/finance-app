@@ -44,8 +44,10 @@ class ImapReader(
         )
         val captures = ArrayList<RawCapture>()
         var newCursor = sinceMs
+        val t0 = System.currentTimeMillis()
         val store = session.getStore("imaps")
         store.connect(config.host, config.email, config.password)
+        CompanionLog.log("imap connected in ${System.currentTimeMillis() - t0}ms; reading since=$sinceMs")
         try {
             val inbox = store.getFolder("INBOX")
             inbox.open(Folder.READ_ONLY)
@@ -53,28 +55,33 @@ class ImapReader(
                 // Server-side filter by received date (day granularity). IMAP SEARCH returns ascending
                 // sequence order = arrival order = receivedDate order for the INBOX, so the first
                 // maxPerPass are the oldest unsynced — take just that page (bounds fetch/upload/memory).
+                val tSearch = System.currentTimeMillis()
                 val matched =
                     if (sinceMs > 0) inbox.search(ReceivedDateTerm(ComparisonTerm.GE, Date(sinceMs))) else inbox.messages
                 val page = matched.take(maxPerPass)
+                CompanionLog.log("imap search matched=${matched.size} page=${page.size} in ${System.currentTimeMillis() - tSearch}ms")
                 // Best-effort envelope prefetch for the page (one round trip). Wrapped: Gmail sometimes
                 // has a message jakarta.mail can't parse, and a batch fetch would otherwise throw
                 // "Failed to load IMAP envelope" and abort the whole pass.
                 if (page.isNotEmpty()) {
                     runCatching { inbox.fetch(page.toTypedArray(), FetchProfile().apply { add(FetchProfile.Item.ENVELOPE) }) }
+                        .onFailure { CompanionLog.log("imap envelope prefetch failed: ${it.message}") }
                 }
+                var skipped = 0
                 for (m in page) {
                     // Every per-message access is defensive: skip an unparseable message rather than
                     // failing the batch (one bad envelope shouldn't block months of good mail).
-                    val ts = runCatching { (m.receivedDate ?: m.sentDate)?.time }.getOrNull() ?: continue
+                    val ts = runCatching { (m.receivedDate ?: m.sentDate)?.time }.getOrNull() ?: run { skipped++; continue }
                     if (ts <= sinceMs) continue // day-granular search can include same-day older mail
                     if (ts > newCursor) newCursor = ts
                     val from = runCatching {
                         (m.from?.firstOrNull() as? InternetAddress)?.address ?: m.from?.firstOrNull()?.toString()
-                    }.getOrNull() ?: continue
-                    val (body, isHtml) = runCatching { extractText(m) }.getOrNull() ?: continue
+                    }.getOrNull() ?: run { skipped++; continue }
+                    val (body, isHtml) = runCatching { extractText(m) }.getOrNull() ?: run { skipped++; continue }
                     val subject = runCatching { m.subject }.getOrNull() ?: ""
                     captures += EmailCapture.toRawCapture(from, subject, body, isHtml, ts)
                 }
+                CompanionLog.log("imap read done: captured=${captures.size} skipped=$skipped newCursor=$newCursor total=${System.currentTimeMillis() - t0}ms")
             } finally {
                 inbox.close(false)
             }
@@ -102,7 +109,8 @@ class ImapReader(
     }
 
     private companion object {
-        /** Max emails processed per poll tick — bounds memory, IMAP body fetches, and upload size. */
-        const val MAX_PER_PASS = 300
+        /** Max emails processed per poll tick — bounds memory, IMAP body fetches, and upload size.
+         *  Small so each pass finishes quickly and the synced counter visibly climbs during backfill. */
+        const val MAX_PER_PASS = 50
     }
 }

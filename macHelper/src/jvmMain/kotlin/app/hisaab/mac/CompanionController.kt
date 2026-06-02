@@ -175,12 +175,19 @@ class CompanionController(
     private fun startLoop() {
         if (loopJob != null) return
         loopJob = scope.launch(Dispatchers.IO) {
+            CompanionLog.log("push loop started")
             while (isActive) {
                 var pushed = 0
                 var failed = false
-                runCatching { pushed += pushSms() }.onFailure { failed = true; error = it.message ?: "SMS sync error" }
+                val tSms = System.currentTimeMillis()
+                runCatching { pushed += pushSms() }
+                    .onSuccess { CompanionLog.log("pushSms ok in ${System.currentTimeMillis() - tSms}ms") }
+                    .onFailure { failed = true; error = it.message ?: "SMS sync error"; CompanionLog.log("pushSms FAILED: ${it.message}") }
                 imapConfig?.let { cfg ->
-                    runCatching { pushed += pushEmail(cfg) }.onFailure { failed = true; error = it.message ?: "Email sync error" }
+                    val tEmail = System.currentTimeMillis()
+                    runCatching { pushed += pushEmail(cfg) }
+                        .onSuccess { CompanionLog.log("pushEmail ok in ${System.currentTimeMillis() - tEmail}ms (totalPushed=$totalPushed)") }
+                        .onFailure { failed = true; error = it.message ?: "Email sync error"; CompanionLog.log("pushEmail FAILED: ${it.message}") }
                 }
                 if (!failed) {
                     error = null
