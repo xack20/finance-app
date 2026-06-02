@@ -47,6 +47,9 @@ ktor-client-darwin        = { module = "io.ktor:ktor-client-darwin", version.ref
 # Crypto
 libsodium-kmp             = { module = "com.ionspin.kotlin:multiplatform-crypto-libsodium-bindings", version.ref = "libsodium" }
 
+# macOS helper: read Messages chat.db (JVM)
+sqlite-jdbc               = { module = "org.xerial:sqlite-jdbc", version = "3.47.1.0" }
+
 # AndroidX
 androidx-security-crypto  = { module = "androidx.security:security-crypto", version = "1.1.0-alpha06" }
 androidx-biometric        = { module = "androidx.biometric:biometric", version = "1.2.0-alpha05" }

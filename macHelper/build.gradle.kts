@@ -26,6 +26,10 @@ kotlin {
             implementation(project(":sharedCore")) // crypto + RawCapture + RelayCaptureCrypto
             implementation(compose.desktop.currentOs)
             implementation(compose.material3)
+            implementation(libs.sqlite.jdbc) // read ~/Library/Messages/chat.db
+        }
+        jvmTest.dependencies {
+            implementation(kotlin("test"))
         }
     }
 }
