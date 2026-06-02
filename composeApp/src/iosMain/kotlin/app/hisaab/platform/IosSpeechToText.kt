@@ -3,15 +3,18 @@
 package app.hisaab.platform
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import platform.AVFAudio.AVAudioEngine
+import platform.AVFAudio.AVAudioInputNode
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryRecord
 import platform.AVFAudio.setActive
 import platform.Foundation.NSLocale
 import platform.Speech.SFSpeechAudioBufferRecognitionRequest
+import platform.Speech.SFSpeechRecognitionTask
 import platform.Speech.SFSpeechRecognizer
 import platform.Speech.SFSpeechRecognizerAuthorizationStatus.SFSpeechRecognizerAuthorizationStatusAuthorized
 import platform.Speech.SFSpeechRecognizerAuthorizationStatus.SFSpeechRecognizerAuthorizationStatusNotDetermined
@@ -21,6 +24,11 @@ import platform.Speech.SFSpeechRecognizerAuthorizationStatus.SFSpeechRecognizerA
  * final transcripts; emits [SpeechEvent.PermissionDenied] when speech/mic authorization is missing
  * and [SpeechEvent.Failed] on recognizer/audio errors (degrade to typing). Requires
  * NSSpeechRecognitionUsageDescription + NSMicrophoneUsageDescription in Info.plist.
+ *
+ * Contract: never throws into the collector. The AVAudioEngine APIs (notably installTapOnBus /
+ * startAndReturnError / the record session activation) raise ObjC NSExceptions on a real device
+ * when the mic route/format isn't ready — Kotlin/Native surfaces those as catchable Throwables, so
+ * the whole setup is guarded and any failure degrades to [SpeechEvent.Failed] instead of crashing.
  */
 class IosSpeechToText : SpeechToText {
 
@@ -44,49 +52,71 @@ class IosSpeechToText : SpeechToText {
         val recognizer = SFSpeechRecognizer(NSLocale(localeTag)) ?: SFSpeechRecognizer()
         if (recognizer == null || !recognizer.available) {
             trySend(SpeechEvent.Failed("Speech recognizer unavailable"))
-            close(); return@callbackFlow
+            close()
+            return@callbackFlow
         }
 
-        // Activate the record audio session BEFORE reading the input-node format / installing the tap.
-        // On a real device the input node reports an invalid format (0 Hz / 0 channels) until the
-        // session is active for recording, and installTapOnBus(..., invalidFormat) throws an
-        // NSException ("required condition is false: IsFormatSampleRateAndChannelCountValid") that
-        // terminates the app. The simulator reports a valid default format regardless, which is why
-        // this only crashed on the iPhone, not in the simulator.
-        val session = AVAudioSession.sharedInstance()
-        session.setCategory(AVAudioSessionCategoryRecord, error = null)
-        session.setActive(true, error = null)
+        var engine: AVAudioEngine? = null
+        var input: AVAudioInputNode? = null
+        var task: SFSpeechRecognitionTask? = null
+        var request: SFSpeechAudioBufferRecognitionRequest? = null
 
-        val engine = AVAudioEngine()
-        val request = SFSpeechAudioBufferRecognitionRequest().apply { shouldReportPartialResults = true }
+        try {
+            // Activate the record session BEFORE reading the input format / installing the tap — on a
+            // real device the input node's format is invalid (0 Hz) until the session is active, and
+            // installTapOnBus(..., invalidFormat) raises an NSException. (Simulator reports a valid
+            // default format regardless, which is why this only crashed on the iPhone.)
+            val session = AVAudioSession.sharedInstance()
+            session.setCategory(AVAudioSessionCategoryRecord, error = null)
+            session.setActive(true, error = null)
 
-        val task = recognizer.recognitionTaskWithRequest(request) { result, error ->
-            if (result != null) {
-                val text = result.bestTranscription.formattedString
-                if (result.final) { trySend(SpeechEvent.Final(text)); close() }
-                else trySend(SpeechEvent.Partial(text))
+            val eng = AVAudioEngine().also { engine = it }
+            val req = SFSpeechAudioBufferRecognitionRequest().apply { shouldReportPartialResults = true }
+            request = req
+
+            task = recognizer.recognitionTaskWithRequest(req) { result, error ->
+                if (result != null) {
+                    val text = result.bestTranscription.formattedString
+                    if (result.final) { trySend(SpeechEvent.Final(text)); close() }
+                    else trySend(SpeechEvent.Partial(text))
+                }
+                if (error != null) { trySend(SpeechEvent.Failed(error.localizedDescription)); close() }
             }
-            if (error != null) { trySend(SpeechEvent.Failed(error.localizedDescription)); close() }
-        }
 
-        val input = engine.inputNode
-        val format = input.outputFormatForBus(0u)
-        if (format.sampleRate == 0.0) {
-            // Session/route not ready — fail closed rather than crash on an invalid tap format.
-            trySend(SpeechEvent.Failed("Microphone unavailable"))
-            close(); return@callbackFlow
+            val inputNode = eng.inputNode.also { input = it }
+            val format = inputNode.outputFormatForBus(0u)
+            if (format.sampleRate == 0.0 || format.channelCount == 0u) {
+                trySend(SpeechEvent.Failed("Microphone unavailable — check mic permission."))
+                close()
+                return@callbackFlow
+            }
+            inputNode.installTapOnBus(0u, 1024u, format) { buffer, _ ->
+                buffer?.let { req.appendAudioPCMBuffer(it) }
+            }
+            eng.prepare()
+            eng.startAndReturnError(null)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // Any audio/recognizer setup failure (ObjC NSException incl.) degrades to typing.
+            trySend(SpeechEvent.Failed(e.message ?: "Couldn't start the microphone"))
+            runCatching {
+                engine?.stop()
+                input?.removeTapOnBus(0u)
+                task?.cancel()
+            }
+            close()
+            return@callbackFlow
         }
-        input.installTapOnBus(0u, 1024u, format) { buffer, _ ->
-            buffer?.let { request.appendAudioPCMBuffer(it) }
-        }
-        engine.prepare()
-        engine.startAndReturnError(null)
 
         awaitClose {
-            engine.stop()
-            input.removeTapOnBus(0u)
-            request.endAudio()
-            task?.cancel()
+            runCatching {
+                engine?.stop()
+                input?.removeTapOnBus(0u)
+                request?.endAudio()
+                task?.cancel()
+                AVAudioSession.sharedInstance().setActive(false, error = null)
+            }
         }
     }
 }

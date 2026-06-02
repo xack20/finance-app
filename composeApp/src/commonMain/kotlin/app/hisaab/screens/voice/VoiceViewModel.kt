@@ -7,6 +7,7 @@ import app.hisaab.platform.NoSpeechToText
 import app.hisaab.platform.SpeechEvent
 import app.hisaab.platform.SpeechToText
 import app.hisaab.screens.agent.userMessageFor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -109,16 +110,23 @@ class VoiceViewModel(
                 return@launch
             }
             _state.update { it.copy(listening = true, error = null, transcript = "") }
-            speechToText.listen(_state.value.language.localeTag).collect { ev ->
-                when (ev) {
-                    is SpeechEvent.Partial -> _state.update { it.copy(transcript = ev.text) }
-                    // Hold-to-talk: capture the final transcript but DON'T auto-submit — releasing submits.
-                    is SpeechEvent.Final -> _state.update { it.copy(transcript = ev.text, listening = false) }
-                    SpeechEvent.PermissionDenied ->
-                        _state.update { it.copy(listening = false, sttAvailable = false, error = "Allow microphone access in Settings to use voice.") }
-                    is SpeechEvent.Failed ->
-                        _state.update { it.copy(listening = false, error = "Couldn't hear that — hold and try again, or type.") }
+            try {
+                speechToText.listen(_state.value.language.localeTag).collect { ev ->
+                    when (ev) {
+                        is SpeechEvent.Partial -> _state.update { it.copy(transcript = ev.text) }
+                        // Hold-to-talk: capture the final transcript but DON'T auto-submit — releasing submits.
+                        is SpeechEvent.Final -> _state.update { it.copy(transcript = ev.text, listening = false) }
+                        SpeechEvent.PermissionDenied ->
+                            _state.update { it.copy(listening = false, sttAvailable = false, error = "Allow microphone access in Settings to use voice.") }
+                        is SpeechEvent.Failed ->
+                            _state.update { it.copy(listening = false, error = "Couldn't hear that — hold and try again, or type.") }
+                    }
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // Never let a recognizer/audio failure crash the app — degrade to typing.
+                _state.update { it.copy(listening = false, error = "Couldn't start the microphone — type instead.") }
             }
             _state.update { it.copy(listening = false) }
         }
