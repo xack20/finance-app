@@ -67,7 +67,10 @@ fun PersonDetailScreen(personId: String, onBack: () -> Unit) {
         )
     }
     DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
-    val detail by viewModel.personDetail(personId).collectAsState()
+    // personDetail() builds a NEW StateFlow each call; remember it so it isn't recreated every
+    // recomposition (which re-subscribed → emitted null→value → recomposed → looped forever).
+    val detailFlow = remember(personId) { viewModel.personDetail(personId) }
+    val detail by detailFlow.collectAsState()
     val accounts by viewModel.activeAccounts.collectAsState()
     var settleRecord by remember { mutableStateOf<LendBorrowRow?>(null) }
 
