@@ -144,7 +144,7 @@ private fun argStr(w: ProposedWrite, key: String): String? =
  * create_account      → "New account: VISA (CARD)"
  * create_category     → "New category: Food"
  */
-private fun summarize(w: ProposedWrite): String = when (w.tool) {
+internal fun summarize(w: ProposedWrite): String = when (w.tool) {
     "add_transaction" -> {
         val kind = argStr(w, "kind")?.lowercase() ?: "transaction"
         val label = when (kind) {

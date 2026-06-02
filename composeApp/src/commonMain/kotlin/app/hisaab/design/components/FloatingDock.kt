@@ -44,6 +44,7 @@ fun FloatingDock(
     onTabSelect: (DockTab) -> Unit,
     onFabClick: () -> Unit,
     modifier: Modifier = Modifier,
+    fabIcon: String = "plus",
 ) {
     val p = LocalHisaabPalette.current
     require(tabs.size == 4) { "FloatingDock expects exactly 4 tabs" }
@@ -71,7 +72,7 @@ fun FloatingDock(
                 .clickable(onClick = onFabClick)
                 .semantics { contentDescription = "Add"; role = Role.Button },
             contentAlignment = Alignment.Center,
-        ) { HisaabIcon("plus", tint = p.onAccent, size = 26.dp, strokeWidth = 2.4f) }
+        ) { HisaabIcon(fabIcon, tint = p.onAccent, size = 26.dp, strokeWidth = 2.4f) }
         DockButton(tabs[2], selectedKey, onTabSelect, p)
         DockButton(tabs[3], selectedKey, onTabSelect, p)
     }

@@ -35,8 +35,8 @@ sealed interface VoiceStep {
     /** Parsed into [writes] ready to save; [message] is the runtime's one-line summary, if any. */
     data class Draft(val writes: List<ProposedWrite>, val message: String) : VoiceStep
 
-    /** The draft was applied successfully. */
-    data object Done : VoiceStep
+    /** The draft was applied successfully; [writes] is shown as the saved summary. */
+    data class Done(val writes: List<ProposedWrite>) : VoiceStep
 }
 
 data class VoiceUiState(
@@ -153,7 +153,7 @@ class VoiceViewModel(
         _state.update { it.copy(error = null) }
         scope.launch {
             runCatching { runtime.apply(draft.writes) }
-                .onSuccess { _state.update { it.copy(step = VoiceStep.Done) } }
+                .onSuccess { _state.update { it.copy(step = VoiceStep.Done(draft.writes)) } }
                 .onFailure { _state.update { it.copy(error = "Couldn't save — rolled back.") } }
         }
     }

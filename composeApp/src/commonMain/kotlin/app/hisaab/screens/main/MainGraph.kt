@@ -11,15 +11,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import app.hisaab.design.components.DockTab
 import app.hisaab.design.components.FloatingDock
-import app.hisaab.design.components.MidnightSheet
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -48,9 +45,11 @@ import app.hisaab.screens.settings.RecoveryPhraseRevealScreen
 import app.hisaab.screens.settings.SettingsScreen
 import app.hisaab.screens.today.TodayScreen
 import app.hisaab.screens.transaction.TransactionDetailScreen
+import app.hisaab.screens.voice.VoiceScreen
 import kotlinx.datetime.Clock
 
 private const val AGENT_ROUTE = "agent"
+private const val VOICE_ROUTE = "voice"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +77,7 @@ fun MainGraph() {
                         onTxnClick = { id -> navController.navigate("txn/$id") },
                         onReview = { navController.navigate("review") },
                         onAutoCapture = { navController.navigate("settings/auto-capture") },
+                        onSpeak = { navController.navigate(VOICE_ROUTE) },
                     )
                 }
                 composable(MainTab.MONTH.name) { MonthScreen() }
@@ -188,6 +188,20 @@ fun MainGraph() {
                     }
                     AgentScreen(vm = vm, onClose = { navController.popBackStack() })
                 }
+                composable(VOICE_ROUTE) {
+                    VoiceScreen(
+                        onClose = { navController.popBackStack() },
+                        // "Type instead" → manual entry (neo-voice.jsx:180).
+                        onTypeInstead = {
+                            navController.popBackStack()
+                            navController.navigate("entry")
+                        },
+                        onChat = {
+                            navController.popBackStack()
+                            navController.navigate(AGENT_ROUTE)
+                        },
+                    )
+                }
             }
             // Mount the auto-post snackbar host once; it collects captureEvents and shows Undo snackbars.
             AutoPostSnackbarHost(
@@ -197,7 +211,6 @@ fun MainGraph() {
             // Midnight dock: always shows all 4 tabs + the center add-FAB (incl. Settings).
             // Intentional change from the old NavigationBar, where the FAB was hidden on Settings.
             if (showNavAndFab) {
-                var showChooser by remember { mutableStateOf(false) }
                 val tabs = MainTab.entries.map { DockTab(it.name, it.iconChar(), it.label()) }
                 FloatingDock(
                     tabs = tabs,
@@ -209,37 +222,14 @@ fun MainGraph() {
                             restoreState = true
                         }
                     },
-                    onFabClick = { showChooser = true },
+                    // Center button is a mic opening voice-first capture (neo-app.jsx onAdd → go('voice')).
+                    onFabClick = { navController.navigate(VOICE_ROUTE) },
+                    fabIcon = "mic",
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp),
                 )
-                if (showChooser) {
-                    MidnightSheet(onDismiss = { showChooser = false }, title = "Add") {
-                        DockChooserRow("Add manually", palette.onBackground) {
-                            showChooser = false
-                            navController.navigate("entry")
-                        }
-                        DockChooserRow("Ask the assistant", palette.accent) {
-                            showChooser = false
-                            navController.navigate(AGENT_ROUTE)
-                        }
-                    }
-                }
             }
         }
     }
-}
-
-@Composable
-private fun DockChooserRow(text: String, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
-    androidx.compose.material3.Text(
-        text,
-        color = color,
-        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-        modifier = androidx.compose.ui.Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
-    )
 }
 
 private fun MainTab.label(): String = when (this) {

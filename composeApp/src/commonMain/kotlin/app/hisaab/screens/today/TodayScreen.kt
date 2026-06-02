@@ -58,7 +58,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 @Composable
-fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCapture: () -> Unit) {
+fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCapture: () -> Unit, onSpeak: () -> Unit = {}) {
     val palette = LocalHisaabPalette.current
     val container = LocalAppContainer.current
     val viewModel = remember {
@@ -223,6 +223,36 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
                     Text("Out", color = palette.negative, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
                 }
             }
+            }
+        }
+
+        // Voice-first capture CTA (neo.jsx:127) — "Tap & speak to log".
+        Spacer(Modifier.height(16.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(HisaabShapes.cardCompact)
+                .background(palette.accent)
+                .clickable(onClick = onSpeak)
+                .padding(horizontal = 18.dp, vertical = 15.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(palette.onAccent.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) { HisaabIcon("mic", tint = palette.onAccent, size = 24.dp) }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Tap & speak to log", color = palette.onAccent, fontWeight = FontWeight.Bold, fontSize = 16.5.sp)
+                Text(
+                    "“Lunch e 500” · “Salary pelam 65000”",
+                    color = palette.onAccent.copy(alpha = 0.62f),
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                )
             }
         }
 
