@@ -2,7 +2,9 @@ package app.hisaab.screens.voice
 
 import app.hisaab.agent.AgentAvailability
 import app.hisaab.agent.AgentRuntime
+import app.hisaab.agent.ChatMessage
 import app.hisaab.agent.ProposedWrite
+import app.hisaab.agent.Role
 import app.hisaab.platform.AudioRecorder
 import app.hisaab.platform.CloudTranscriber
 import app.hisaab.platform.NoAudioRecorder
@@ -90,6 +92,14 @@ class VoiceViewModel(
     val state: StateFlow<VoiceUiState> = _state.asStateFlow()
 
     private var listenJob: Job? = null
+
+    /**
+     * Accumulated conversation so the agent can ask a follow-up and remember context across turns
+     * (the runtime is stateless — history is supplied each call). Threaded from
+     * [app.hisaab.agent.AgentTurnResult.updatedHistory] with the SYSTEM message stripped (the runtime
+     * re-prepends it). Reset by [redo]; an answer/clarification continues by holding the mic again.
+     */
+    private var history: List<ChatMessage> = emptyList()
 
     init {
         scope.launch {
@@ -217,8 +227,10 @@ class VoiceViewModel(
         scope.launch {
             when (val avail = runtime.availability()) {
                 AgentAvailability.Ready -> {
-                    runCatching { runtime.run(emptyList(), text) }
+                    runCatching { runtime.run(history, text) }
                         .onSuccess { res ->
+                            // Thread context for a possible follow-up; the runtime re-prepends SYSTEM.
+                            history = res.updatedHistory.filterNot { it.role == Role.SYSTEM }
                             _state.update {
                                 it.copy(
                                     step = if (res.proposedWrites.isNotEmpty()) {
@@ -249,8 +261,9 @@ class VoiceViewModel(
         }
     }
 
-    /** Discard the draft/answer and return to the hold-to-speak state for a fresh command. */
+    /** Start over: drop the conversation and return to the hold-to-speak state for a fresh command. */
     fun redo() {
+        history = emptyList()
         _state.update { it.copy(step = VoiceStep.Listen, transcript = "", typed = "", error = null) }
     }
 }

@@ -184,6 +184,8 @@ fun MainGraph() {
                                 )
                             },
                             speechToText = container.speechToText,
+                            audioRecorder = container.audioRecorder,
+                            cloudTranscriber = container.cloudTranscriber,
                         )
                     }
                     AgentScreen(vm = vm, onClose = { navController.popBackStack() })

@@ -332,8 +332,8 @@ fun AgentScreenContent(
             }
         }
 
-        // ── Listening indicator ─────────────────────────────────────────────────
-        if (state.listening) {
+        // ── Listening / transcribing indicator ──────────────────────────────────
+        if (state.listening || state.transcribing) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -343,7 +343,7 @@ fun AgentScreenContent(
             ) {
                 ListeningEqualizer()
                 Text(
-                    text = "Listening…",
+                    text = if (state.transcribing) "Transcribing…" else "Listening…",
                     color = palette.accent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
@@ -382,7 +382,12 @@ fun AgentScreenContent(
                 value = state.input,
                 onValueChange = onInput,
                 placeholder = {
-                    Text(if (state.listening) "Listening…" else "Ask anything…", color = palette.muted)
+                    val hint = when {
+                        state.transcribing -> "Transcribing…"
+                        state.listening -> "Listening…"
+                        else -> "Ask anything…"
+                    }
+                    Text(hint, color = palette.muted)
                 },
                 modifier = Modifier
                     .weight(1f)
@@ -424,10 +429,11 @@ fun AgentScreenContent(
                 )
             }
 
-            // Mic button — push-to-talk on-device STT; lime fill + lime glow while listening.
+            // Mic button — tap-to-talk: cloud STT (record→Gemini) when a Gemini key is set, else
+            // on-device. Lime fill + glow while recording; disabled while a clip is transcribing.
             IconButton(
                 onClick = onMicTap,
-                enabled = state.voiceAvailable && !inputDisabled,
+                enabled = state.voiceAvailable && !inputDisabled && !state.transcribing,
                 modifier = Modifier
                     .size(50.dp)
                     .then(

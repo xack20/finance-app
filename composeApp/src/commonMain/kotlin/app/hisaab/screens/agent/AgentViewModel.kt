@@ -11,6 +11,10 @@ import app.hisaab.llm.LlmError
 import app.hisaab.llm.LlmException
 import app.hisaab.domain.AgentMessage
 import app.hisaab.domain.AgentRole
+import app.hisaab.platform.AudioRecorder
+import app.hisaab.platform.CloudTranscriber
+import app.hisaab.platform.NoAudioRecorder
+import app.hisaab.platform.NoCloudTranscriber
 import app.hisaab.platform.NoSpeechToText
 import app.hisaab.platform.SpeechEvent
 import app.hisaab.platform.SpeechToText
@@ -38,6 +42,8 @@ data class AgentUiState(
     val confirmation: String? = null,
     val voiceAvailable: Boolean = false,
     val listening: Boolean = false,
+    /** Cloud path only: the recorded clip is being transcribed by Gemini. */
+    val transcribing: Boolean = false,
 )
 
 class AgentViewModel(
@@ -45,6 +51,9 @@ class AgentViewModel(
     private val runtime: AgentRuntime,
     private val setConsent: suspend () -> Unit,
     private val speechToText: SpeechToText = NoSpeechToText,
+    /** Cloud recorder + transcriber: when a Gemini key is set, the mic goes record→Gemini (Bangla). */
+    private val audioRecorder: AudioRecorder = NoAudioRecorder,
+    private val cloudTranscriber: CloudTranscriber = NoCloudTranscriber,
     private val locale: String = "en-US",
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
@@ -54,6 +63,9 @@ class AgentViewModel(
     private var messageCollectorJob: Job? = null
     private var listenJob: Job? = null
 
+    /** True when mic capture goes via record→Gemini (Bangla-capable) instead of the on-device recognizer. */
+    private var usingCloud: Boolean = false
+
     init {
         scope.launch {
             val cid = conversationRepo.latestConversationId()
@@ -62,7 +74,14 @@ class AgentViewModel(
             collectMessages(cid)
         }
         scope.launch {
-            _state.update { it.copy(voiceAvailable = speechToText.isAvailable()) }
+            // Prefer cloud STT when a Gemini key is set — on-device recognizers can't do Bangla.
+            usingCloud = cloudTranscriber.isAvailable()
+            // Request mic (+ speech) up front so the user isn't prompted mid-recording; both
+            // recognizers' requestPermission() also grant the mic the cloud recorder needs.
+            val granted = speechToText.requestPermission()
+            val canCapture =
+                if (usingCloud) granted && audioRecorder.isAvailable() else granted && speechToText.isAvailable()
+            _state.update { it.copy(voiceAvailable = canCapture) }
         }
     }
 
@@ -80,16 +99,57 @@ class AgentViewModel(
     }
 
     /**
-     * Push-to-talk toggle (M4-5). Starts on-device recognition and streams transcripts into the
-     * input field; tapping again (or a Final result / error) stops. Degrades to typing when voice
-     * is unavailable or permission is denied.
+     * Tap-to-talk toggle. Prefers cloud STT (record → Gemini, Bangla-capable); falls back to the
+     * on-device recognizer when no Gemini key. First tap starts; second tap stops and (cloud)
+     * transcribes the clip into the input field, where the user can edit before sending. Degrades to
+     * typing when voice is unavailable or permission is denied.
      */
     fun onMicTap() {
-        if (_state.value.listening) {
-            listenJob?.cancel()
-            _state.update { it.copy(listening = false) }
+        val s = _state.value
+        if (s.transcribing) return // ignore taps while a clip is being transcribed
+        if (s.listening) {
+            if (usingCloud) {
+                stopAndTranscribe()
+            } else {
+                listenJob?.cancel()
+                _state.update { it.copy(listening = false) }
+            }
             return
         }
+        if (usingCloud) startRecording() else startListening()
+    }
+
+    /** Cloud tap-to-talk start: begin mic capture (no recognizer). Second tap → [stopAndTranscribe]. */
+    private fun startRecording() {
+        _state.update { it.copy(listening = true, error = null) }
+        // start() is synchronous and self-guarded (never throws); failure degrades to typing.
+        runCatching { audioRecorder.start() }.onFailure {
+            _state.update { it.copy(listening = false, error = "Couldn't start the microphone — type instead.") }
+        }
+    }
+
+    /** Cloud tap-to-talk stop: transcribe via Gemini (auto-detect language) into the input field. */
+    private fun stopAndTranscribe() {
+        _state.update { it.copy(listening = false, transcribing = true, error = null) }
+        scope.launch {
+            val wav = runCatching { audioRecorder.stop() }.getOrNull()
+            if (wav == null || wav.isEmpty()) {
+                _state.update { it.copy(transcribing = false, error = "Didn't catch that — try again or type.") }
+                return@launch
+            }
+            runCatching { cloudTranscriber.transcribe(wav, "") } // "" → Gemini auto-detects the language
+                .onSuccess { text ->
+                    _state.update {
+                        if (text.isBlank()) it.copy(transcribing = false, error = "Didn't catch that — try again or type.")
+                        else it.copy(transcribing = false, input = text)
+                    }
+                }
+                .onFailure { t -> _state.update { it.copy(transcribing = false, error = userMessageFor(t)) } }
+        }
+    }
+
+    /** On-device recognizer fallback (no Gemini key): stream partials into the input until Final/stop. */
+    private fun startListening() {
         listenJob = scope.launch {
             if (!speechToText.isAvailable()) {
                 _state.update { it.copy(error = "Voice input isn't available on this device.", voiceAvailable = false) }

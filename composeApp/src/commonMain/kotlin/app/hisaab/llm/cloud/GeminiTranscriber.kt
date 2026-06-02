@@ -95,10 +95,11 @@ class GeminiTranscriber(
      * language so the downstream parser sees what the user actually said.
      */
     private fun transcriptionPrompt(languageHint: String): String {
+        // Empty / "auto" hint → let the model detect the spoken language (the Assistant mic uses this).
         val likely = when (languageHint.substringBefore('-').lowercase()) {
             "bn" -> "Bengali (Bangla), often mixed with English words and digits (\"Banglish\")"
             "en" -> "English, possibly mixed with Bengali words"
-            else -> "the speaker's natural language"
+            else -> "either Bengali (Bangla), English, or a mix (\"Banglish\") — detect the spoken language from the audio"
         }
         return buildString {
             append("You are a speech transcription engine for a personal finance app used in Bangladesh. ")

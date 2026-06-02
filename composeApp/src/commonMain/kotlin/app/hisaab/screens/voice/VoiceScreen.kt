@@ -45,6 +45,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
@@ -104,7 +105,7 @@ fun VoiceScreen(onClose: () -> Unit, onTypeInstead: () -> Unit, onChat: () -> Un
                 VoiceStep.Listen -> ListenStep(state, vm, onClose, onTypeInstead, onChat)
                 VoiceStep.Transcribing -> ParsingStep("", onClose, label = "Transcribing…")
                 VoiceStep.Parsing -> ParsingStep(state.transcript, onClose)
-                is VoiceStep.Answer -> AnswerStep(step.message, state.transcript, vm, onClose)
+                is VoiceStep.Answer -> AnswerStep(state, step.message, vm, onClose)
                 is VoiceStep.Draft -> DraftStep(step.writes, state.error, vm, onClose)
                 is VoiceStep.Done -> DoneStep(step.writes, vm, onClose)
             }
@@ -132,9 +133,9 @@ private fun CloseBar(onClose: () -> Unit, right: @Composable (() -> Unit)? = nul
     }
 }
 
-/** Push-to-talk mic orb (116dp): lime + pulse while held, else a lime glyph. Hold to speak, release to parse. */
+/** Push-to-talk mic orb: lime + pulse while held, else a lime glyph. Hold to speak, release to parse. */
 @Composable
-private fun MicOrb(listening: Boolean, onHoldStart: () -> Unit, onHoldEnd: () -> Unit) {
+private fun MicOrb(listening: Boolean, onHoldStart: () -> Unit, onHoldEnd: () -> Unit, size: Dp = 116.dp) {
     val p = LocalHisaabPalette.current
     val reduce = LocalReduceMotion.current
     val scale = if (listening && !reduce) {
@@ -145,7 +146,7 @@ private fun MicOrb(listening: Boolean, onHoldStart: () -> Unit, onHoldEnd: () ->
     }
     Box(
         modifier = Modifier
-            .size(116.dp).scale(scale).clip(CircleShape)
+            .size(size).scale(scale).clip(CircleShape)
             .background(if (listening) p.accent else p.surface)
             .border(if (listening) 0.dp else 1.dp, if (listening) p.accent else p.hair, CircleShape)
             .pointerInput(Unit) {
@@ -156,7 +157,7 @@ private fun MicOrb(listening: Boolean, onHoldStart: () -> Unit, onHoldEnd: () ->
                 })
             },
         contentAlignment = Alignment.Center,
-    ) { HisaabIcon("mic", tint = if (listening) p.onAccent else p.accent, size = 48.dp) }
+    ) { HisaabIcon("mic", tint = if (listening) p.onAccent else p.accent, size = (size.value * 0.41f).dp) }
 }
 
 /** Recognizer-language toggle (বাংলা / EN) — sets the STT locale so Bangla isn't decoded as English. */
@@ -351,24 +352,47 @@ private fun ColumnScope.ParsingStep(transcript: String, onClose: () -> Unit, lab
     }
 }
 
+/**
+ * The agent's reply. Continuable (Neo follow-up): the agent may answer OR ask a clarifying question,
+ * so the user can reply in-context by holding the mic again — [VoiceViewModel] threads the
+ * conversation history across turns. "Start over" drops the thread; "Done" closes.
+ */
 @Composable
-private fun ColumnScope.AnswerStep(message: String, transcript: String, vm: VoiceViewModel, onClose: () -> Unit) {
+private fun ColumnScope.AnswerStep(state: VoiceUiState, message: String, vm: VoiceViewModel, onClose: () -> Unit) {
     val p = LocalHisaabPalette.current
     CloseBar(onClose)
     Column(
         modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
     ) {
-        if (transcript.isNotBlank()) {
-            Text("“$transcript”", color = p.muted, fontSize = 13.sp)
-            Spacer(Modifier.height(14.dp))
+        if (state.transcript.isNotBlank()) {
+            Text(
+                "“${state.transcript}”",
+                color = p.muted, fontSize = 13.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = 300.dp),
+            )
         }
         SurfaceCard(modifier = Modifier.fillMaxWidth(), contentPadding = 22.dp) {
             Text(message.ifBlank { "Here's what I found." }, color = p.onBackground, fontSize = 19.sp, fontWeight = FontWeight.Medium)
         }
-        Spacer(Modifier.height(20.dp))
+        if (state.sttAvailable) {
+            Eyebrow(if (state.listening) "Listening… release to reply" else "Hold to reply", color = p.accent)
+            MicOrb(listening = state.listening, onHoldStart = vm::onHoldStart, onHoldEnd = vm::onHoldEnd, size = 92.dp)
+        } else {
+            MidnightTextField(
+                value = state.typed,
+                onValueChange = vm::onTyped,
+                placeholder = "Type your reply",
+                imeAction = ImeAction.Send,
+                onImeAction = { vm.submit() },
+            )
+        }
+        state.error?.let {
+            Text(it, color = p.negative, fontSize = 13.sp, textAlign = TextAlign.Center)
+        }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            GlassButton(text = "Ask again", onClick = vm::redo, modifier = Modifier.weight(1f), fillMaxWidth = false)
+            GlassButton(text = "Start over", onClick = vm::redo, modifier = Modifier.weight(1f), fillMaxWidth = false)
             PrimaryButton(text = "Done", onClick = onClose, modifier = Modifier.weight(1f), fillMaxWidth = false)
         }
     }
