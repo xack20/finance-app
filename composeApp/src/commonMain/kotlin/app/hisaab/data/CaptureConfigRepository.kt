@@ -83,6 +83,11 @@ class CaptureConfigRepository(
         queries.setCursor(ts, now())
     }
 
+    suspend fun setRelayCaptureEnabled(enabled: Boolean) {
+        ensure()
+        queries.setRelayCaptureEnabled(if (enabled) 1L else 0L, now())
+    }
+
     private fun migrations.Capture_config.toDomain(): CaptureConfig = CaptureConfig(
         captureEnabled = capture_enabled == 1L,
         engineMode = EngineMode.valueOf(engine_mode),
@@ -95,6 +100,7 @@ class CaptureConfigRepository(
         cloudConsentAt = cloud_consent_at,
         retainRawBody = retain_raw_body == 1L,
         lastSmsCursor = last_sms_cursor,
+        relayCaptureEnabled = relay_capture_enabled == 1L,
         updatedAt = updated_at,
     )
 }

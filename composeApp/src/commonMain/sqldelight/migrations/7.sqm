@@ -1,0 +1,4 @@
+-- P2 (Mac SMS companion): per-channel toggle for the Mac→phone E2EE capture relay.
+-- 0 = off (default). When on, the phone pulls encrypted captures from the relay and runs
+-- them through the existing pipeline. See docs/.../2026-06-02-mac-sms-companion-relay-design.md.
+ALTER TABLE capture_config ADD COLUMN relay_capture_enabled INTEGER NOT NULL DEFAULT 0;

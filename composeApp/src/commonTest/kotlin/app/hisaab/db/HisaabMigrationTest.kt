@@ -27,9 +27,9 @@ class HisaabMigrationTest {
     private fun freshDriver(): SqlDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
     @Test
-    fun `schema version is the empty baseline plus six migrations`() {
-        // deriveSchemaFromMigrations: version 1 is the empty baseline; 1.sqm..6.sqm bring it to 7.
-        assertEquals(7L, HisaabDatabase.Schema.version)
+    fun `schema version is the empty baseline plus seven migrations`() {
+        // deriveSchemaFromMigrations: version 1 is the empty baseline; 1.sqm..7.sqm bring it to 8.
+        assertEquals(8L, HisaabDatabase.Schema.version)
     }
 
     @Test

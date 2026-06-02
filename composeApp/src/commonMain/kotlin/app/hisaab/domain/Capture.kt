@@ -86,5 +86,7 @@ data class CaptureConfig(
     val cloudConsentAt: Long?,
     val retainRawBody: Boolean,
     val lastSmsCursor: Long,
+    /** P2: when true, pull encrypted captures from the Mac→phone relay (see RelayCaptureSource). */
+    val relayCaptureEnabled: Boolean = false,
     val updatedAt: Long,
 )
