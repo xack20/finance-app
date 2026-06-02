@@ -112,8 +112,11 @@ class GeminiTranscriber(
         }
     }
 
-    private fun extractText(body: String): String? =
+    // Guarded: a malformed/blocked body (no parts, safety finishReason, corrupted JSON) degrades to
+    // null → empty transcript → "Didn't catch that", never an uncaught parse throw.
+    private fun extractText(body: String): String? = runCatching {
         LlmJson.json.parseToJsonElement(body).jsonObject["candidates"]?.jsonArray
             ?.firstOrNull()?.jsonObject?.get("content")?.jsonObject?.get("parts")?.jsonArray
             ?.firstOrNull()?.jsonObject?.get("text")?.jsonPrimitive?.content
+    }.getOrNull()
 }

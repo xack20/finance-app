@@ -17,6 +17,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -265,5 +266,16 @@ class VoiceViewModel(
     fun redo() {
         history = emptyList()
         _state.update { it.copy(step = VoiceStep.Listen, transcript = "", typed = "", error = null) }
+    }
+
+    /**
+     * Release the mic and cancel background work when the screen is disposed. Without this, closing
+     * the screen mid-recording would leave the recorder running (hot mic / leaked capture thread),
+     * because the runtime scope isn't otherwise tied to the composition. Wired from VoiceScreen.
+     */
+    fun dispose() {
+        listenJob?.cancel()
+        audioRecorder.release()
+        scope.cancel()
     }
 }

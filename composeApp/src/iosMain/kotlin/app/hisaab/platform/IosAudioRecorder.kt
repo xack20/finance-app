@@ -49,7 +49,7 @@ class IosAudioRecorder : AudioRecorder {
         AVAudioSession.sharedInstance().recordPermission == AVAudioSessionRecordPermissionGranted
 
     override fun start() {
-        if (recorder?.recording == true) return
+        if (recorder != null) return // a recorder already exists (recording or just-created) — don't double-start
         try {
             val session = AVAudioSession.sharedInstance()
             session.setCategory(AVAudioSessionCategoryRecord, error = null)
@@ -73,6 +73,10 @@ class IosAudioRecorder : AudioRecorder {
             rec.prepareToRecord()
             rec.record()
         } catch (e: Throwable) {
+            // Roll back the session we activated above so we don't block other audio on the device,
+            // and drop the temp file we may have created.
+            runCatching { AVAudioSession.sharedInstance().setActive(false, error = null) }
+            fileUrl?.path?.let { p -> runCatching { NSFileManager.defaultManager.removeItemAtPath(p, null) } }
             recorder = null
             fileUrl = null
         }
@@ -92,6 +96,18 @@ class IosAudioRecorder : AudioRecorder {
             if (bytes == null || bytes.isEmpty()) null else bytes
         } catch (e: Throwable) {
             null
+        }
+    }
+
+    override fun release() {
+        val rec = recorder ?: return
+        val url = fileUrl
+        recorder = null
+        fileUrl = null
+        runCatching {
+            rec.stop()
+            AVAudioSession.sharedInstance().setActive(false, error = null)
+            url?.path?.let { NSFileManager.defaultManager.removeItemAtPath(it, null) }
         }
     }
 

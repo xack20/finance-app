@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -86,6 +87,8 @@ fun VoiceScreen(onClose: () -> Unit, onTypeInstead: () -> Unit, onChat: () -> Un
             cloudTranscriber = container.cloudTranscriber,
         )
     }
+    // Release the mic + cancel work when the screen leaves composition (e.g. closed mid-recording).
+    DisposableEffect(vm) { onDispose { vm.dispose() } }
     val state by vm.state.collectAsState()
     val p = LocalHisaabPalette.current
 

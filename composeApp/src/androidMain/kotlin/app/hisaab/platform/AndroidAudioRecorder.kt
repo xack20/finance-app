@@ -60,9 +60,13 @@ class AndroidAudioRecorder(private val context: Context) : AudioRecorder {
         rec.startRecording()
         readThread = thread(start = true, name = "voice-rec") {
             val chunk = ByteArray(bufSize)
-            while (recording) {
-                val n = rec.read(chunk, 0, chunk.size)
-                if (n > 0) synchronized(pcm) { pcm.write(chunk, 0, n) }
+            // Guarded so a teardown release() that stops/releases the recorder mid-read() can't
+            // crash this thread with IllegalStateException — it just exits.
+            runCatching {
+                while (recording) {
+                    val n = rec.read(chunk, 0, chunk.size)
+                    if (n > 0) synchronized(pcm) { pcm.write(chunk, 0, n) }
+                }
             }
         }
     }
@@ -70,13 +74,27 @@ class AndroidAudioRecorder(private val context: Context) : AudioRecorder {
     override suspend fun stop(): ByteArray? = withContext(Dispatchers.IO) {
         if (!recording) return@withContext null
         recording = false
-        readThread?.join(1_000)
-        readThread = null
         val rec = record
         record = null
-        runCatching { rec?.stop() }
+        runCatching { rec?.stop() } // stop BEFORE join so the blocking read() returns immediately
+        readThread?.join(1_000)
+        readThread = null
         rec?.release()
         val bytes = synchronized(pcm) { pcm.toByteArray() }
         if (bytes.isEmpty()) null else pcm16leToWav(bytes, sampleRate, channels)
+    }
+
+    override fun release() {
+        if (!recording && record == null) return
+        recording = false
+        val rec = record
+        record = null
+        // The read loop is runCatching-guarded, so stopping/releasing under it is safe without a
+        // blocking join (teardown runs on the main thread — keep it cheap). The thread exits on its
+        // next loop check or read() error.
+        runCatching { rec?.stop() }
+        rec?.release()
+        readThread = null
+        synchronized(pcm) { pcm.reset() }
     }
 }

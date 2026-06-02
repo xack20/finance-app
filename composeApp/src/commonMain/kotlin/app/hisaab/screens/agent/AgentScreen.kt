@@ -30,6 +30,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,6 +54,8 @@ import kotlinx.serialization.json.JsonObject
 
 @Composable
 fun AgentScreen(vm: AgentViewModel, onClose: () -> Unit) {
+    // Release the mic + cancel work (collector, in-flight turns) when the chat leaves composition.
+    DisposableEffect(vm) { onDispose { vm.dispose() } }
     val state by vm.state.collectAsState()
     AgentScreenContent(
         state = state,

@@ -21,6 +21,7 @@ import app.hisaab.platform.SpeechToText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -140,8 +141,13 @@ class AgentViewModel(
             runCatching { cloudTranscriber.transcribe(wav, "") } // "" → Gemini auto-detects the language
                 .onSuccess { text ->
                     _state.update {
-                        if (text.isBlank()) it.copy(transcribing = false, error = "Didn't catch that — try again or type.")
-                        else it.copy(transcribing = false, input = text)
+                        if (text.isBlank()) {
+                            it.copy(transcribing = false, error = "Didn't catch that — try again or type.")
+                        } else {
+                            // Don't clobber text the user typed while recording — append to it.
+                            val merged = if (it.input.isBlank()) text else "${it.input.trimEnd()} $text"
+                            it.copy(transcribing = false, input = merged)
+                        }
                     }
                 }
                 .onFailure { t -> _state.update { it.copy(transcribing = false, error = userMessageFor(t)) } }
@@ -295,6 +301,19 @@ class AgentViewModel(
     /** Dismiss the transient error/confirmation banner (wired to the banner's dismiss action). */
     fun onDismissBanner() {
         _state.update { it.copy(error = null, confirmation = null) }
+    }
+
+    /**
+     * Release the mic and cancel background work (message collector, in-flight turns) when the
+     * screen is disposed. Without this, closing the chat mid-recording would leave the recorder
+     * running and the collector job alive, since the runtime scope isn't tied to the composition.
+     * Wired from AgentScreen.
+     */
+    fun dispose() {
+        listenJob?.cancel()
+        messageCollectorJob?.cancel()
+        audioRecorder.release()
+        scope.cancel()
     }
 }
 

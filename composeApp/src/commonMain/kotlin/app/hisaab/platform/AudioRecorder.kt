@@ -15,6 +15,13 @@ interface AudioRecorder {
 
     /** Stop and return the clip as 16-bit PCM WAV bytes, or null if empty / failed. */
     suspend fun stop(): ByteArray?
+
+    /**
+     * Abort any in-progress recording and free resources WITHOUT producing a clip — for teardown
+     * (e.g. the screen is closed mid-recording). Non-suspending so it can run from a disposal
+     * callback as the owning scope is cancelled. Safe to call when not recording.
+     */
+    fun release()
 }
 
 /** Fallback when recording isn't available (wasm, or no mic). */
@@ -22,6 +29,7 @@ object NoAudioRecorder : AudioRecorder {
     override suspend fun isAvailable(): Boolean = false
     override fun start() {}
     override suspend fun stop(): ByteArray? = null
+    override fun release() {}
 }
 
 /**
