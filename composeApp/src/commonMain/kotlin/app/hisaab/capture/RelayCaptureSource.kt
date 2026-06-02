@@ -42,6 +42,12 @@ interface RelayTransport {
 class RelayCaptureSource(
     private val transport: RelayTransport,
     private val decode: suspend (RelayRow) -> RawCapture?,
+    /**
+     * Live gate, checked each drain. Lets the source sit permanently in the coordinator's composite
+     * while staying fully inert (no fetch, no network) until the user enables the Mac companion and
+     * a master secret + session exist — so toggling it on/off needs no coordinator rebuild.
+     */
+    private val enabled: suspend () -> Boolean = { true },
     private val onError: (Throwable) -> Unit = {},
 ) : CaptureSource {
 
@@ -56,6 +62,7 @@ class RelayCaptureSource(
     }
 
     private suspend fun FlowCollector<RawCapture>.drain() {
+        if (!runCatching { enabled() }.getOrDefault(false)) return // inert until enabled — no fetch
         val rows = runCatching { transport.fetchPending() }.getOrElse { onError(it); return }
         for (row in rows) {
             val capture = runCatching { decode(row) }.getOrElse { onError(it); null } ?: continue

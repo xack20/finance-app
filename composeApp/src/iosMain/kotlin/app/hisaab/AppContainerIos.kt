@@ -22,6 +22,11 @@ import app.hisaab.data.TransactionRepository
 import app.hisaab.capture.CaptureCoordinator
 import app.hisaab.capture.CaptureCursorStore
 import app.hisaab.capture.CaptureHandler
+import app.hisaab.capture.CompositeCaptureSource
+import app.hisaab.capture.RelayCaptureCrypto
+import app.hisaab.capture.RelayCaptureSource
+import app.hisaab.capture.SealedCapture
+import app.hisaab.capture.SupabaseRelayTransport
 import app.hisaab.db.DatabaseDriverFactory
 import app.hisaab.db.HisaabDatabase
 import app.hisaab.platform.AppLifecycle
@@ -259,7 +264,28 @@ actual class AppContainer {
         // M3-3: reference capturePipeline inside the lambda so it resolves FRESH on each invocation
         // (ensures the pipeline always binds the current open DB after a lock/unlock cycle).
         val handler = CaptureHandler { capturePipeline.process(it) }
-        CaptureCoordinator(captureService, handler, cursorStore)
+        // P2: platform source (PASTE-only on iOS) PLUS the Mac→phone relay — the relay is the path
+        // that actually delivers SMS to iPhone (iOS can't read SMS natively). Inert until enabled.
+        val source = CompositeCaptureSource(listOf(captureService, relayCaptureSource))
+        CaptureCoordinator(source, handler, cursorStore)
+    }
+
+    // P2: Mac→phone capture relay source (see AppContainerAndroid for the symmetric wiring).
+    private val relayCrypto = RelayCaptureCrypto()
+    private val relayCaptureSource: RelayCaptureSource by lazy {
+        RelayCaptureSource(
+            transport = SupabaseRelayTransport(),
+            decode = { row ->
+                secureStorage.loadMasterSecret()?.let { master ->
+                    relayCrypto.open(SealedCapture(row.nonce, row.ciphertext), relayCrypto.relayKey(master))
+                }
+            },
+            enabled = {
+                captureConfigRepository.get().relayCaptureEnabled &&
+                    secureStorage.loadMasterSecret() != null &&
+                    authRepository.isSignedIn()
+            },
+        )
     }
 
     // M3-5: coordinator scope — created on DB open, cancelled on DB close.
@@ -326,7 +352,10 @@ actual class AppContainer {
     actual fun startCapture() {
         if (captureScope != null) return
         if (cachedDatabase == null) return
-        val enabled = kotlinx.coroutines.runBlocking { captureConfigRepository.get().captureEnabled }
+        val enabled = kotlinx.coroutines.runBlocking {
+            val cfg = captureConfigRepository.get()
+            cfg.captureEnabled || cfg.relayCaptureEnabled
+        }
         if (!enabled) return
         val scope = kotlinx.coroutines.CoroutineScope(
             kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,

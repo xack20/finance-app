@@ -24,6 +24,11 @@ import app.hisaab.data.TransactionRepository
 import app.hisaab.capture.CaptureCoordinator
 import app.hisaab.capture.CaptureCursorStore
 import app.hisaab.capture.CaptureHandler
+import app.hisaab.capture.CompositeCaptureSource
+import app.hisaab.capture.RelayCaptureCrypto
+import app.hisaab.capture.RelayCaptureSource
+import app.hisaab.capture.SealedCapture
+import app.hisaab.capture.SupabaseRelayTransport
 import app.hisaab.db.DatabaseDriverFactory
 import app.hisaab.db.HisaabDatabase
 import app.hisaab.platform.AppLifecycle
@@ -252,11 +257,35 @@ actual class AppContainer(
         // M3-3: reference capturePipeline inside the lambda so it resolves FRESH on each invocation
         // (ensures the pipeline always binds the current open DB after a lock/unlock cycle).
         val handler = CaptureHandler { capturePipeline.process(it) }
-        CaptureCoordinator(captureService, handler, cursorStore) { raw, e ->
+        // P2: the platform SMS/notification source PLUS the Mac→phone relay, fanned through the one
+        // coordinator (single Mutex). The relay stays inert until relayCaptureEnabled + a master
+        // secret + a session exist, so this composite is safe to always install.
+        val source = CompositeCaptureSource(listOf(captureService, relayCaptureSource))
+        CaptureCoordinator(source, handler, cursorStore) { raw, e ->
             // Per-item failures stay isolated (cursor doesn't advance), but log them so a
             // persistently-failing capture is visible instead of retried silently forever.
             android.util.Log.w("HisaabCapture", "Dropped capture item (ts=${raw.receivedAt}); will retry: ${e.message}")
         }
+    }
+
+    // P2: Mac→phone capture relay source. Inert (no fetch) until enabled() is true; decode derives
+    // the relay key from the on-device master secret and opens each row (errors isolated upstream).
+    private val relayCrypto = RelayCaptureCrypto()
+    private val relayCaptureSource: RelayCaptureSource by lazy {
+        RelayCaptureSource(
+            transport = SupabaseRelayTransport(),
+            decode = { row ->
+                secureStorage.loadMasterSecret()?.let { master ->
+                    relayCrypto.open(SealedCapture(row.nonce, row.ciphertext), relayCrypto.relayKey(master))
+                }
+            },
+            enabled = {
+                captureConfigRepository.get().relayCaptureEnabled &&
+                    secureStorage.loadMasterSecret() != null &&
+                    authRepository.isSignedIn()
+            },
+            onError = { e -> android.util.Log.w("HisaabRelay", "relay ingest: ${e.message}") },
+        )
     }
 
     // M3-5: coordinator scope — created on DB open, cancelled on DB close.
@@ -331,8 +360,12 @@ actual class AppContainer(
     actual fun startCapture() {
         if (captureScope != null) return
         if (cachedDatabase == null) return
-        // Read captureEnabled synchronously; returns false if the singleton row doesn't exist yet.
-        val enabled = kotlinx.coroutines.runBlocking { captureConfigRepository.get().captureEnabled }
+        // Start if EITHER native capture (SMS/notification) or the Mac relay is on. Returns false if
+        // the singleton config row doesn't exist yet.
+        val enabled = kotlinx.coroutines.runBlocking {
+            val cfg = captureConfigRepository.get()
+            cfg.captureEnabled || cfg.relayCaptureEnabled
+        }
         if (!enabled) return
         val scope = kotlinx.coroutines.CoroutineScope(
             kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
