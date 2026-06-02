@@ -35,7 +35,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -71,7 +70,9 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
             confirmWithEdits = { newTxn, capId -> container.confirmCandidateWithEdits(newTxn, capId) },
         )
     }
-    DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
+    // NOTE: VM scope cleanup intentionally NOT wired here — same teardown crash as
+    // TransactionDetailScreen (save → onDone navigates → screen disposes → scope.cancel() mid-
+    // teardown). Reverted until root-caused; the scope leak is the lesser evil.
     androidx.compose.runtime.LaunchedEffect(candidateId) {
         if (candidateId != null) viewModel.prefillFromCandidate(candidateId)
     }
