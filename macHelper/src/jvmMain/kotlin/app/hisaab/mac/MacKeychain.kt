@@ -1,20 +1,32 @@
 package app.hisaab.mac
 
 /**
- * Stores the IMAP app-password in the macOS login Keychain via the `security` CLI, so it isn't
- * written to disk in plaintext and survives relaunches. The email address is the keychain account.
+ * Stores secrets in the macOS login Keychain via the `security` CLI, so nothing is written to disk
+ * in plaintext and they survive relaunches. Two namespaces: IMAP app-passwords (keyed by the email
+ * address) and companion state (the Supabase session + the relay key), so the user doesn't re-verify
+ * their phone or re-enter the recovery phrase on every launch.
  */
 object MacKeychain {
 
-    private const val SERVICE = "HisaabCompanion-IMAP"
+    private const val IMAP_SERVICE = "HisaabCompanion-IMAP"
+    private const val STATE_SERVICE = "HisaabCompanion-State"
 
-    fun savePassword(account: String, password: String) {
+    // ── IMAP app-password (account = email address) ──────────────────────────────────────────────
+    fun savePassword(account: String, password: String) = save(IMAP_SERVICE, account, password)
+    fun loadPassword(account: String): String? = load(IMAP_SERVICE, account)
+
+    // ── Companion state (session JSON, relay key) — account is a fixed item name ──────────────────
+    fun saveItem(account: String, value: String) = save(STATE_SERVICE, account, value)
+    fun loadItem(account: String): String? = load(STATE_SERVICE, account)
+    fun deleteItem(account: String) = runSecurity("delete-generic-password", "-s", STATE_SERVICE, "-a", account)
+
+    private fun save(service: String, account: String, value: String) {
         // -U updates if it already exists.
-        runSecurity("add-generic-password", "-s", SERVICE, "-a", account, "-w", password, "-U")
+        runSecurity("add-generic-password", "-s", service, "-a", account, "-w", value, "-U")
     }
 
-    fun loadPassword(account: String): String? = runCatching {
-        val proc = ProcessBuilder("security", "find-generic-password", "-s", SERVICE, "-a", account, "-w")
+    private fun load(service: String, account: String): String? = runCatching {
+        val proc = ProcessBuilder("security", "find-generic-password", "-s", service, "-a", account, "-w")
             .redirectErrorStream(false)
             .start()
         val out = proc.inputStream.bufferedReader().readText().trim()

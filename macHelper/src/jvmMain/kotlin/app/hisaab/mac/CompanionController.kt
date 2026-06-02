@@ -13,6 +13,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.net.InetAddress
 import java.util.UUID
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /** UI stages of the Mac companion. */
 sealed interface Stage {
@@ -25,10 +27,13 @@ sealed interface Stage {
 
 /**
  * Orchestrates the helper: phone-OTP login → recovery-phrase pairing → a poll loop that reads new
- * forwarded SMS and pushes them E2EE. Holds Compose state for the UI. All the verified pieces
- * (ChatDbReader, RelayPusher, RelayCaptureCrypto, Pairing, FileCursorStore) are assembled here;
- * this layer is glue (exercised on a real Mac run).
+ * forwarded SMS/email and pushes them E2EE. Holds Compose state for the UI.
+ *
+ * The Supabase session and the derived relay key are persisted to the macOS Keychain, so [resume]
+ * can restore them on launch — the user verifies their phone + enters the recovery phrase ONCE, not
+ * on every relaunch. [signOut] forgets both to switch accounts.
  */
+@OptIn(ExperimentalEncodingApi::class)
 class CompanionController(
     private val config: CompanionConfig?,
     private val scope: CoroutineScope,
@@ -52,6 +57,10 @@ class CompanionController(
     var emailConnected by mutableStateOf(false)
         private set
 
+    /** The connected mailbox address, if any — lets the UI prefill the field for re-entry. */
+    var connectedEmail by mutableStateOf<String?>(null)
+        private set
+
     private val relay: SupabaseRelay? = config?.let { SupabaseRelay(it.supabaseUrl, it.supabaseAnonKey) }
     private val crypto = RelayCaptureCrypto()
     private var relayKey: ByteArray? = null
@@ -59,6 +68,28 @@ class CompanionController(
     private var imapConfig: ImapConfig? = null
     private val emailCursorStore = FileCursorStore(appSupport("email_cursor"))
     private val emailAccountFile = appSupport("email_account")
+
+    /**
+     * On launch, restore a persisted session + pairing so the user skips OTP + recovery phrase.
+     * No-op (stays on the sign-in step) when nothing is stored or the session can't be restored.
+     */
+    fun resume() {
+        val r = relay ?: return
+        scope.launch {
+            val sessionJson = MacKeychain.loadItem(ACCOUNT_SESSION) ?: return@launch
+            val signedIn = runCatching { r.importSessionJson(sessionJson) }.getOrDefault(false)
+            if (!signedIn) return@launch
+            val key = MacKeychain.loadItem(ACCOUNT_RELAY_KEY)?.let { runCatching { Base64.decode(it) }.getOrNull() }
+            if (key != null) {
+                relayKey = key
+                restoreEmail()
+                stage = Stage.Running
+                startLoop()
+            } else {
+                stage = Stage.NeedsPairing
+            }
+        }
+    }
 
     fun sendOtp(phone: String) = launchAction("Couldn't send the code") {
         relay!!.sendOtp(phone.trim())
@@ -69,18 +100,38 @@ class CompanionController(
         val awaiting = stage as? Stage.AwaitingOtp ?: return
         launchAction("Invalid code") {
             relay!!.verifyOtp(awaiting.phone, code.trim())
-            stage = if (relay.currentUserId() != null) Stage.NeedsPairing else Stage.SignedOut
+            if (relay.currentUserId() != null) {
+                relay.exportSessionJson()?.let { MacKeychain.saveItem(ACCOUNT_SESSION, it) } // survive relaunch
+                stage = Stage.NeedsPairing
+            } else {
+                stage = Stage.SignedOut
+            }
         }
     }
 
     fun pair(phrase: String) = launchAction("Invalid recovery phrase") {
-        relayKey = Pairing.relayKeyFromPhrase(phrase) // throws on bad words/checksum → surfaced
+        val key = Pairing.relayKeyFromPhrase(phrase) // throws on bad words/checksum → surfaced
+        relayKey = key
+        MacKeychain.saveItem(ACCOUNT_RELAY_KEY, Base64.encode(key)) // survive relaunch (no re-pair)
         restoreEmail() // resume a previously-connected mailbox (password from Keychain)
         stage = Stage.Running
         startLoop()
     }
 
-    /** Connect an email mailbox for IMAP capture (consumer Gmail/Outlook/Yahoo/iCloud). */
+    /** Forget the saved session + pairing (e.g. to switch accounts); returns to the sign-in step. */
+    fun signOut() {
+        loopJob?.cancel(); loopJob = null
+        relayKey = null
+        imapConfig = null
+        emailConnected = false
+        MacKeychain.deleteItem(ACCOUNT_SESSION)
+        MacKeychain.deleteItem(ACCOUNT_RELAY_KEY)
+        scope.launch { relay?.signOut() }
+        error = null
+        stage = Stage.SignedOut
+    }
+
+    /** Connect (or re-connect) an email mailbox for IMAP capture (Gmail/Outlook/Yahoo/iCloud). */
     fun configureEmail(email: String, appPassword: String) = launchAction("Couldn't connect email") {
         val trimmed = email.trim()
         val hostPort = ImapHosts.forEmail(trimmed)
@@ -99,6 +150,7 @@ class CompanionController(
             emailCursorStore.save(System.currentTimeMillis() - EMAIL_BACKFILL_MS)
         }
         imapConfig = cfg
+        connectedEmail = trimmed
         emailConnected = true
     }
 
@@ -109,6 +161,7 @@ class CompanionController(
         val password = (MacKeychain.loadPassword(email) ?: return).filterNot { it.isWhitespace() }
         val hostPort = ImapHosts.forEmail(email) ?: return
         imapConfig = ImapConfig(email, password, hostPort.first, hostPort.second)
+        connectedEmail = email
         emailConnected = true
     }
 
@@ -173,6 +226,10 @@ class CompanionController(
     companion object {
         /** First-connect email backfill window: capture the last 12 months of bank emails. */
         private const val EMAIL_BACKFILL_MS: Long = 365L * 24 * 60 * 60 * 1000
+
+        // Keychain item names for persisted companion state.
+        private const val ACCOUNT_SESSION = "session"
+        private const val ACCOUNT_RELAY_KEY = "relay_key"
 
         private fun defaultDeviceId(): String =
             runCatching { "mac-" + InetAddress.getLocalHost().hostName }

@@ -12,7 +12,7 @@ import androidx.compose.ui.window.application
  */
 fun main() = application {
     val scope = rememberCoroutineScope()
-    val controller = remember { CompanionController(config = Config.load(), scope = scope) }
+    val controller = remember { CompanionController(config = Config.load(), scope = scope).also { it.resume() } }
     Window(onCloseRequest = ::exitApplication, title = "Hisaab Companion") {
         MaterialTheme {
             CompanionApp(controller)

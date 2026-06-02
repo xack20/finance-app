@@ -82,25 +82,33 @@ private fun RunningStep(controller: CompanionController) {
     controller.lastSyncNote?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
     Text("Total items synced this session: ${controller.totalPushed}", style = MaterialTheme.typography.bodySmall)
     EmailSection(controller)
+    Divider()
+    OutlinedButton(onClick = { controller.signOut() }, enabled = !controller.busy) {
+        Text("Sign out / switch account")
+    }
 }
 
-/** Optional email (IMAP) capture — connect a consumer mailbox; bank emails then sync alongside SMS. */
+/**
+ * Optional email (IMAP) capture — connect a consumer mailbox; bank emails then sync alongside SMS.
+ * The form stays visible even when connected so a rejected app-password can be re-entered.
+ */
 @Composable
 private fun EmailSection(controller: CompanionController) {
     Divider()
     if (controller.emailConnected) {
         Text("✓ Email connected — bank emails are syncing too.", style = MaterialTheme.typography.bodyMedium)
-        return
+        Text("Wrong password or changing mailbox? Re-enter below.", style = MaterialTheme.typography.bodySmall)
+    } else {
+        Text("Also capture bank emails (optional — personal Gmail / Outlook.com / Yahoo / iCloud).", style = MaterialTheme.typography.bodySmall)
     }
-    var email by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf(controller.connectedEmail.orEmpty()) }
     var appPassword by remember { mutableStateOf("") }
-    Text("Also capture bank emails (optional — personal Gmail / Outlook.com / Yahoo / iCloud).", style = MaterialTheme.typography.bodySmall)
     OutlinedTextField(email, { email = it }, label = { Text("Email address") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-    OutlinedTextField(appPassword, { appPassword = it }, label = { Text("App-specific password") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+    OutlinedTextField(appPassword, { appPassword = it }, label = { Text("App-specific password (spaces are fine)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
     Button(
         onClick = { controller.configureEmail(email, appPassword) },
         enabled = !controller.busy && email.isNotBlank() && appPassword.isNotBlank(),
-    ) { Text("Connect email") }
+    ) { Text(if (controller.emailConnected) "Update email login" else "Connect email") }
 }
 
 @Composable

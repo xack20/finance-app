@@ -5,11 +5,13 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.OtpType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.OTP
+import io.github.jan.supabase.auth.user.UserSession
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /** PostgREST insert shape for `relay_captures` (base64 text columns; server is zero-knowledge). */
 @Serializable
@@ -33,6 +35,8 @@ class SupabaseRelay(supabaseUrl: String, supabaseAnonKey: String) {
         install(Postgrest)
     }
 
+    private val json = Json { ignoreUnknownKeys = true }
+
     suspend fun sendOtp(phone: String) {
         client.auth.signInWith(OTP) { this.phone = phone }
     }
@@ -42,6 +46,22 @@ class SupabaseRelay(supabaseUrl: String, supabaseAnonKey: String) {
     }
 
     fun currentUserId(): String? = client.auth.currentSessionOrNull()?.user?.id
+
+    /** Serialize the live session so it can be stored (Keychain) and restored on next launch. */
+    fun exportSessionJson(): String? =
+        client.auth.currentSessionOrNull()?.let { json.encodeToString(UserSession.serializer(), it) }
+
+    /** Restore a stored session (auto-refreshes if the access token has expired). True if signed in. */
+    suspend fun importSessionJson(sessionJson: String): Boolean {
+        val session = runCatching { json.decodeFromString(UserSession.serializer(), sessionJson) }.getOrNull()
+            ?: return false
+        client.auth.importSession(session)
+        return currentUserId() != null
+    }
+
+    suspend fun signOut() {
+        runCatching { client.auth.signOut() }
+    }
 
     /** A [RelayUploader] that inserts rows as the signed-in user (RLS enforces user_id = auth.uid()). */
     fun uploader(): RelayUploader = RelayUploader { rows ->
