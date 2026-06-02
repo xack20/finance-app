@@ -46,6 +46,29 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg)
             packageName = "HisaabCompanion"
             packageVersion = "1.0.0"
+
+            macOS {
+                bundleID = "app.hisaab.companion"
+                // Hardened-runtime entitlements: this JVM app JITs and loads bundled native libs
+                // (libsodium, sqlite-jdbc), which notarization's hardened runtime blocks by default.
+                entitlementsFile.set(project.file("entitlements.plist"))
+                runtimeEntitlementsFile.set(project.file("entitlements.plist"))
+
+                // Sign + notarize ONLY when a Developer ID is provided via env, so an unsigned
+                // packageDmg still works for local testing and no secret ever lives in the repo.
+                val signIdentity = System.getenv("HISAAB_MAC_SIGN_IDENTITY")
+                if (!signIdentity.isNullOrBlank()) {
+                    signing {
+                        sign.set(true)
+                        identity.set(signIdentity)
+                    }
+                    notarization {
+                        appleID.set(System.getenv("HISAAB_MAC_APPLE_ID").orEmpty())
+                        password.set(System.getenv("HISAAB_MAC_NOTARY_PASSWORD").orEmpty())
+                        teamID.set(System.getenv("HISAAB_MAC_TEAM_ID").orEmpty())
+                    }
+                }
+            }
         }
     }
 }
