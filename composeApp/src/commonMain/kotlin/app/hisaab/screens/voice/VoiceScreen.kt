@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -123,9 +126,9 @@ private fun CloseBar(onClose: () -> Unit, right: @Composable (() -> Unit)? = nul
     }
 }
 
-/** The design's lime mic orb (116dp): lime fill + a gentle pulse while listening, else a lime glyph. */
+/** Push-to-talk mic orb (116dp): lime + pulse while held, else a lime glyph. Hold to speak, release to parse. */
 @Composable
-private fun MicOrb(listening: Boolean, onTap: () -> Unit) {
+private fun MicOrb(listening: Boolean, onHoldStart: () -> Unit, onHoldEnd: () -> Unit) {
     val p = LocalHisaabPalette.current
     val reduce = LocalReduceMotion.current
     val scale = if (listening && !reduce) {
@@ -139,9 +142,42 @@ private fun MicOrb(listening: Boolean, onTap: () -> Unit) {
             .size(116.dp).scale(scale).clip(CircleShape)
             .background(if (listening) p.accent else p.surface)
             .border(if (listening) 0.dp else 1.dp, if (listening) p.accent else p.hair, CircleShape)
-            .clickable(onClick = onTap),
+            .pointerInput(Unit) {
+                detectTapGestures(onPress = {
+                    onHoldStart()
+                    tryAwaitRelease() // suspends until the finger lifts (or the gesture is cancelled)
+                    onHoldEnd()
+                })
+            },
         contentAlignment = Alignment.Center,
     ) { HisaabIcon("mic", tint = if (listening) p.onAccent else p.accent, size = 48.dp) }
+}
+
+/** Recognizer-language toggle (বাংলা / EN) — sets the STT locale so Bangla isn't decoded as English. */
+@Composable
+private fun LangToggle(current: VoiceLang, onSelect: (VoiceLang) -> Unit) {
+    val p = LocalHisaabPalette.current
+    Row(
+        modifier = Modifier
+            .clip(HisaabShapes.pill).background(p.surface).border(1.dp, p.hair, HisaabShapes.pill)
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        VoiceLang.entries.forEach { lang ->
+            val on = lang == current
+            Text(
+                lang.label,
+                color = if (on) p.onAccent else p.muted,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clip(HisaabShapes.pill)
+                    .background(if (on) p.accent else Color.Transparent)
+                    .clickable { onSelect(lang) }
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            )
+        }
+    }
 }
 
 /** Live waveform: 24 lime bars that jitter while listening (neo-voice.jsx Waveform). */
@@ -218,18 +254,20 @@ private fun ColumnScope.ListenStep(state: VoiceUiState, vm: VoiceViewModel, onCl
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Eyebrow(if (state.listening) "Listening…" else "Tap the mic", color = p.accent)
+        LangToggle(current = state.language, onSelect = vm::setLanguage)
+        Spacer(Modifier.height(16.dp))
+        Eyebrow(if (state.listening) "Listening… release to parse" else "Hold & speak", color = p.accent)
         Spacer(Modifier.height(10.dp))
         val shown = state.transcript
         Text(
-            if (shown.isBlank()) "Say a transaction\nor a question" else shown,
+            if (shown.isBlank()) "Hold the mic and\nsay a transaction" else shown,
             color = p.onBackground,
             style = MaterialTheme.typography.headlineMedium.copy(fontSize = if (shown.isBlank()) 24.sp else 22.sp),
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(26.dp))
-        MicOrb(listening = state.listening, onTap = vm::onMicTap)
+        MicOrb(listening = state.listening, onHoldStart = vm::onHoldStart, onHoldEnd = vm::onHoldEnd)
         Spacer(Modifier.height(22.dp))
         Waveform(active = state.listening)
         if (!state.sttAvailable) {

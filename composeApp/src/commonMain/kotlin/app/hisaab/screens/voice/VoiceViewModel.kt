@@ -18,12 +18,22 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Voice-first capture (Neo `VoiceFlow`, neo-voice.jsx). A single spoken command is recognized by
- * [SpeechToText], parsed into proposed writes by the existing [AgentRuntime] (same engine as the
- * Assistant), shown as a draft, and applied. Mirrors the assistant pipeline — no new parser/save.
+ * Recognizer language for voice capture. The on-device speech recognizer must be told which
+ * language to decode — a Bangla command decoded as English ([localeTag] "en-…") comes out garbled,
+ * which is the #1 cause of bad Bangla recognition. Default is Bangla; the user can toggle to English.
+ */
+enum class VoiceLang(val localeTag: String, val label: String) {
+    BN("bn-BD", "বাংলা"),
+    EN("en-US", "EN"),
+}
+
+/**
+ * Voice-first capture (Neo `VoiceFlow`, neo-voice.jsx). Push-to-talk: hold the mic, speak, release —
+ * the spoken command is recognized by [SpeechToText], parsed into proposed writes by the existing
+ * [AgentRuntime] (same engine as the Assistant), shown as a draft, and applied. No new parser/save.
  */
 sealed interface VoiceStep {
-    /** Mic is open (or idle, ready to tap) and capturing the command. */
+    /** Idle/holding — ready to capture the command (push-to-talk). */
     data object Listen : VoiceStep
 
     /** The command was submitted and the runtime is parsing it. */
@@ -42,6 +52,8 @@ sealed interface VoiceStep {
 data class VoiceUiState(
     val step: VoiceStep = VoiceStep.Listen,
     val listening: Boolean = false,
+    /** Recognizer language — drives the STT locale (bn-BD / en-US). */
+    val language: VoiceLang = VoiceLang.BN,
     /** The recognized (or typed) command, shown live. */
     val transcript: String = "",
     /** Type-fallback field contents. */
@@ -57,11 +69,11 @@ data class VoiceUiState(
 class VoiceViewModel(
     private val runtime: AgentRuntime,
     private val speechToText: SpeechToText = NoSpeechToText,
-    /** Design recognizer locale (Bangla/English code-switching works best with en-IN). */
-    private val locale: String = "en-IN",
+    /** Default recognizer language; Bangla is the primary use here. */
+    initialLanguage: VoiceLang = VoiceLang.BN,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
-    private val _state = MutableStateFlow(VoiceUiState())
+    private val _state = MutableStateFlow(VoiceUiState(language = initialLanguage))
     val state: StateFlow<VoiceUiState> = _state.asStateFlow()
 
     private var listenJob: Job? = null
@@ -72,13 +84,23 @@ class VoiceViewModel(
             if (avail != AgentAvailability.Ready) _state.update { it.copy(gate = avail) }
         }
         scope.launch {
-            val ok = speechToText.isAvailable()
-            _state.update { it.copy(sttAvailable = ok) }
-            if (ok && _state.value.gate == null) startListening()
+            _state.update { it.copy(sttAvailable = speechToText.isAvailable()) }
         }
+        // Push-to-talk: do NOT auto-start listening — the user holds the mic to begin.
     }
 
-    fun startListening() {
+    fun setLanguage(lang: VoiceLang) {
+        if (_state.value.listening) stopListening()
+        _state.update { it.copy(language = lang) }
+    }
+
+    /** Press-and-hold start: open the recognizer in the selected language. */
+    fun onHoldStart() = startListening()
+
+    /** Release: stop the recognizer and parse whatever was captured. */
+    fun onHoldEnd() = submit()
+
+    private fun startListening() {
         if (_state.value.listening) return
         listenJob?.cancel()
         listenJob = scope.launch {
@@ -87,17 +109,15 @@ class VoiceViewModel(
                 return@launch
             }
             _state.update { it.copy(listening = true, error = null, transcript = "") }
-            speechToText.listen(locale).collect { ev ->
+            speechToText.listen(_state.value.language.localeTag).collect { ev ->
                 when (ev) {
                     is SpeechEvent.Partial -> _state.update { it.copy(transcript = ev.text) }
-                    is SpeechEvent.Final -> {
-                        _state.update { it.copy(transcript = ev.text, listening = false) }
-                        submit(ev.text)
-                    }
+                    // Hold-to-talk: capture the final transcript but DON'T auto-submit — releasing submits.
+                    is SpeechEvent.Final -> _state.update { it.copy(transcript = ev.text, listening = false) }
                     SpeechEvent.PermissionDenied ->
                         _state.update { it.copy(listening = false, sttAvailable = false, error = "Allow microphone access in Settings to use voice.") }
                     is SpeechEvent.Failed ->
-                        _state.update { it.copy(listening = false, error = "Couldn't hear that — try again or type.") }
+                        _state.update { it.copy(listening = false, error = "Couldn't hear that — hold and try again, or type.") }
                 }
             }
             _state.update { it.copy(listening = false) }
@@ -107,10 +127,6 @@ class VoiceViewModel(
     fun stopListening() {
         listenJob?.cancel()
         _state.update { it.copy(listening = false) }
-    }
-
-    fun onMicTap() {
-        if (_state.value.listening) stopListening() else startListening()
     }
 
     fun onTyped(text: String) {
@@ -158,9 +174,8 @@ class VoiceViewModel(
         }
     }
 
-    /** Discard the draft/answer and listen for a fresh command. */
+    /** Discard the draft/answer and return to the hold-to-speak state for a fresh command. */
     fun redo() {
         _state.update { it.copy(step = VoiceStep.Listen, transcript = "", typed = "", error = null) }
-        startListening()
     }
 }
