@@ -10,8 +10,8 @@ create table if not exists public.relay_captures (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references auth.users (id) on delete cascade,
   device_id   text not null,            -- source device label (e.g. the Mac); non-sensitive
-  nonce       bytea not null,           -- 24-byte XChaCha20-Poly1305 nonce
-  ciphertext  bytea not null,           -- encrypted RawCapture JSON (includes AEAD tag)
+  nonce       text not null,            -- base64 of the 24-byte XChaCha20-Poly1305 nonce
+  ciphertext  text not null,            -- base64 of the encrypted RawCapture JSON (includes AEAD tag)
   created_at  timestamptz not null default now()
 );
 

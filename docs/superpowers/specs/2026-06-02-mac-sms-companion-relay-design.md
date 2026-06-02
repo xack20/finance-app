@@ -64,8 +64,8 @@ create table public.relay_captures (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references auth.users(id) on delete cascade,
   device_id    text not null,            -- source device (the Mac), for debugging
-  nonce        bytea not null,           -- XChaCha20-Poly1305 24-byte nonce
-  ciphertext   bytea not null,           -- encrypted RawCapture JSON
+  nonce        text not null,            -- base64 of the 24-byte XChaCha20-Poly1305 nonce
+  ciphertext   text not null,            -- base64 of the encrypted RawCapture JSON (AEAD tag included)
   created_at   timestamptz not null default now()
 );
 alter table public.relay_captures enable row level security;
