@@ -21,7 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -63,7 +62,9 @@ fun TransactionDetailScreen(txnId: String, onDone: () -> Unit) {
             inboxRepo = container.captureInboxRepository,
         )
     }
-    DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
+    // NOTE: VM scope cleanup intentionally NOT wired here — DisposableEffect(viewModel){ dispose() }
+    // crashed on delete (deleting → onDone navigates → screen disposes → scope.cancel() during
+    // teardown). Reverted until the teardown crash is root-caused; the scope leak is the lesser evil.
     val display by viewModel.row.collectAsState()
     val provenance by viewModel.provenance.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
