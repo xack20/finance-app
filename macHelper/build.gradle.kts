@@ -27,6 +27,11 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(compose.material3)
             implementation(libs.sqlite.jdbc) // read ~/Library/Messages/chat.db
+            implementation(libs.supabase.auth) // phone-OTP login (same account as the app)
+            implementation(libs.supabase.postgrest) // push to relay_captures
+            implementation(libs.ktor.client.cio) // JVM HTTP engine for Supabase
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
         }
         jvmTest.dependencies {
             implementation(kotlin("test"))

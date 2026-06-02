@@ -43,6 +43,7 @@ supabase-realtime         = { module = "io.github.jan-tennert.supabase:realtime-
 # Ktor HTTP engine (required by Supabase SDK)
 ktor-client-okhttp        = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-darwin        = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+ktor-client-cio           = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 
 # Crypto
 libsodium-kmp             = { module = "com.ionspin.kotlin:multiplatform-crypto-libsodium-bindings", version.ref = "libsodium" }
