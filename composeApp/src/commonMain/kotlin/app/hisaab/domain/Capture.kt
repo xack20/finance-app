@@ -1,20 +1,7 @@
 package app.hisaab.domain
 
-import kotlinx.serialization.Serializable
-
-/** A raw captured message before any parsing. Produced by CaptureService (M3-2).
- *  @Serializable so it can be the E2EE payload of the Mac→phone capture relay. */
-@Serializable
-data class RawCapture(
-    val sender: String,
-    val body: String,
-    val receivedAt: Long,
-    val channel: CaptureChannel,
-)
-
-/** How a capture entered the app. */
-@Serializable
-enum class CaptureChannel { SMS, NOTIFICATION, PASTE }
+// RawCapture + CaptureChannel moved to :sharedCore (app.hisaab.domain.RawCapture) so the macOS
+// relay helper reuses the exact serializable type. Still referenced here via the same package.
 
 /** Lifecycle of a capture candidate. */
 enum class CaptureStatus { PENDING, AUTO_POSTED, CONFIRMED, DISMISSED }

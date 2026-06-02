@@ -88,6 +88,7 @@ kotlin {
             }
         }
         commonMain.dependencies {
+            implementation(project(":sharedCore")) // crypto + domain(RawCapture) + relay codec
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
