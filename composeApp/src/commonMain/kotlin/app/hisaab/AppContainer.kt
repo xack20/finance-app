@@ -22,8 +22,10 @@ import app.hisaab.db.DatabaseDriverFactory
 import app.hisaab.db.HisaabDatabase
 import app.hisaab.capture.CaptureCoordinator
 import app.hisaab.platform.AppLifecycle
+import app.hisaab.platform.AudioRecorder
 import app.hisaab.platform.BiometricAuth
 import app.hisaab.platform.CaptureService
+import app.hisaab.platform.CloudTranscriber
 import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
@@ -74,6 +76,9 @@ expect class AppContainer {
     // M4-6: agent DI members — conversation store, speech stub, and runtime factory.
     val conversationRepository: app.hisaab.data.ConversationRepository
     val speechToText: SpeechToText
+    // Cloud voice capture: record mic audio, transcribe via Gemini (Bangla-capable, unlike on-device STT).
+    val audioRecorder: AudioRecorder
+    val cloudTranscriber: CloudTranscriber
     fun agentRuntime(): app.hisaab.agent.AgentRuntime
 
     // M3-3: tiered parsing pipeline + LLM router contract + auto-post event stream.

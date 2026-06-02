@@ -3,6 +3,10 @@ package app.hisaab.screens.voice
 import app.hisaab.agent.AgentAvailability
 import app.hisaab.agent.AgentRuntime
 import app.hisaab.agent.ProposedWrite
+import app.hisaab.platform.AudioRecorder
+import app.hisaab.platform.CloudTranscriber
+import app.hisaab.platform.NoAudioRecorder
+import app.hisaab.platform.NoCloudTranscriber
 import app.hisaab.platform.NoSpeechToText
 import app.hisaab.platform.SpeechEvent
 import app.hisaab.platform.SpeechToText
@@ -37,6 +41,9 @@ sealed interface VoiceStep {
     /** Idle/holding — ready to capture the command (push-to-talk). */
     data object Listen : VoiceStep
 
+    /** Cloud path only: the recorded clip is being transcribed by [CloudTranscriber] (Bangla). */
+    data object Transcribing : VoiceStep
+
     /** The command was submitted and the runtime is parsing it. */
     data object Parsing : VoiceStep
 
@@ -60,6 +67,8 @@ data class VoiceUiState(
     /** Type-fallback field contents. */
     val typed: String = "",
     val sttAvailable: Boolean = true,
+    /** True when capture goes via record→Gemini (Bangla-capable) instead of the on-device recognizer. */
+    val usingCloud: Boolean = false,
     /** Non-null when the agent isn't usable (needs consent / no provider) — UI shows the gate. */
     val gate: AgentAvailability? = null,
     val error: String? = null,
@@ -70,6 +79,9 @@ data class VoiceUiState(
 class VoiceViewModel(
     private val runtime: AgentRuntime,
     private val speechToText: SpeechToText = NoSpeechToText,
+    /** Cloud recorder + transcriber: when a Gemini key is set, voice goes record→Gemini (Bangla). */
+    private val audioRecorder: AudioRecorder = NoAudioRecorder,
+    private val cloudTranscriber: CloudTranscriber = NoCloudTranscriber,
     /** Default recognizer language; Bangla is the primary use here. */
     initialLanguage: VoiceLang = VoiceLang.BN,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
@@ -85,23 +97,75 @@ class VoiceViewModel(
             if (avail != AgentAvailability.Ready) _state.update { it.copy(gate = avail) }
         }
         scope.launch {
-            // Ask for mic + speech permission up front (one clean flow) so the user isn't prompted
+            // Prefer cloud STT when a Gemini key is configured — the on-device recognizers can't do
+            // Bangla on most phones, which is the whole reason this path exists.
+            val cloud = cloudTranscriber.isAvailable()
+            // Ask for mic (+ speech) permission up front (one clean flow) so the user isn't prompted
             // mid-hold; iOS shows both prompts in sequence, Android the single RECORD_AUDIO prompt.
-            _state.update { it.copy(sttAvailable = speechToText.requestPermission()) }
+            // Both recognizers' requestPermission() also grants the mic the cloud recorder needs.
+            val granted = speechToText.requestPermission()
+            val canCapture =
+                if (cloud) granted && audioRecorder.isAvailable() else granted && speechToText.isAvailable()
+            _state.update { it.copy(usingCloud = cloud, sttAvailable = canCapture) }
         }
         // Push-to-talk: do NOT auto-start listening — the user holds the mic to begin.
     }
 
     fun setLanguage(lang: VoiceLang) {
-        if (_state.value.listening) stopListening()
+        if (_state.value.listening) cancelCapture()
         _state.update { it.copy(language = lang) }
     }
 
-    /** Press-and-hold start: open the recognizer in the selected language. */
-    fun onHoldStart() = startListening()
+    /** Press-and-hold start: open the recognizer (on-device) or start recording (cloud). */
+    fun onHoldStart() {
+        if (_state.value.usingCloud) startRecording() else startListening()
+    }
 
-    /** Release: stop the recognizer and parse whatever was captured. */
-    fun onHoldEnd() = submit()
+    /** Release: parse the on-device transcript, or stop+transcribe the cloud recording. */
+    fun onHoldEnd() {
+        if (_state.value.usingCloud) stopAndTranscribe() else submit()
+    }
+
+    /** Cloud push-to-talk start: begin mic capture (no recognizer). */
+    private fun startRecording() {
+        if (_state.value.listening) return
+        listenJob?.cancel()
+        _state.update { it.copy(listening = true, error = null, transcript = "") }
+        // start() is synchronous and self-guarded (never throws); failure degrades to typing.
+        runCatching { audioRecorder.start() }.onFailure {
+            _state.update { it.copy(listening = false, error = "Couldn't start the microphone — type instead.") }
+        }
+    }
+
+    /** Cloud push-to-talk release: stop the recording, transcribe via Gemini, then parse it. */
+    private fun stopAndTranscribe() {
+        if (!_state.value.listening) return
+        _state.update { it.copy(listening = false, step = VoiceStep.Transcribing, error = null) }
+        scope.launch {
+            val wav = runCatching { audioRecorder.stop() }.getOrNull()
+            if (wav == null || wav.isEmpty()) {
+                _state.update { it.copy(step = VoiceStep.Listen, error = "Didn't catch that — hold and speak again.") }
+                return@launch
+            }
+            val text = runCatching { cloudTranscriber.transcribe(wav, _state.value.language.localeTag) }
+                .getOrElse { t ->
+                    _state.update { it.copy(step = VoiceStep.Listen, error = userMessageFor(t)) }
+                    return@launch
+                }
+            if (text.isBlank()) {
+                _state.update { it.copy(step = VoiceStep.Listen, error = "Didn't catch that — hold and speak again.") }
+                return@launch
+            }
+            _state.update { it.copy(transcript = text) }
+            submit(text)
+        }
+    }
+
+    /** Stop whichever capture is active (recognizer flow or cloud recorder) without parsing. */
+    private fun cancelCapture() {
+        if (_state.value.usingCloud) scope.launch { runCatching { audioRecorder.stop() } }
+        stopListening()
+    }
 
     private fun startListening() {
         if (_state.value.listening) return

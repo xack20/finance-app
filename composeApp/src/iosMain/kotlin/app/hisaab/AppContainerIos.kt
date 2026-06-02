@@ -45,7 +45,11 @@ import app.hisaab.llm.LlmProvider
 import app.hisaab.llm.LlmRouter
 import app.hisaab.llm.cloud.ClaudeProvider
 import app.hisaab.llm.cloud.GeminiProvider
+import app.hisaab.llm.cloud.GeminiTranscriber
 import app.hisaab.llm.cloud.OpenAiProvider
+import app.hisaab.platform.AudioRecorder
+import app.hisaab.platform.CloudTranscriber
+import app.hisaab.platform.IosAudioRecorder
 import app.hisaab.platform.IosSpeechToText
 import app.hisaab.platform.SpeechToText
 import io.ktor.client.HttpClient
@@ -111,6 +115,7 @@ actual class AppContainer {
         get() = ConversationRepository(requireDb())
 
     actual val speechToText: SpeechToText = IosSpeechToText()
+    actual val audioRecorder: AudioRecorder = IosAudioRecorder()
 
     /**
      * Build-config Gemini key (Secrets.xcconfig -> Info.plist) — a DEBUG/dev convenience that pre-enables
@@ -191,6 +196,11 @@ actual class AppContainer {
         httpClient = llmHttpClient,
         apiKey = { secureStorage.loadString("llm_api_key_GEMINI") ?: geminiApiKeyFromConfig() },
         redact = { captureConfigRepository.get().redactionEnabled },
+    )
+    // Cloud STT shares the Gemini key + HTTP client — used for Bangla voice (Apple STT can't).
+    actual val cloudTranscriber: CloudTranscriber = GeminiTranscriber(
+        httpClient = llmHttpClient,
+        apiKey = { secureStorage.loadString("llm_api_key_GEMINI") ?: geminiApiKeyFromConfig() },
     )
     private val openAiProvider: OpenAiProvider = OpenAiProvider(
         httpClient = llmHttpClient,

@@ -78,7 +78,12 @@ private val VOICE_EXAMPLES = listOf(
 fun VoiceScreen(onClose: () -> Unit, onTypeInstead: () -> Unit, onChat: () -> Unit) {
     val container = LocalAppContainer.current
     val vm = remember(container) {
-        VoiceViewModel(runtime = container.agentRuntime(), speechToText = container.speechToText)
+        VoiceViewModel(
+            runtime = container.agentRuntime(),
+            speechToText = container.speechToText,
+            audioRecorder = container.audioRecorder,
+            cloudTranscriber = container.cloudTranscriber,
+        )
     }
     val state by vm.state.collectAsState()
     val p = LocalHisaabPalette.current
@@ -97,6 +102,7 @@ fun VoiceScreen(onClose: () -> Unit, onTypeInstead: () -> Unit, onChat: () -> Un
         } else {
             when (val step = state.step) {
                 VoiceStep.Listen -> ListenStep(state, vm, onClose, onTypeInstead, onChat)
+                VoiceStep.Transcribing -> ParsingStep("", onClose, label = "Transcribing…")
                 VoiceStep.Parsing -> ParsingStep(state.transcript, onClose)
                 is VoiceStep.Answer -> AnswerStep(step.message, state.transcript, vm, onClose)
                 is VoiceStep.Draft -> DraftStep(step.writes, state.error, vm, onClose)
@@ -325,7 +331,7 @@ private fun ColumnScope.ListenStep(state: VoiceUiState, vm: VoiceViewModel, onCl
 }
 
 @Composable
-private fun ColumnScope.ParsingStep(transcript: String, onClose: () -> Unit) {
+private fun ColumnScope.ParsingStep(transcript: String, onClose: () -> Unit, label: String = "Understanding…") {
     val p = LocalHisaabPalette.current
     CloseBar(onClose)
     Column(
@@ -334,7 +340,7 @@ private fun ColumnScope.ParsingStep(transcript: String, onClose: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(22.dp, Alignment.CenterVertically),
     ) {
         SparkleOrb(size = 64, glow = true)
-        Text("Understanding…", color = p.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+        Text(label, color = p.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
         if (transcript.isNotBlank()) {
             Text(
                 "“$transcript”",
