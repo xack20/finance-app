@@ -6,8 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,24 +14,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -58,9 +49,6 @@ import app.hisaab.design.components.PrimaryButton
 import app.hisaab.design.components.midnightOutlinedColors
 import app.hisaab.domain.TxnKind
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,6 +76,7 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
 
     var showSplitSheet by remember { mutableStateOf(false) }
     var showPersonSheet by remember { mutableStateOf(false) }
+    var showCategorySheet by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -118,107 +107,63 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
         containerColor = palette.background,
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Spacer(Modifier.height(8.dp))
+            KindChipRow(
+                kind = state.kind,
+                onSelect = { viewModel.setKind(it) },
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
+
+            // Amount + quick categories fill the space between the kind chips and the detail
+            // chips, vertically centered (neo.jsx:237-250).
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(Modifier.height(8.dp))
-                KindChipRow(kind = state.kind, onSelect = { viewModel.setKind(it) })
-                Spacer(Modifier.height(20.dp))
                 BigAmount(amount = state.amount, kind = state.kind)
                 Spacer(Modifier.height(24.dp))
-                // Quick category tiles (neo.jsx:243-249); the full picker below covers the rest.
                 CategoryQuickRow(
                     selectedId = state.categoryId,
                     onSelect = { viewModel.setCategory(it) },
+                    onMore = { showCategorySheet = true },
                 )
-                Spacer(Modifier.height(20.dp))
+            }
 
-                AccountPicker(
-                    accounts = accounts,
-                    selectedId = state.accountId,
-                    onSelect = { viewModel.setAccount(it) },
+            state.error?.let {
+                Text(
+                    it,
+                    color = palette.negative,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                 )
-                if (state.kind == TxnKind.TRANSFER) {
-                    AccountPicker(
-                        accounts = accounts,
-                        selectedId = state.toAccountId,
-                        onSelect = { viewModel.setToAccount(it) },
-                        label = "To",
-                    )
-                }
-                CategoryPicker(
-                    categories = categories,
-                    selectedId = state.categoryId,
-                    onSelect = { viewModel.setCategory(it) },
-                )
-                FieldRow(
-                    label = "When",
-                    value = formatDateTime(state.whenMs),
-                    onClick = { /* date-time picker — P0d polish; for now keep "now" */ },
-                    palette = palette,
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = state.merchantName,
-                    onValueChange = { viewModel.setMerchant(it) },
-                    label = { Text("Merchant", color = palette.muted) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = HisaabShapes.field,
-                    colors = midnightOutlinedColors(),
-                )
-                Spacer(Modifier.height(8.dp))
-                NotesField(value = state.notes, onChange = { viewModel.setNotes(it) })
-                Spacer(Modifier.height(12.dp))
-                TagChipInput(
-                    tags = state.tagNames,
-                    onAdd = { viewModel.addTag(it) },
-                    onRemove = { viewModel.removeTag(it) },
-                    palette = palette,
-                )
-                Spacer(Modifier.height(12.dp))
-                AttachmentRow(
-                    hasAttachment = state.attachmentBytes != null,
-                    onPick = {
+            }
+
+            // Detail chips strip (neo.jsx:251-262) — each chip opens a sheet (or toggles, Receipt).
+            EntryDetailChips(
+                state = state,
+                accounts = accounts,
+                onAccount = { viewModel.setAccount(it) },
+                onToAccount = { viewModel.setToAccount(it) },
+                onWhen = { viewModel.setWhen(it) },
+                onMerchant = { viewModel.setMerchant(it) },
+                onNotes = { viewModel.setNotes(it) },
+                onAddTag = { viewModel.addTag(it) },
+                onRemoveTag = { viewModel.removeTag(it) },
+                onReceipt = {
+                    if (state.attachmentBytes != null) {
+                        viewModel.clearAttachment()
+                    } else {
                         coroutineScope.launch {
                             val picked = container.imagePicker.pickFromGallery()
                             if (picked != null) viewModel.setAttachment(picked.bytes, picked.mimeType)
                         }
-                    },
-                    onClear = { viewModel.clearAttachment() },
-                    palette = palette,
-                )
-                FieldRow(
-                    label = "Split",
-                    value = if (state.splits.isEmpty()) "Single entry" else "${state.splits.size} parts",
-                    onClick = { showSplitSheet = true },
-                    palette = palette,
-                )
-                if (state.kind in setOf(TxnKind.LEND, TxnKind.BORROW)) {
-                    Spacer(Modifier.height(12.dp))
-                    FieldRow(
-                        label = "Person",
-                        value = state.newPersonName ?: state.personId?.let { "selected" } ?: "Add",
-                        onClick = { showPersonSheet = true },
-                        palette = palette,
-                    )
-                    FieldRow(
-                        label = "Due date",
-                        value = state.dueDate?.let { formatDate(it) } ?: "Optional",
-                        onClick = { /* date picker — P0d polish */ },
-                        palette = palette,
-                    )
-                }
-                state.error?.let {
-                    Spacer(Modifier.height(12.dp))
-                    Text(it, color = palette.negative, style = MaterialTheme.typography.labelSmall)
-                }
-                Spacer(Modifier.height(16.dp))
-            }
+                    }
+                },
+                onSplit = { showSplitSheet = true },
+                onPerson = { showPersonSheet = true },
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
 
             // Keypad + Save on a raised bg-2 panel with a top hairline + rounded top (neo.jsx:264-269).
             val hairColor = palette.hair
@@ -268,90 +213,16 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
             palette = palette,
         )
     }
-}
-
-@Composable
-private fun FieldRow(label: String, value: String, onClick: () -> Unit, palette: HisaabColors.Palette) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, color = palette.muted, modifier = Modifier.weight(1f))
-        Text(value, color = palette.onBackground)
-        Spacer(Modifier.width(6.dp))
-        HisaabIcon("chevron-right", tint = palette.faint, size = 18.dp)
-    }
-    HorizontalDivider(color = palette.rule)
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TagChipInput(
-    tags: List<String>,
-    onAdd: (String) -> Unit,
-    onRemove: (String) -> Unit,
-    palette: HisaabColors.Palette,
-) {
-    var input by remember { mutableStateOf("") }
-    Column {
-        OutlinedTextField(
-            value = input,
-            onValueChange = { input = it },
-            label = { Text("Add tag", color = palette.muted) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            trailingIcon = {
-                if (input.isNotBlank()) {
-                    TextButton(onClick = {
-                        onAdd(input.trim())
-                        input = ""
-                    }) { Text("+", color = palette.accent) }
-                }
-            },
-            shape = HisaabShapes.field,
-            colors = midnightOutlinedColors(),
+    if (showCategorySheet) {
+        // Full category list beyond the quick-row shortlist (reuses the detail-chips list sheet).
+        EntryListSheet(
+            title = "Category",
+            items = categories.map { it.id to it.name },
+            selectedId = state.categoryId,
+            onSelect = { viewModel.setCategory(it); showCategorySheet = false },
+            onDismiss = { showCategorySheet = false },
         )
-        if (tags.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                tags.forEach { tag ->
-                    AssistChip(
-                        onClick = { onRemove(tag) },
-                        label = { Text(tag, color = palette.onBackground) },
-                        colors = AssistChipDefaults.assistChipColors(containerColor = palette.surface),
-                    )
-                }
-            }
-        }
     }
-}
-
-@Composable
-private fun AttachmentRow(
-    hasAttachment: Boolean,
-    onPick: () -> Unit,
-    onClear: () -> Unit,
-    palette: HisaabColors.Palette,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { if (hasAttachment) onClear() else onPick() }
-            .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("Photo", color = palette.muted, modifier = Modifier.weight(1f))
-        Text(
-            if (hasAttachment) "Attached — tap to remove" else "Add receipt",
-            color = if (hasAttachment) palette.accent else palette.onBackground,
-        )
-        Spacer(Modifier.width(6.dp))
-        HisaabIcon("chevron-right", tint = palette.faint, size = 18.dp)
-    }
-    HorizontalDivider(color = palette.rule)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -387,18 +258,4 @@ private fun PersonPickerSheet(
             Spacer(Modifier.height(8.dp))
         }
     }
-}
-
-private fun formatDateTime(ms: Long): String {
-    val instant = Instant.fromEpochMilliseconds(ms)
-    val ldt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-    val pad: (Int) -> String = { if (it < 10) "0$it" else "$it" }
-    return "${ldt.year}-${pad(ldt.monthNumber)}-${pad(ldt.dayOfMonth)} ${pad(ldt.hour)}:${pad(ldt.minute)}"
-}
-
-private fun formatDate(ms: Long): String {
-    val instant = Instant.fromEpochMilliseconds(ms)
-    val ldt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-    val pad: (Int) -> String = { if (it < 10) "0$it" else "$it" }
-    return "${ldt.year}-${pad(ldt.monthNumber)}-${pad(ldt.dayOfMonth)}"
 }

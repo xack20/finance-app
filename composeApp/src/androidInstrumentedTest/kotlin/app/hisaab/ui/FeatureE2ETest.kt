@@ -87,17 +87,23 @@ class FeatureE2ETest {
     fun add_transaction_persists_to_ledger() {
         open { EntryScreen(candidateId = null, onDone = {}) }
         settle()
-        composeRule.onAllNodes(hasSetTextAction()).onFirst().performTextInput("500")
+        // Amount via the on-screen keypad (5, 0, 0 = 500). Tap 5 first so the faint "0" placeholder
+        // disappears, leaving the keypad's own "0" key as the only "0" node.
+        composeRule.onNodeWithText("5").performClick()
         composeRule.waitForIdle()
+        composeRule.onNodeWithText("0").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("0").performClick()
+        composeRule.waitForIdle()
+        // Account detail chip → pick Cash from its sheet.
         composeRule.onNodeWithText("Account").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText("Cash").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Category").performClick()
+        // Quick-category tile sets categoryId = "food".
+        composeRule.onNodeWithText("Food").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Food & dining").performClick()
-        composeRule.waitForIdle()
-        composeRule.onNodeWithText("Save").performClick()
+        composeRule.onNodeWithText("Save entry").performClick()
         settle()
 
         val rows = runBlocking { container.transactionRepository.observeRecent(10).first() }

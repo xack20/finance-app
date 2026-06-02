@@ -69,6 +69,7 @@ fun CategoryQuickRow(
     selectedId: String?,
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onMore: (() -> Unit)? = null,
 ) {
     val palette = LocalHisaabPalette.current
     Row(
@@ -93,6 +94,30 @@ fun CategoryQuickRow(
                 ) { HisaabIcon(iconName, tint = hue, size = 22.dp, strokeWidth = 1.9f) }
                 Text(
                     id.replaceFirstChar { it.uppercase() },
+                    color = palette.muted,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+        // Trailing "More" tile opens the full category picker (the quick row is a fixed shortlist).
+        if (onMore != null) {
+            Column(
+                modifier = Modifier.clickable { onMore() },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .clip(RoundedCornerShape(15.dp))
+                        .background(palette.surface)
+                        .border(1.dp, palette.hair, RoundedCornerShape(15.dp)),
+                    contentAlignment = Alignment.Center,
+                ) { HisaabIcon("plus", tint = palette.muted, size = 22.dp, strokeWidth = 1.9f) }
+                Text(
+                    "More",
                     color = palette.muted,
                     fontSize = 11.sp,
                     maxLines = 1,
