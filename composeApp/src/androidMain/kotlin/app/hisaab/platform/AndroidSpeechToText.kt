@@ -1,16 +1,25 @@
 package app.hisaab.platform
 
-import android.content.Context
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * On-device STT via Android [SpeechRecognizer] (M4-5). Prefers offline recognition; streams
@@ -18,14 +27,38 @@ import kotlinx.coroutines.flow.flowOn
  * [SpeechEvent.PermissionDenied]; any recognizer error surfaces [SpeechEvent.Failed] (degrade to typing).
  *
  * SpeechRecognizer is main-thread-only, so the producer block (create / start / destroy) runs on
- * [Dispatchers.Main] via flowOn.
+ * [Dispatchers.Main] via flowOn. Needs a [FragmentActivity] so [requestPermission] can prompt for
+ * RECORD_AUDIO up front (the launcher is registered at construction, before the activity is STARTED).
  */
-class AndroidSpeechToText(private val context: Context) : SpeechToText {
+class AndroidSpeechToText(private val activity: FragmentActivity) : SpeechToText {
 
-    override suspend fun isAvailable(): Boolean = SpeechRecognizer.isRecognitionAvailable(context)
+    private val permissionResult = MutableSharedFlow<Boolean>(replay = 0, extraBufferCapacity = 1)
+    private val permissionMutex = Mutex()
+    private val permissionLauncher: ActivityResultLauncher<String> =
+        activity.registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            permissionResult.tryEmit(granted)
+        }
+
+    private fun hasMicPermission(): Boolean =
+        ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    override suspend fun isAvailable(): Boolean =
+        SpeechRecognizer.isRecognitionAvailable(activity) && hasMicPermission()
+
+    /** Up-front RECORD_AUDIO request (Android has a single mic permission). No-op when already granted. */
+    override suspend fun requestPermission(): Boolean = permissionMutex.withLock {
+        if (hasMicPermission()) return@withLock true
+        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        permissionResult.first()
+    }
 
     override fun listen(localeTag: String): Flow<SpeechEvent> = callbackFlow {
-        val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+        if (!hasMicPermission()) {
+            trySend(SpeechEvent.PermissionDenied)
+            close()
+            return@callbackFlow
+        }
+        val recognizer = SpeechRecognizer.createSpeechRecognizer(activity)
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, localeTag)

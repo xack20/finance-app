@@ -121,7 +121,7 @@ actual class AppContainer(
     actual val conversationRepository: ConversationRepository
         get() = ConversationRepository(requireDb())
 
-    actual val speechToText: SpeechToText = AndroidSpeechToText(context)
+    actual val speechToText: SpeechToText = AndroidSpeechToText(activity)
 
     actual fun agentRuntime(): AgentRuntime {
         val db = requireDb()

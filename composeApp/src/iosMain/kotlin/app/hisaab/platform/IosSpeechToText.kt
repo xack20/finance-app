@@ -2,11 +2,13 @@
 
 package app.hisaab.platform
 
+import kotlin.coroutines.resume
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import platform.AVFAudio.AVAudioEngine
 import platform.AVFAudio.AVAudioInputNode
 import platform.AVFAudio.AVAudioSession
@@ -38,6 +40,16 @@ class IosSpeechToText : SpeechToText {
         return recognizer.available &&
             (status == SFSpeechRecognizerAuthorizationStatusAuthorized ||
                 status == SFSpeechRecognizerAuthorizationStatusNotDetermined)
+    }
+
+    /** Request Speech recognition + Microphone up front — iOS shows the two prompts in sequence. */
+    override suspend fun requestPermission(): Boolean = suspendCancellableCoroutine { cont ->
+        SFSpeechRecognizer.requestAuthorization { speechStatus ->
+            val speechOk = speechStatus == SFSpeechRecognizerAuthorizationStatusAuthorized
+            AVAudioSession.sharedInstance().requestRecordPermission { micOk ->
+                if (cont.isActive) cont.resume(speechOk && micOk)
+            }
+        }
     }
 
     override fun listen(localeTag: String): Flow<SpeechEvent> = callbackFlow {

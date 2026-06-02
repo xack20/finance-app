@@ -85,7 +85,9 @@ class VoiceViewModel(
             if (avail != AgentAvailability.Ready) _state.update { it.copy(gate = avail) }
         }
         scope.launch {
-            _state.update { it.copy(sttAvailable = speechToText.isAvailable()) }
+            // Ask for mic + speech permission up front (one clean flow) so the user isn't prompted
+            // mid-hold; iOS shows both prompts in sequence, Android the single RECORD_AUDIO prompt.
+            _state.update { it.copy(sttAvailable = speechToText.requestPermission()) }
         }
         // Push-to-talk: do NOT auto-start listening — the user holds the mic to begin.
     }
