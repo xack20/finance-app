@@ -40,6 +40,19 @@ kotlin {
     }
 }
 
+// supabase-kt 3.0.3 is compiled against kotlinx.datetime.Instant — a REAL class in 0.6.x. Compose
+// material3-desktop 1.9.0-beta03 drags in kotlinx-datetime 0.7.1, where that type was moved to the
+// stdlib (kotlin.time.Instant) and `kotlinx/datetime/Instant.class` no longer exists. On the JVM that
+// surfaces as NoClassDefFoundError while parsing the auth session (e.g. on OTP verify). Pin to the
+// catalog's declared 0.6.1 so the Supabase SDK finds the class it was built against. (Material3's only
+// datetime use is date pickers, which the companion UI doesn't have.)
+configurations.all {
+    resolutionStrategy {
+        force("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
+        force("org.jetbrains.kotlinx:kotlinx-datetime-jvm:0.6.1")
+    }
+}
+
 compose.desktop {
     application {
         mainClass = "app.hisaab.mac.MainKt"
