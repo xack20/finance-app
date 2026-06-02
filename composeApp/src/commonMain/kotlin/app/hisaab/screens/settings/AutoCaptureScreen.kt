@@ -125,6 +125,10 @@ fun AutoCaptureScreen(
                 }
             }
 
+            // ── In-app email (IMAP) capture ──────────────────────────────────
+            Spacer(Modifier.height(24.dp))
+            EmailCaptureSection(c.emailCaptureEnabled, palette, viewModel)
+
             // ── Permission-denied warning ────────────────────────────────────
             if (permissionDenied) {
                 Spacer(Modifier.height(8.dp))
@@ -475,6 +479,59 @@ private fun Label(text: String, palette: HisaabColors.Palette) {
         fontWeight = FontWeight.SemiBold,
     )
     Spacer(Modifier.height(HisaabSpacing.md))
+}
+
+/** EP3: in-app IMAP email capture (Android). Connect a consumer mailbox or toggle off when on. */
+@Composable
+private fun EmailCaptureSection(enabled: Boolean, palette: HisaabColors.Palette, viewModel: AutoCaptureViewModel) {
+    Label("Email", palette)
+    if (enabled) {
+        SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+            ToggleRow("Capture transactions from email", true, palette) { viewModel.setEmailCaptureEnabled(false) }
+            Text("Connected — bank emails sync alongside SMS.", color = palette.muted, fontSize = 12.sp)
+        }
+        return
+    }
+    var email by remember { mutableStateOf("") }
+    var appPassword by remember { mutableStateOf("") }
+    SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "Capture bank emails — personal Gmail / Outlook.com / Yahoo / iCloud, using an app-specific password.",
+            color = palette.muted,
+            fontSize = 12.sp,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("Email address", color = palette.muted, fontSize = 12.sp)
+        Spacer(Modifier.height(4.dp))
+        BasicTextField(
+            value = email,
+            onValueChange = { email = it },
+            textStyle = TextStyle(color = palette.onBackground, fontSize = 15.sp),
+            modifier = Modifier.fillMaxWidth()
+                .clip(HisaabShapes.field).background(palette.surfaceRaised).border(1.dp, palette.hair, HisaabShapes.field).padding(12.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("App-specific password", color = palette.muted, fontSize = 12.sp)
+        Spacer(Modifier.height(4.dp))
+        BasicTextField(
+            value = appPassword,
+            onValueChange = { appPassword = it },
+            textStyle = TextStyle(color = palette.onBackground, fontSize = 15.sp),
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+                .clip(HisaabShapes.field).background(palette.surfaceRaised).border(1.dp, palette.hair, HisaabShapes.field).padding(12.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        TextButton(onClick = {
+            if (email.isNotBlank() && appPassword.isNotBlank()) {
+                viewModel.configureEmail(email, appPassword)
+                email = ""
+                appPassword = ""
+            }
+        }) {
+            Text("Connect email", color = palette.accent)
+        }
+    }
 }
 
 /** P2: toggle + status for the Mac→phone SMS relay. Visible on all platforms (iOS-primary). */

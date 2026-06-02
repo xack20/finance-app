@@ -75,5 +75,7 @@ data class CaptureConfig(
     val lastSmsCursor: Long,
     /** P2: when true, pull encrypted captures from the Mac→phone relay (see RelayCaptureSource). */
     val relayCaptureEnabled: Boolean = false,
+    /** EP3: when true, poll the user's mailbox in-app (Android) for bank emails. */
+    val emailCaptureEnabled: Boolean = false,
     val updatedAt: Long,
 )

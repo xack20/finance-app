@@ -1,5 +1,6 @@
 package app.hisaab.mac
 
+import app.hisaab.capture.ImapHosts
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

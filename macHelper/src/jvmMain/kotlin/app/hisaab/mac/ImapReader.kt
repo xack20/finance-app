@@ -1,6 +1,8 @@
 package app.hisaab.mac
 
 import app.hisaab.capture.EmailCapture
+import app.hisaab.capture.ImapConfig
+import app.hisaab.capture.ImapHosts
 import app.hisaab.domain.RawCapture
 import jakarta.mail.Folder
 import jakarta.mail.Multipart
@@ -11,20 +13,6 @@ import jakarta.mail.search.ComparisonTerm
 import jakarta.mail.search.ReceivedDateTerm
 import java.util.Date
 import java.util.Properties
-
-/** IMAP connection settings. [password] is an app-specific password (consumer Gmail/Outlook.com). */
-data class ImapConfig(val email: String, val password: String, val host: String, val port: Int = 993)
-
-/** Known IMAP hosts for consumer providers, derived from the email domain. */
-object ImapHosts {
-    fun forEmail(email: String): Pair<String, Int>? = when (email.substringAfter('@', "").lowercase()) {
-        "gmail.com", "googlemail.com" -> "imap.gmail.com" to 993
-        "outlook.com", "hotmail.com", "live.com", "msn.com" -> "outlook.office365.com" to 993
-        "yahoo.com" -> "imap.mail.yahoo.com" to 993
-        "icloud.com", "me.com", "mac.com" -> "imap.mail.me.com" to 993
-        else -> null
-    }
-}
 
 /**
  * Reads transaction emails from the user's INBOX over IMAPS (Angus/Jakarta Mail, JVM) and maps each

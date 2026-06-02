@@ -72,6 +72,8 @@ kotlin {
             implementation(libs.sqldelight.android.driver)
             implementation(libs.sqlcipher.android)
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.android.mail) // in-app IMAP email (javax.mail Android port)
+            implementation(libs.android.activation)
             implementation(libs.androidx.security.crypto)
             implementation(libs.androidx.biometric)
             implementation(libs.mediapipe.genai)

@@ -3,6 +3,8 @@ package app.hisaab.mac
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import app.hisaab.capture.ImapConfig
+import app.hisaab.capture.ImapHosts
 import app.hisaab.capture.RelayCaptureCrypto
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job

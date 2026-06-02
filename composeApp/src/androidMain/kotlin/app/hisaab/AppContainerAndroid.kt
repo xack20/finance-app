@@ -25,6 +25,9 @@ import app.hisaab.capture.CaptureCoordinator
 import app.hisaab.capture.CaptureCursorStore
 import app.hisaab.capture.CaptureHandler
 import app.hisaab.capture.CompositeCaptureSource
+import app.hisaab.capture.EmailCaptureSource
+import app.hisaab.capture.ImapConfig
+import app.hisaab.capture.ImapHosts
 import app.hisaab.capture.RelayCaptureCrypto
 import app.hisaab.capture.RelayCaptureSource
 import app.hisaab.capture.SealedCapture
@@ -260,7 +263,7 @@ actual class AppContainer(
         // P2: the platform SMS/notification source PLUS the Mac→phone relay, fanned through the one
         // coordinator (single Mutex). The relay stays inert until relayCaptureEnabled + a master
         // secret + a session exist, so this composite is safe to always install.
-        val source = CompositeCaptureSource(listOf(captureService, relayCaptureSource))
+        val source = CompositeCaptureSource(listOf(captureService, relayCaptureSource, emailCaptureSource))
         CaptureCoordinator(source, handler, cursorStore) { raw, e ->
             // Per-item failures stay isolated (cursor doesn't advance), but log them so a
             // persistently-failing capture is visible instead of retried silently forever.
@@ -285,6 +288,25 @@ actual class AppContainer(
                     authRepository.isSignedIn()
             },
             onError = { e -> android.util.Log.w("HisaabRelay", "relay ingest: ${e.message}") },
+        )
+    }
+
+    // EP3: in-app IMAP email capture. Inert until emailCaptureEnabled + saved credentials exist.
+    private val emailCaptureSource: EmailCaptureSource by lazy {
+        EmailCaptureSource(
+            credentials = {
+                val email = secureStorage.loadString("imap_email")
+                val pw = secureStorage.loadString("imap_password")
+                if (email.isNullOrBlank() || pw.isNullOrBlank()) {
+                    null
+                } else {
+                    ImapHosts.forEmail(email)?.let { (host, port) -> ImapConfig(email, pw, host, port) }
+                }
+            },
+            enabled = { captureConfigRepository.get().emailCaptureEnabled },
+            loadCursor = { secureStorage.loadString("imap_email_cursor")?.toLongOrNull() ?: 0L },
+            saveCursor = { secureStorage.storeString("imap_email_cursor", it.toString()) },
+            onError = { e -> android.util.Log.w("HisaabEmail", "email capture: ${e.message}") },
         )
     }
 
@@ -364,7 +386,7 @@ actual class AppContainer(
         // the singleton config row doesn't exist yet.
         val enabled = kotlinx.coroutines.runBlocking {
             val cfg = captureConfigRepository.get()
-            cfg.captureEnabled || cfg.relayCaptureEnabled
+            cfg.captureEnabled || cfg.relayCaptureEnabled || cfg.emailCaptureEnabled
         }
         if (!enabled) return
         val scope = kotlinx.coroutines.CoroutineScope(

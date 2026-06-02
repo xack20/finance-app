@@ -107,6 +107,28 @@ class AutoCaptureViewModel(
         }
     }
 
+    /** EP3: connect a mailbox for in-app IMAP email capture (Android). Stores creds in SecureStorage. */
+    fun configureEmail(email: String, appPassword: String) {
+        scope.launch {
+            val trimmed = email.trim()
+            if (app.hisaab.capture.ImapHosts.forEmail(trimmed) == null) return@launch // unsupported provider
+            storeApiKey("imap_email", trimmed)
+            storeApiKey("imap_password", appPassword)
+            if (loadApiKey("imap_email_cursor").isNullOrBlank()) {
+                storeApiKey("imap_email_cursor", currentMillis().toString()) // capture going forward
+            }
+            configRepo.setEmailCaptureEnabled(true)
+            onStartCapture()
+        }
+    }
+
+    fun setEmailCaptureEnabled(enabled: Boolean) {
+        scope.launch {
+            configRepo.setEmailCaptureEnabled(enabled)
+            if (enabled) onStartCapture()
+        }
+    }
+
     // ---- Engine ----
 
     fun setEngineMode(mode: EngineMode) { scope.launch { configRepo.setEngineMode(mode) } }
