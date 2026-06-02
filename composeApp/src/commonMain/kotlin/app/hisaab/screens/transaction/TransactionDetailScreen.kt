@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -62,6 +63,7 @@ fun TransactionDetailScreen(txnId: String, onDone: () -> Unit) {
             inboxRepo = container.captureInboxRepository,
         )
     }
+    DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val display by viewModel.row.collectAsState()
     val provenance by viewModel.provenance.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }

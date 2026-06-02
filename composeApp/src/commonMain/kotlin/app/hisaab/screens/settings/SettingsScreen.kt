@@ -37,6 +37,7 @@ fun SettingsScreen(
     val palette = LocalHisaabPalette.current
     val container = LocalAppContainer.current
     val viewModel = remember { SettingsViewModel(container) }
+    DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val lockMs by viewModel.lockTimeoutMs.collectAsState()
     val biometricOn by viewModel.biometricEnabled.collectAsState()
     var showLockSheet by remember { mutableStateOf(false) }

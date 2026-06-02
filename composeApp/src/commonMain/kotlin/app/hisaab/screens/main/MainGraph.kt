@@ -9,6 +9,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -133,6 +134,7 @@ fun MainGraph() {
                             onStopCapture = { container.stopCapture() },
                         )
                     }
+                    DisposableEffect(consentVm) { onDispose { consentVm.dispose() } }
                     val cfg by consentVm.config.collectAsState()
                     val providerName = cfg?.cloudProvider?.name?.lowercase()
                         ?.replaceFirstChar { it.uppercase() }

@@ -4,6 +4,7 @@ import app.hisaab.AppContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -41,5 +42,10 @@ class SettingsViewModel(
             container.secureStorage.storeString("biometric_enabled", "false")
             onDone()
         }
+    }
+
+    /** Cancel background work when the screen is disposed (wired from SettingsScreen). */
+    fun dispose() {
+        scope.cancel()
     }
 }

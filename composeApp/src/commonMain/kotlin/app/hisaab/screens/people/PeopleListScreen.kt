@@ -21,6 +21,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,6 +57,7 @@ fun PeopleListScreen(onPersonClick: (String) -> Unit) {
             accountRepo = container.accountRepository,
         )
     }
+    DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val people by viewModel.people.collectAsState()
     var showAddSheet by remember { mutableStateOf(false) }
 

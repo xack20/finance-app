@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +26,7 @@ import kotlinx.datetime.toLocalDateTime
 class MonthViewModel(
     private val insightRepo: InsightRepository,
     private val budgetRepo: BudgetRepository,
-    scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     private val _yearMonth = MutableStateFlow(currentYearMonth())
     val yearMonth: StateFlow<YearMonth> = _yearMonth
@@ -64,5 +65,10 @@ class MonthViewModel(
     private fun currentYearMonth(): YearMonth {
         val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         return YearMonth.of(now.year, now.monthNumber)
+    }
+
+    /** Cancel the StateFlow-sharing scope when the screen is disposed (wired from MonthScreen). */
+    fun dispose() {
+        scope.cancel()
     }
 }

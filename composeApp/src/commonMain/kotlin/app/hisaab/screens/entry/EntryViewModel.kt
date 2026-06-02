@@ -14,6 +14,7 @@ import app.hisaab.domain.TxnKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -180,5 +181,10 @@ class EntryViewModel(
                 _state.update { it.copy(isSaving = false, error = e.message ?: "Save failed") }
             }
         }
+    }
+
+    /** Cancel background work when the screen is disposed (wired from EntryScreen). */
+    fun dispose() {
+        scope.cancel()
     }
 }

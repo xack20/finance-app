@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,6 +80,7 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
             },
         )
     }
+    DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val net by viewModel.todayNet.collectAsState()
     val recent by viewModel.recent.collectAsState()
     val pendingCount by viewModel.pendingCount.collectAsState()

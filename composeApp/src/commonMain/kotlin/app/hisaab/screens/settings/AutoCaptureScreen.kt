@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,6 +82,7 @@ fun AutoCaptureScreen(
             onStopCapture = { container.stopCapture() },
         )
     }
+    DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val cfg by viewModel.config.collectAsState()
     val senders by viewModel.senders.collectAsState()
     val unmapped by viewModel.unmappedSenders.collectAsState()

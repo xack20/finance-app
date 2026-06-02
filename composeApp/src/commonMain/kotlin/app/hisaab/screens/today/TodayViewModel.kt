@@ -14,6 +14,7 @@ import app.hisaab.domain.YearMonth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -136,5 +137,10 @@ class TodayViewModel(
     private fun currentYearMonth(): YearMonth {
         val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         return YearMonth.of(now.year, now.monthNumber)
+    }
+
+    /** Cancel the StateFlow-sharing scope when the screen is disposed (wired from TodayScreen). */
+    fun dispose() {
+        scope.cancel()
     }
 }

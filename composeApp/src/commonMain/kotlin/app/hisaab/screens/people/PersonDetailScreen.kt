@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -65,6 +66,7 @@ fun PersonDetailScreen(personId: String, onBack: () -> Unit) {
             accountRepo = container.accountRepository,
         )
     }
+    DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val detail by viewModel.personDetail(personId).collectAsState()
     val accounts by viewModel.activeAccounts.collectAsState()
     var settleRecord by remember { mutableStateOf<LendBorrowRow?>(null) }

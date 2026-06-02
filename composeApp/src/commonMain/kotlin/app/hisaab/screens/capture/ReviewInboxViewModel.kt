@@ -7,6 +7,7 @@ import app.hisaab.domain.CandidateTransaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -85,5 +86,10 @@ class ReviewInboxViewModel(
                 else -> "Confirmed $confirmed, $skipped need an account"
             }
         }
+    }
+
+    /** Cancel background work when the screen is disposed (wired from ReviewInboxScreen). */
+    fun dispose() {
+        scope.cancel()
     }
 }

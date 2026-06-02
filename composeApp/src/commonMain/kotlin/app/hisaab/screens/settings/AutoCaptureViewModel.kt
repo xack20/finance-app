@@ -12,6 +12,7 @@ import app.hisaab.llm.LlmRouter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -184,4 +185,9 @@ class AutoCaptureViewModel(
     }
 
     private fun currentMillis(): Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+
+    /** Cancel background work when the screen is disposed (wired from AutoCaptureScreen / consent route). */
+    fun dispose() {
+        scope.cancel()
+    }
 }

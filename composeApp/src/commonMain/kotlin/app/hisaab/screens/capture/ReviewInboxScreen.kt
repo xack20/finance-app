@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -63,6 +64,7 @@ fun ReviewInboxScreen(
             confirmCandidate = { id -> container.confirmCandidate(id) },
         )
     }
+    DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val pending by viewModel.pending.collectAsState()
     ReviewInboxContent(
         pending = pending,
