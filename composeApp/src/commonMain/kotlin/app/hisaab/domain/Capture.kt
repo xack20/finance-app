@@ -1,6 +1,10 @@
 package app.hisaab.domain
 
-/** A raw captured message before any parsing. Produced by CaptureService (M3-2). */
+import kotlinx.serialization.Serializable
+
+/** A raw captured message before any parsing. Produced by CaptureService (M3-2).
+ *  @Serializable so it can be the E2EE payload of the Mac→phone capture relay. */
+@Serializable
 data class RawCapture(
     val sender: String,
     val body: String,
@@ -9,6 +13,7 @@ data class RawCapture(
 )
 
 /** How a capture entered the app. */
+@Serializable
 enum class CaptureChannel { SMS, NOTIFICATION, PASTE }
 
 /** Lifecycle of a capture candidate. */
