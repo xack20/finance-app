@@ -89,6 +89,8 @@ fun AutoCaptureScreen(
     val accounts by viewModel.accounts.collectAsState()
     val keyValidation by viewModel.keyValidation.collectAsState()
     val permissionDenied by viewModel.permissionDenied.collectAsState()
+    // P2 Mac companion: "ready to pair" once signed in + a master secret exists on this device.
+    val relayReady = remember { container.secureStorage.loadMasterSecret() != null && container.authRepository.isSignedIn() }
 
     Scaffold(
         topBar = { NeoTopBar(title = "Auto-capture", onBack = onBack) },
@@ -100,6 +102,15 @@ fun AutoCaptureScreen(
                 .verticalScroll(rememberScrollState()).padding(horizontal = HisaabSpacing.gutter),
         ) {
             Spacer(Modifier.height(8.dp))
+
+            // Mac companion — shown on EVERY platform (it's the only automatic SMS path on iOS,
+            // which can't read SMS natively; the iOS native-SMS explainer below still applies).
+            MacCompanionSection(
+                enabled = c.relayCaptureEnabled,
+                ready = relayReady,
+                palette = palette,
+                onToggle = viewModel::setRelayCaptureEnabled,
+            )
 
             if (!smsSupported) {
                 IosUnavailableExplainer(palette)
@@ -464,6 +475,33 @@ private fun Label(text: String, palette: HisaabColors.Palette) {
         fontWeight = FontWeight.SemiBold,
     )
     Spacer(Modifier.height(HisaabSpacing.md))
+}
+
+/** P2: toggle + status for the Mac→phone SMS relay. Visible on all platforms (iOS-primary). */
+@Composable
+private fun MacCompanionSection(
+    enabled: Boolean,
+    ready: Boolean,
+    palette: HisaabColors.Palette,
+    onToggle: (Boolean) -> Unit,
+) {
+    Label("Mac companion", palette)
+    SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+        ToggleRow("Capture SMS forwarded to your Mac", enabled, palette, onToggle)
+    }
+    Spacer(Modifier.height(6.dp))
+    Text(
+        if (ready) {
+            "Ready to pair. Install the Hisaab Mac app, enter your recovery phrase, and turn on " +
+                "Text Message Forwarding to this Mac — bank SMS will then sync here automatically."
+        } else {
+            "Sign in and finish onboarding first. Then the Hisaab Mac app can forward your bank " +
+                "SMS here securely (end-to-end encrypted)."
+        },
+        color = palette.muted,
+        fontSize = 13.sp,
+    )
+    Spacer(Modifier.height(24.dp))
 }
 
 @Composable

@@ -94,6 +94,19 @@ class AutoCaptureViewModel(
         }
     }
 
+    /**
+     * Mac companion (P2): toggle pulling encrypted captures from the Mac→phone relay. Enabling
+     * starts the coordinator (idempotent); the [RelayCaptureSource][app.hisaab.capture.RelayCaptureSource]
+     * activates only once a master secret + session also exist. Disabling lets it go inert (the
+     * coordinator keeps running if native capture is still on).
+     */
+    fun setRelayCaptureEnabled(enabled: Boolean) {
+        scope.launch {
+            configRepo.setRelayCaptureEnabled(enabled)
+            if (enabled) onStartCapture()
+        }
+    }
+
     // ---- Engine ----
 
     fun setEngineMode(mode: EngineMode) { scope.launch { configRepo.setEngineMode(mode) } }
