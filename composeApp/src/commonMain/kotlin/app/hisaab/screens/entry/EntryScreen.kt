@@ -3,6 +3,8 @@ package app.hisaab.screens.entry
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.drawBehind
@@ -104,6 +108,11 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = palette.background),
             )
         },
+        // Inset content for the TOP only (status bar / Dynamic Island). The bottom safe area is owned
+        // by the keypad panel's navigationBarsPadding() so its raised surface reaches the screen edge
+        // (design neo.jsx:264 uses env(safe-area-inset-bottom)); without this the Scaffold also pads
+        // the bottom, double-insetting the keypad and stealing height on short screens (iPhone 15 Pro).
+        contentWindowInsets = WindowInsets.statusBars,
         containerColor = palette.background,
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -115,9 +124,15 @@ fun EntryScreen(candidateId: String? = null, onDone: () -> Unit) {
             )
 
             // Amount + quick categories fill the space between the kind chips and the detail
-            // chips, vertically centered (neo.jsx:237-250).
+            // chips, vertically centered (neo.jsx:237-250). verticalScroll keeps them from
+            // overlapping the kind row / detail chips when the available height is tight (short
+            // devices, or the OS keyboard pushing the layout up) — it only scrolls when they don't fit.
             Column(
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
