@@ -9,8 +9,13 @@ import jakarta.mail.Multipart
 import jakarta.mail.Part
 import jakarta.mail.Session
 import jakarta.mail.internet.InternetAddress
+import jakarta.mail.search.AndTerm
 import jakarta.mail.search.ComparisonTerm
+import jakarta.mail.search.FromStringTerm
+import jakarta.mail.search.OrTerm
 import jakarta.mail.search.ReceivedDateTerm
+import jakarta.mail.search.SearchTerm
+import jakarta.mail.search.SubjectTerm
 import java.util.Date
 import java.util.Properties
 
@@ -56,10 +61,14 @@ class ImapReader(
                 // sequence order = arrival order = receivedDate order for the INBOX, so the first
                 // maxPerPass are the oldest unsynced — take just that page (bounds fetch/upload/memory).
                 val tSearch = System.currentTimeMillis()
-                val matched =
-                    if (sinceMs > 0) inbox.search(ReceivedDateTerm(ComparisonTerm.GE, Date(sinceMs))) else inbox.messages
+                // Server-side narrow to LIKELY-financial mail (date + subject/from keywords). A busy
+                // INBOX can hold tens of thousands of messages over a year; fetching every body to let
+                // the phone discard 99% would take hours. Gmail evaluates this header search on its
+                // index, so we only fetch the few hundred that matter. The phone still does the final
+                // precise filtering on what's forwarded.
+                val matched = inbox.search(financialSearch(sinceMs))
                 val page = matched.take(maxPerPass)
-                CompanionLog.log("imap search matched=${matched.size} page=${page.size} in ${System.currentTimeMillis() - tSearch}ms")
+                CompanionLog.log("imap financial-search matched=${matched.size} page=${page.size} in ${System.currentTimeMillis() - tSearch}ms")
                 // Best-effort envelope prefetch for the page (one round trip). Wrapped: Gmail sometimes
                 // has a message jakarta.mail can't parse, and a batch fetch would otherwise throw
                 // "Failed to load IMAP envelope" and abort the whole pass.
@@ -91,6 +100,17 @@ class ImapReader(
         return Result(captures, newCursor)
     }
 
+    /**
+     * `received >= since AND (subject matches any financial keyword OR from matches a money sender)`.
+     * Header-only terms so Gmail/most servers answer from their index — fast even on a huge mailbox.
+     */
+    private fun financialSearch(sinceMs: Long): SearchTerm {
+        val keywords = OrTerm(
+            (FINANCIAL_SUBJECT.map { SubjectTerm(it) } + FINANCIAL_FROM.map { FromStringTerm(it) }).toTypedArray(),
+        )
+        return if (sinceMs > 0) AndTerm(ReceivedDateTerm(ComparisonTerm.GE, Date(sinceMs)), keywords) else keywords
+    }
+
     /** Prefer a text/plain part; fall back to text/html (stripped later). Returns (body, isHtml). */
     private fun extractText(part: Part): Pair<String, Boolean>? {
         if (part.isMimeType("text/plain")) return (part.content as? String)?.let { it to false }
@@ -112,5 +132,15 @@ class ImapReader(
         /** Max emails processed per poll tick — bounds memory, IMAP body fetches, and upload size.
          *  Small so each pass finishes quickly and the synced counter visibly climbs during backfill. */
         const val MAX_PER_PASS = 50
+
+        // Coarse server-side financial filter. Broad for recall (the phone does the precise filtering);
+        // header-only so the search stays index-fast. Covers BD MFS/banks + generic money terms.
+        val FINANCIAL_SUBJECT = listOf(
+            "transaction", "debited", "credited", "debit", "credit", "payment", "balance",
+            "statement", "BDT", "Taka", "spent", "withdraw", "deposit", "transfer", "purchase",
+            "bKash", "Nagad", "Rocket", "bill", "recharge", "OTP", "card", "fund", "EMI", "due",
+            "invoice", "receipt", "account",
+        )
+        val FINANCIAL_FROM = listOf("bank", "bkash", "nagad", "rocket", "card")
     }
 }
