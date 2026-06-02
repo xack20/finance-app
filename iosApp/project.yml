@@ -58,7 +58,7 @@ targets:
         # grab your 10-char Team ID after that first signing with:
         #   security find-identity -v -p codesigning      # -> "Apple Development: ... (XXXXXXXXXX)"
         # then uncomment the line below and paste it in. Simulator builds ignore signing.
-        # DEVELOPMENT_TEAM: "PASTE_TEAM_ID_HERE"
+        DEVELOPMENT_TEAM: "P3MU5B7G4D"
         CODE_SIGN_STYLE: Automatic
         # The gradle build-phase reads files outside the Xcode sandbox.
         ENABLE_USER_SCRIPT_SANDBOXING: "NO"

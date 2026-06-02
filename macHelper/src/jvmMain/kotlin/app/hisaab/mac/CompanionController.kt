@@ -90,7 +90,11 @@ class CompanionController(
         MacKeychain.savePassword(trimmed, appPassword)
         emailAccountFile.parentFile?.mkdirs()
         emailAccountFile.writeText(trimmed)
-        if (emailCursorStore.load() == 0L) emailCursorStore.save(System.currentTimeMillis()) // capture going forward
+        // On first connect, seed the cursor 12 months back so historical bank emails are captured
+        // (not only mail arriving after connect). Later runs advance the cursor past what's synced.
+        if (emailCursorStore.load() == 0L) {
+            emailCursorStore.save(System.currentTimeMillis() - EMAIL_BACKFILL_MS)
+        }
         imapConfig = cfg
         emailConnected = true
     }
@@ -164,6 +168,9 @@ class CompanionController(
     }
 
     companion object {
+        /** First-connect email backfill window: capture the last 12 months of bank emails. */
+        private const val EMAIL_BACKFILL_MS: Long = 365L * 24 * 60 * 60 * 1000
+
         private fun defaultDeviceId(): String =
             runCatching { "mac-" + InetAddress.getLocalHost().hostName }
                 .getOrElse { "mac-" + UUID.randomUUID().toString().take(8) }
