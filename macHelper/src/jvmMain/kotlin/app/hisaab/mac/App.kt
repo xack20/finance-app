@@ -80,7 +80,27 @@ private fun PairStep(controller: CompanionController) {
 private fun RunningStep(controller: CompanionController) {
     Text("✓ Running — forwarding bank SMS to your phone.", style = MaterialTheme.typography.titleMedium)
     controller.lastSyncNote?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-    Text("Total SMS synced this session: ${controller.totalPushed}", style = MaterialTheme.typography.bodySmall)
+    Text("Total items synced this session: ${controller.totalPushed}", style = MaterialTheme.typography.bodySmall)
+    EmailSection(controller)
+}
+
+/** Optional email (IMAP) capture — connect a consumer mailbox; bank emails then sync alongside SMS. */
+@Composable
+private fun EmailSection(controller: CompanionController) {
+    Divider()
+    if (controller.emailConnected) {
+        Text("✓ Email connected — bank emails are syncing too.", style = MaterialTheme.typography.bodyMedium)
+        return
+    }
+    var email by remember { mutableStateOf("") }
+    var appPassword by remember { mutableStateOf("") }
+    Text("Also capture bank emails (optional — personal Gmail / Outlook.com / Yahoo / iCloud).", style = MaterialTheme.typography.bodySmall)
+    OutlinedTextField(email, { email = it }, label = { Text("Email address") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+    OutlinedTextField(appPassword, { appPassword = it }, label = { Text("App-specific password") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+    Button(
+        onClick = { controller.configureEmail(email, appPassword) },
+        enabled = !controller.busy && email.isNotBlank() && appPassword.isNotBlank(),
+    ) { Text("Connect email") }
 }
 
 @Composable

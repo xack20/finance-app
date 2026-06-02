@@ -46,10 +46,17 @@ class CompanionController(
     var lastSyncNote by mutableStateOf<String?>(null)
         private set
 
+    /** Email (IMAP) connected + included in the push loop (optional, in addition to SMS). */
+    var emailConnected by mutableStateOf(false)
+        private set
+
     private val relay: SupabaseRelay? = config?.let { SupabaseRelay(it.supabaseUrl, it.supabaseAnonKey) }
     private val crypto = RelayCaptureCrypto()
     private var relayKey: ByteArray? = null
     private var loopJob: Job? = null
+    private var imapConfig: ImapConfig? = null
+    private val emailCursorStore = FileCursorStore(appSupport("email_cursor"))
+    private val emailAccountFile = appSupport("email_account")
 
     fun sendOtp(phone: String) = launchAction("Couldn't send the code") {
         relay!!.sendOtp(phone.trim())
@@ -66,23 +73,56 @@ class CompanionController(
 
     fun pair(phrase: String) = launchAction("Invalid recovery phrase") {
         relayKey = Pairing.relayKeyFromPhrase(phrase) // throws on bad words/checksum → surfaced
+        restoreEmail() // resume a previously-connected mailbox (password from Keychain)
         stage = Stage.Running
         startLoop()
+    }
+
+    /** Connect an email mailbox for IMAP capture (consumer Gmail/Outlook/Yahoo/iCloud). */
+    fun configureEmail(email: String, appPassword: String) = launchAction("Couldn't connect email") {
+        val trimmed = email.trim()
+        val hostPort = ImapHosts.forEmail(trimmed)
+            ?: error("Unsupported provider — use a personal Gmail, Outlook.com, Yahoo, or iCloud address.")
+        val cfg = ImapConfig(trimmed, appPassword, hostPort.first, hostPort.second)
+        ImapReader(cfg).readSince(System.currentTimeMillis()) // validates connect/auth (returns nothing)
+        MacKeychain.savePassword(trimmed, appPassword)
+        emailAccountFile.parentFile?.mkdirs()
+        emailAccountFile.writeText(trimmed)
+        if (emailCursorStore.load() == 0L) emailCursorStore.save(System.currentTimeMillis()) // capture going forward
+        imapConfig = cfg
+        emailConnected = true
+    }
+
+    /** Rebuild a previously-connected mailbox from the saved address + Keychain password. */
+    private fun restoreEmail() {
+        if (imapConfig != null) return
+        val email = runCatching { emailAccountFile.readText().trim() }.getOrNull()?.takeIf { it.isNotBlank() } ?: return
+        val password = MacKeychain.loadPassword(email) ?: return
+        val hostPort = ImapHosts.forEmail(email) ?: return
+        imapConfig = ImapConfig(email, password, hostPort.first, hostPort.second)
+        emailConnected = true
     }
 
     private fun startLoop() {
         if (loopJob != null) return
         loopJob = scope.launch {
             while (isActive) {
-                runCatching { pushOnce() }
-                    .onSuccess { pushed -> error = null; lastSyncNote = if (pushed > 0) "Synced $pushed new SMS" else "Up to date" }
-                    .onFailure { e -> error = e.message ?: "Sync error" }
+                var pushed = 0
+                var failed = false
+                runCatching { pushed += pushSms() }.onFailure { failed = true; error = it.message ?: "SMS sync error" }
+                imapConfig?.let { cfg ->
+                    runCatching { pushed += pushEmail(cfg) }.onFailure { failed = true; error = it.message ?: "Email sync error" }
+                }
+                if (!failed) {
+                    error = null
+                    lastSyncNote = if (pushed > 0) "Synced $pushed new item(s)" else "Up to date"
+                }
                 delay(pollIntervalMs)
             }
         }
     }
 
-    private suspend fun pushOnce(): Int {
+    private suspend fun pushSms(): Int {
         val key = relayKey ?: return 0
         val pusher = RelayPusher(
             relayCrypto = crypto,
@@ -92,6 +132,21 @@ class CompanionController(
             uploader = relay!!.uploader(),
             loadCursor = cursorStore::load,
             saveCursor = cursorStore::save,
+        )
+        return pusher.pushOnce().also { totalPushed += it }
+    }
+
+    private suspend fun pushEmail(cfg: ImapConfig): Int {
+        val key = relayKey ?: return 0
+        val imap = ImapReader(cfg)
+        val pusher = RelayPusher(
+            relayCrypto = crypto,
+            relayKey = key,
+            deviceId = deviceId,
+            readSince = { cursor -> imap.readSince(cursor).let { it.captures to it.newCursor } },
+            uploader = relay!!.uploader(),
+            loadCursor = emailCursorStore::load,
+            saveCursor = emailCursorStore::save,
         )
         return pusher.pushOnce().also { totalPushed += it }
     }
@@ -110,5 +165,8 @@ class CompanionController(
         private fun defaultDeviceId(): String =
             runCatching { "mac-" + InetAddress.getLocalHost().hostName }
                 .getOrElse { "mac-" + UUID.randomUUID().toString().take(8) }
+
+        private fun appSupport(name: String): java.io.File =
+            java.io.File(System.getProperty("user.home"), "Library/Application Support/HisaabCompanion/$name")
     }
 }

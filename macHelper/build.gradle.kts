@@ -27,6 +27,7 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(compose.material3)
             implementation(libs.sqlite.jdbc) // read ~/Library/Messages/chat.db
+            implementation(libs.angus.mail) // IMAP email (jakarta.mail)
             implementation(libs.supabase.auth) // phone-OTP login (same account as the app)
             implementation(libs.supabase.postgrest) // push to relay_captures
             implementation(libs.ktor.client.cio) // JVM HTTP engine for Supabase
