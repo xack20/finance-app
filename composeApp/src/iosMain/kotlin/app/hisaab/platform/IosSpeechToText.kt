@@ -47,6 +47,16 @@ class IosSpeechToText : SpeechToText {
             close(); return@callbackFlow
         }
 
+        // Activate the record audio session BEFORE reading the input-node format / installing the tap.
+        // On a real device the input node reports an invalid format (0 Hz / 0 channels) until the
+        // session is active for recording, and installTapOnBus(..., invalidFormat) throws an
+        // NSException ("required condition is false: IsFormatSampleRateAndChannelCountValid") that
+        // terminates the app. The simulator reports a valid default format regardless, which is why
+        // this only crashed on the iPhone, not in the simulator.
+        val session = AVAudioSession.sharedInstance()
+        session.setCategory(AVAudioSessionCategoryRecord, error = null)
+        session.setActive(true, error = null)
+
         val engine = AVAudioEngine()
         val request = SFSpeechAudioBufferRecognitionRequest().apply { shouldReportPartialResults = true }
 
@@ -60,13 +70,15 @@ class IosSpeechToText : SpeechToText {
         }
 
         val input = engine.inputNode
-        input.installTapOnBus(0u, 1024u, input.outputFormatForBus(0u)) { buffer, _ ->
+        val format = input.outputFormatForBus(0u)
+        if (format.sampleRate == 0.0) {
+            // Session/route not ready — fail closed rather than crash on an invalid tap format.
+            trySend(SpeechEvent.Failed("Microphone unavailable"))
+            close(); return@callbackFlow
+        }
+        input.installTapOnBus(0u, 1024u, format) { buffer, _ ->
             buffer?.let { request.appendAudioPCMBuffer(it) }
         }
-
-        val session = AVAudioSession.sharedInstance()
-        session.setCategory(AVAudioSessionCategoryRecord, error = null)
-        session.setActive(true, error = null)
         engine.prepare()
         engine.startAndReturnError(null)
 
