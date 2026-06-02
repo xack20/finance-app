@@ -55,6 +55,18 @@ class AppViewModelTest {
     }
 
     @Test
+    fun `cold start waits for the async session restore before routing (no false Unauthenticated)`() = runTest {
+        // Models supabase-kt: the persisted session is restored asynchronously, so isSignedIn() reads
+        // false until the restore completes. A router that doesn't await the restore would race it and
+        // wrongly fall through to Unauthenticated (re-asking for the phone number).
+        fakeAuth.restoresSessionOnInit = true
+        val vm = AppViewModel(fakeAuth, hasMasterSecret = { true })
+        vm.init()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertIs<AppState.Locked>(vm.state.value)
+    }
+
+    @Test
     fun `onAppBackground transitions Authenticated to Locked`() = runTest {
         fakeAuth.signedIn = true
         val vm = AppViewModel(fakeAuth, hasMasterSecret = { true }, lockTimeoutMs = 1000L)

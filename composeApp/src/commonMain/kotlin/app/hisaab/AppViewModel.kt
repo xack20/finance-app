@@ -9,6 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 sealed class AppState {
     data object Loading : AppState()
@@ -35,6 +36,11 @@ class AppViewModel(
 
     fun init() {
         scope.launch {
+            // The auth client restores any persisted session asynchronously. Wait for that to finish
+            // before routing, or a cold start races the load and falls through to Unauthenticated —
+            // sending a still-signed-in user back to phone-number entry. The timeout is a safety net:
+            // if the restore hangs (e.g. it never settles), don't pin the splash forever.
+            withTimeoutOrNull(AUTH_INIT_TIMEOUT_MS) { authRepository.awaitInitialized() }
             _state.value = when {
                 !authRepository.isSignedIn() -> AppState.Unauthenticated
                 !hasMasterSecret() -> AppState.OnboardingKey
@@ -67,4 +73,9 @@ class AppViewModel(
     }
 
     fun onBiometricUnlockSuccess() { _state.value = AppState.Authenticated }
+
+    private companion object {
+        // Upper bound on waiting for the auth session restore before routing anyway.
+        const val AUTH_INIT_TIMEOUT_MS = 5_000L
+    }
 }

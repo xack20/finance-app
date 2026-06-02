@@ -24,6 +24,8 @@ class FakeAuthRepository(private var signedIn: Boolean = false) : AuthRepository
 
     override fun isSignedIn(): Boolean = signedIn
 
+    override suspend fun awaitInitialized() = Unit
+
     override suspend fun signOut() {
         signedIn = false
         events.value = AuthEvent.SignedOut

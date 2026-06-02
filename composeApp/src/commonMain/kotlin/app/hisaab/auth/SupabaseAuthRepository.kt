@@ -6,6 +6,7 @@ import io.github.jan.supabase.auth.providers.builtin.OTP
 import io.github.jan.supabase.auth.SignOutScope
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class SupabaseAuthRepository : AuthRepository {
@@ -25,6 +26,13 @@ class SupabaseAuthRepository : AuthRepository {
     }
 
     override fun isSignedIn(): Boolean = auth.currentSessionOrNull() != null
+
+    override suspend fun awaitInitialized() {
+        // sessionStatus starts as Initializing while the persisted session is loaded (and refreshed)
+        // from storage, then settles to Authenticated / NotAuthenticated. Waiting for it to leave
+        // Initializing makes the subsequent currentSessionOrNull()/isSignedIn() check reliable.
+        auth.sessionStatus.first { it !is SessionStatus.Initializing }
+    }
 
     override suspend fun signOut() {
         auth.signOut(SignOutScope.LOCAL)
