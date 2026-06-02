@@ -19,4 +19,4 @@ data class RawCapture(
 
 /** How a capture entered the app. */
 @Serializable
-enum class CaptureChannel { SMS, NOTIFICATION, PASTE }
+enum class CaptureChannel { SMS, NOTIFICATION, PASTE, EMAIL }
