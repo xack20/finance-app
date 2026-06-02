@@ -7,6 +7,7 @@ import app.hisaab.capture.ImapConfig
 import app.hisaab.capture.ImapHosts
 import app.hisaab.capture.RelayCaptureCrypto
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -32,6 +33,10 @@ sealed interface Stage {
  * The Supabase session and the derived relay key are persisted to the macOS Keychain, so [resume]
  * can restore them on launch — the user verifies their phone + enters the recovery phrase ONCE, not
  * on every relaunch. [signOut] forgets both to switch accounts.
+ *
+ * ALL work runs on [Dispatchers.IO]: the injected [scope] comes from the Compose UI (Main) thread,
+ * and the Keychain (`security` CLI), IMAP, chat.db, and Supabase calls all block — running them on
+ * the UI thread freezes the window. Compose state writes are snapshot-safe from any thread.
  */
 @OptIn(ExperimentalEncodingApi::class)
 class CompanionController(
@@ -75,7 +80,7 @@ class CompanionController(
      */
     fun resume() {
         val r = relay ?: return
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             val sessionJson = MacKeychain.loadItem(ACCOUNT_SESSION) ?: return@launch
             val signedIn = runCatching { r.importSessionJson(sessionJson) }.getOrDefault(false)
             if (!signedIn) return@launch
@@ -124,11 +129,13 @@ class CompanionController(
         relayKey = null
         imapConfig = null
         emailConnected = false
-        MacKeychain.deleteItem(ACCOUNT_SESSION)
-        MacKeychain.deleteItem(ACCOUNT_RELAY_KEY)
-        scope.launch { relay?.signOut() }
         error = null
         stage = Stage.SignedOut
+        scope.launch(Dispatchers.IO) {
+            MacKeychain.deleteItem(ACCOUNT_SESSION)
+            MacKeychain.deleteItem(ACCOUNT_RELAY_KEY)
+            relay?.signOut()
+        }
     }
 
     /** Connect (or re-connect) an email mailbox for IMAP capture (Gmail/Outlook/Yahoo/iCloud). */
@@ -167,7 +174,7 @@ class CompanionController(
 
     private fun startLoop() {
         if (loopJob != null) return
-        loopJob = scope.launch {
+        loopJob = scope.launch(Dispatchers.IO) {
             while (isActive) {
                 var pushed = 0
                 var failed = false
@@ -217,7 +224,7 @@ class CompanionController(
         if (relay == null) { stage = Stage.NeedsConfig; return }
         busy = true
         error = null
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             runCatching { action() }.onFailure { e -> error = "$errorPrefix: ${e.message ?: "unknown"}" }
             busy = false
         }
