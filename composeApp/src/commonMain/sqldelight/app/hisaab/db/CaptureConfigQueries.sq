@@ -39,3 +39,6 @@ UPDATE capture_config SET relay_capture_enabled = ?, updated_at = ? WHERE id = '
 
 setEmailCaptureEnabled:
 UPDATE capture_config SET email_capture_enabled = ?, updated_at = ? WHERE id = 'singleton';
+
+setNotificationCaptureEnabled:
+UPDATE capture_config SET notification_capture_enabled = ?, updated_at = ? WHERE id = 'singleton';

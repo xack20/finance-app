@@ -104,7 +104,7 @@ actual class CaptureService(
     }
 
     /** True if the user has granted notification access to our listener service. */
-    fun hasNotificationAccess(): Boolean {
+    actual fun hasNotificationAccess(): Boolean {
         val enabled = Settings.Secure.getString(
             context.contentResolver,
             "enabled_notification_listeners",
@@ -113,6 +113,11 @@ actual class CaptureService(
         return enabled.split(":").any {
             ComponentName.unflattenFromString(it) == component
         }
+    }
+
+    /** Mirrors the persisted notification flag to the OS-bound listener's process-global gate. */
+    actual fun setNotificationListenerEnabled(enabled: Boolean) {
+        app.hisaab.capture.NotificationCaptureGate.enabled = enabled
     }
 
     private companion object {

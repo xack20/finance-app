@@ -80,6 +80,8 @@ fun AutoCaptureScreen(
             // M3-int Fix 3: master toggle gates the coordinator.
             onStartCapture = { container.startCapture() },
             onStopCapture = { container.stopCapture() },
+            // Notification fallback: mirror the flag to the OS-bound listener's gate (Android only).
+            onSetNotificationGate = { service.setNotificationListenerEnabled(it) },
         )
     }
     DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
@@ -91,6 +93,8 @@ fun AutoCaptureScreen(
     val permissionDenied by viewModel.permissionDenied.collectAsState()
     // P2 Mac companion: "ready to pair" once signed in + a master secret exists on this device.
     val relayReady = remember { container.secureStorage.loadMasterSecret() != null && container.authRepository.isSignedIn() }
+    // Notification fallback: snapshot whether the OS notification-access grant is in place.
+    val notifAccess = remember { container.captureService.hasNotificationAccess() }
 
     Scaffold(
         topBar = { NeoTopBar(title = "Auto-capture", onBack = onBack) },
@@ -128,6 +132,16 @@ fun AutoCaptureScreen(
             // ── In-app email (IMAP) capture ──────────────────────────────────
             Spacer(Modifier.height(24.dp))
             EmailCaptureSection(c.emailCaptureEnabled, palette, viewModel)
+
+            // ── Notification fallback ────────────────────────────────────────
+            Spacer(Modifier.height(24.dp))
+            NotificationSection(
+                enabled = c.notificationCaptureEnabled,
+                hasAccess = notifAccess,
+                palette = palette,
+                onToggle = viewModel::setNotificationCaptureEnabled,
+                onGrantAccess = { container.captureService.openNotificationAccessSettings() },
+            )
 
             // ── Permission-denied warning ────────────────────────────────────
             if (permissionDenied) {
@@ -530,6 +544,42 @@ private fun EmailCaptureSection(enabled: Boolean, palette: HisaabColors.Palette,
             }
         }) {
             Text("Connect email", color = palette.accent)
+        }
+    }
+}
+
+/**
+ * Notification fallback (Android): toggle for the NotificationListener path plus the one-time
+ * "grant notification access" flow. The OS won't deliver notifications to our listener until the
+ * user grants access in system settings, so we surface that gap and deep-link them there.
+ */
+@Composable
+private fun NotificationSection(
+    enabled: Boolean,
+    hasAccess: Boolean,
+    palette: HisaabColors.Palette,
+    onToggle: (Boolean) -> Unit,
+    onGrantAccess: () -> Unit,
+) {
+    Label("Notifications", palette)
+    SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+        ToggleRow("Capture transactions from notifications", enabled, palette, onToggle)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "A fallback for banks that push app notifications instead of SMS. Needs one-time " +
+                "notification access.",
+            color = palette.muted,
+            fontSize = 12.sp,
+        )
+        if (enabled && !hasAccess) {
+            Spacer(Modifier.height(8.dp))
+            Text("Notification access not granted yet.", color = palette.accent, fontSize = 12.sp)
+            TextButton(onClick = onGrantAccess) {
+                Text("Grant notification access", color = palette.accent)
+            }
+        } else if (enabled) {
+            Spacer(Modifier.height(8.dp))
+            Text("Access granted — notifications sync alongside SMS.", color = palette.muted, fontSize = 12.sp)
         }
     }
 }

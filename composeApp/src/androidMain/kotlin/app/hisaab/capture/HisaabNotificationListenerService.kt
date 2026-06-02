@@ -17,6 +17,9 @@ import app.hisaab.domain.RawCapture
 class HisaabNotificationListenerService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        // Inert until the user enables notification capture (the OS keeps the listener bound
+        // regardless of our preference). NotificationCaptureGate mirrors the persisted config flag.
+        if (!NotificationCaptureGate.enabled) return
         val notification = sbn?.notification ?: return
         val extras = notification.extras ?: return
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()

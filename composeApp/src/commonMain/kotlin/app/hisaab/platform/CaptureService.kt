@@ -19,4 +19,8 @@ expect class CaptureService : CaptureSource {
     override fun observeIncoming(): Flow<RawCapture>
     override suspend fun backfillSince(cursorMs: Long): List<RawCapture>
     fun openNotificationAccessSettings()
+    /** True if the user has granted notification access to the listener service (Android only). */
+    fun hasNotificationAccess(): Boolean
+    /** Arm/disarm the OS-bound notification listener's forwarding gate (Android only; no-op elsewhere). */
+    fun setNotificationListenerEnabled(enabled: Boolean)
 }

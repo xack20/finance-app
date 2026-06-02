@@ -49,6 +49,8 @@ class AutoCaptureViewModel(
     private val onStartCapture: () -> Unit = {},
     /** Stops the capture coordinator (called when captureEnabled transitions to false). */
     private val onStopCapture: () -> Unit = {},
+    /** Android-only: mirror the notification flag to the OS-bound listener's process-global gate. */
+    private val onSetNotificationGate: (Boolean) -> Unit = {},
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     val config: StateFlow<CaptureConfig?> = configRepo.observe()
@@ -125,6 +127,19 @@ class AutoCaptureViewModel(
     fun setEmailCaptureEnabled(enabled: Boolean) {
         scope.launch {
             configRepo.setEmailCaptureEnabled(enabled)
+            if (enabled) onStartCapture()
+        }
+    }
+
+    /**
+     * Notification fallback (Android): persist the flag, flip the OS-bound listener's gate (which
+     * can't read the encrypted config), and start the coordinator when enabling. The user still has
+     * to grant notification access — see [AutoCaptureScreen]'s "Grant notification access" button.
+     */
+    fun setNotificationCaptureEnabled(enabled: Boolean) {
+        scope.launch {
+            configRepo.setNotificationCaptureEnabled(enabled)
+            onSetNotificationGate(enabled)
             if (enabled) onStartCapture()
         }
     }

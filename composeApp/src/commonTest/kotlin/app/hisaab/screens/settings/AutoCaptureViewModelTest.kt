@@ -296,4 +296,36 @@ class AutoCaptureViewModelTest {
         assertEquals(1, startCount, "onStartCapture must be called when enabling")
         assertEquals(0, stopCount, "onStopCapture must NOT be called when enabling")
     }
+
+    @Test
+    fun `setNotificationCaptureEnabled persists flag flips gate and starts only on enable`() = runTest {
+        val db = TestDatabase.create()
+        var gate: Boolean? = null
+        var startCount = 0
+        val v = AutoCaptureViewModel(
+            configRepo = CaptureConfigRepository(db, dispatcher),
+            senderRepo = SenderRepository(db),
+            accountRepo = AccountRepository(db),
+            hasSmsPermission = { false },
+            requestSmsPermission = { false },
+            runBackfill = { _ -> },
+            loadApiKey = { null },
+            storeApiKey = { _, _ -> },
+            clearApiKey = { _ -> },
+            router = FakeLlmRouter(),
+            onStartCapture = { startCount++ },
+            onSetNotificationGate = { gate = it },
+        )
+        v.setNotificationCaptureEnabled(true)
+        advanceUntilIdle()
+        assertEquals(true, CaptureConfigRepository(db, dispatcher).get().notificationCaptureEnabled)
+        assertEquals(true, gate, "gate must arm when enabling")
+        assertEquals(1, startCount, "onStartCapture must run when enabling")
+
+        v.setNotificationCaptureEnabled(false)
+        advanceUntilIdle()
+        assertEquals(false, CaptureConfigRepository(db, dispatcher).get().notificationCaptureEnabled)
+        assertEquals(false, gate, "gate must disarm when disabling")
+        assertEquals(1, startCount, "disabling must NOT start capture again")
+    }
 }

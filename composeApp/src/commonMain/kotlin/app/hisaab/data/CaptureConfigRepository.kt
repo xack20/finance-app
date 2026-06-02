@@ -93,6 +93,11 @@ class CaptureConfigRepository(
         queries.setEmailCaptureEnabled(if (enabled) 1L else 0L, now())
     }
 
+    suspend fun setNotificationCaptureEnabled(enabled: Boolean) {
+        ensure()
+        queries.setNotificationCaptureEnabled(if (enabled) 1L else 0L, now())
+    }
+
     private fun migrations.Capture_config.toDomain(): CaptureConfig = CaptureConfig(
         captureEnabled = capture_enabled == 1L,
         engineMode = EngineMode.valueOf(engine_mode),
@@ -107,6 +112,7 @@ class CaptureConfigRepository(
         lastSmsCursor = last_sms_cursor,
         relayCaptureEnabled = relay_capture_enabled == 1L,
         emailCaptureEnabled = email_capture_enabled == 1L,
+        notificationCaptureEnabled = notification_capture_enabled == 1L,
         updatedAt = updated_at,
     )
 }

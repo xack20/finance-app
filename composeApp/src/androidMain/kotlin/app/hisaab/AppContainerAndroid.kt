@@ -386,7 +386,10 @@ actual class AppContainer(
         // the singleton config row doesn't exist yet.
         val enabled = kotlinx.coroutines.runBlocking {
             val cfg = captureConfigRepository.get()
-            cfg.captureEnabled || cfg.relayCaptureEnabled || cfg.emailCaptureEnabled
+            // Arm the OS-bound notification listener from the persisted flag — it can't read the
+            // encrypted config itself (see NotificationCaptureGate). Runtime toggles set it directly.
+            app.hisaab.capture.NotificationCaptureGate.enabled = cfg.notificationCaptureEnabled
+            cfg.captureEnabled || cfg.relayCaptureEnabled || cfg.emailCaptureEnabled || cfg.notificationCaptureEnabled
         }
         if (!enabled) return
         val scope = kotlinx.coroutines.CoroutineScope(

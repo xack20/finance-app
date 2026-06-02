@@ -77,5 +77,7 @@ data class CaptureConfig(
     val relayCaptureEnabled: Boolean = false,
     /** EP3: when true, poll the user's mailbox in-app (Android) for bank emails. */
     val emailCaptureEnabled: Boolean = false,
+    /** When true, the Android NotificationListener fallback forwards posted notifications. */
+    val notificationCaptureEnabled: Boolean = false,
     val updatedAt: Long,
 )
