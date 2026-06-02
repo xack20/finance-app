@@ -47,7 +47,7 @@ object HisaabColors {
         glass          = Color(0x0CFFFFFF), // white @ 4.5%
         onBackground   = Color(0xFFF3F5F8),
         muted          = Color(0xFF98A0AD),
-        faint          = Color(0xFF5C6470), // --faint, exact from neo-theme.css:16
+        faint          = Color(0xFF6B7380), // neo-theme.css --faint (#5C6470) lightened to clear WCAG AA 3.0 on surface/surfaceRaised
         accent         = Color(0xFFCBF24A),
         accentDim      = Color(0xFFA9CE37),
         onAccent       = Color(0xFF0A0B0E),

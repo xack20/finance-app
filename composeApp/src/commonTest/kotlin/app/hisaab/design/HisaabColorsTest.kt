@@ -23,7 +23,8 @@ class HisaabColorsTest {
     fun dark_text_roles_match_spec() {
         assertEquals(Color(0xFFF3F5F8), HisaabColors.Dark.onBackground)
         assertEquals(Color(0xFF98A0AD), HisaabColors.Dark.muted)
-        assertEquals(Color(0xFF737B88), HisaabColors.Dark.faint)
+        // faint = neo-theme.css #5C6470 lightened to #6B7380 to clear WCAG AA 3.0 on dark surfaces.
+        assertEquals(Color(0xFF6B7380), HisaabColors.Dark.faint)
     }
 
     @Test
@@ -45,9 +46,11 @@ class HisaabColorsTest {
     }
 
     @Test
-    fun eight_category_hues_present() {
-        assertEquals(8, HisaabColors.categoryHues.size)
+    fun nine_category_hues_present() {
+        // 8 original + "green" (design --pos category green for Salary/Groceries).
+        assertEquals(9, HisaabColors.categoryHues.size)
         assertEquals(Color(0xFF8B7CFF), HisaabColors.categoryHues["violet"])
+        assertEquals(Color(0xFF2F7D52), HisaabColors.categoryHues["green"])
     }
 
     @Test
