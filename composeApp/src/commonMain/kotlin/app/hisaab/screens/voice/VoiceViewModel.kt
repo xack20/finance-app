@@ -120,8 +120,9 @@ class VoiceViewModel(
                         is SpeechEvent.Final -> _state.update { it.copy(transcript = ev.text, listening = false) }
                         SpeechEvent.PermissionDenied ->
                             _state.update { it.copy(listening = false, sttAvailable = false, error = "Allow microphone access in Settings to use voice.") }
+                        // Show the recognizer's specific reason (e.g. "voice doesn't support bn …").
                         is SpeechEvent.Failed ->
-                            _state.update { it.copy(listening = false, error = "Couldn't hear that — hold and try again, or type.") }
+                            _state.update { it.copy(listening = false, error = ev.reason) }
                     }
                 }
             } catch (e: CancellationException) {

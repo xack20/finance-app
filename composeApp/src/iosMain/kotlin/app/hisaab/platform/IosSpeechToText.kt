@@ -52,18 +52,29 @@ class IosSpeechToText : SpeechToText {
         }
     }
 
+    /** First *available* SFSpeechRecognizer for the requested language, trying regional variants. */
+    private fun recognizerForLanguage(requested: String): SFSpeechRecognizer? {
+        val lang = requested.substringBefore('-').substringBefore('_').lowercase()
+        val candidates = buildList {
+            add(requested)
+            when (lang) {
+                "bn" -> { add("bn-IN"); add("bn-BD"); add("bn") }
+                "en" -> { add("en-US"); add("en-IN"); add("en") }
+                else -> add(lang)
+            }
+        }.distinct()
+        for (tag in candidates) {
+            val r = runCatching { SFSpeechRecognizer(NSLocale(tag)) }.getOrNull()
+            if (r != null && r.available) return r
+        }
+        return null
+    }
+
     override fun listen(localeTag: String): Flow<SpeechEvent> = callbackFlow {
         if (SFSpeechRecognizer.authorizationStatus() != SFSpeechRecognizerAuthorizationStatusAuthorized) {
             // Trigger the system prompt for next time; this attempt fails closed.
             SFSpeechRecognizer.requestAuthorization { }
             trySend(SpeechEvent.PermissionDenied)
-            close()
-            return@callbackFlow
-        }
-
-        val recognizer = SFSpeechRecognizer(NSLocale(localeTag)) ?: SFSpeechRecognizer()
-        if (recognizer == null || !recognizer.available) {
-            trySend(SpeechEvent.Failed("Speech recognizer unavailable"))
             close()
             return@callbackFlow
         }
@@ -74,6 +85,23 @@ class IosSpeechToText : SpeechToText {
         var request: SFSpeechAudioBufferRecognitionRequest? = null
 
         try {
+            // Resolve a recognizer for the requested language across regional variants (e.g. bn-BD →
+            // bn-IN → bn). Apple's Speech locale set is limited; if the language isn't supported the
+            // initializer returns nil (or throws for some tags), so this is inside the guard. We do NOT
+            // silently fall back to the device locale — recognizing Bangla speech as English is worse
+            // than a clear message, and it tells the user whether their iPhone supports Bangla at all.
+            val recognizer = recognizerForLanguage(localeTag)
+            if (recognizer == null) {
+                val lang = localeTag.substringBefore('-').substringBefore('_')
+                trySend(SpeechEvent.Failed("On-device voice doesn't support “$lang” on this iPhone — switch to EN or type."))
+                close()
+                return@callbackFlow
+            }
+            if (!recognizer.available) {
+                trySend(SpeechEvent.Failed("Voice model isn't ready — switch language or type."))
+                close()
+                return@callbackFlow
+            }
             // Activate the record session BEFORE reading the input format / installing the tap — on a
             // real device the input node's format is invalid (0 Hz) until the session is active, and
             // installTapOnBus(..., invalidFormat) raises an NSException. (Simulator reports a valid
