@@ -27,8 +27,8 @@ macHelper/build-and-sign.sh                              # stable-signed .app so
 ./gradlew -Phisaab.enableWasm=true :composeApp:wasmJsBrowserDevelopmentRun   # wasm is gated OFF (libsodium has no wasm artifact)
 ```
 
-`commonTest` depends on the JVM-only JDBC SQLite driver (`data/support/TestDatabase.kt`), so run tests through the
-Android JVM target rather than the iOS test tasks.
+`commonTest` depends on the JVM-only JDBC SQLite driver (`data/support/TestDatabase.kt`), so the iOS test tasks and
+`allTests` fail to resolve dependencies — run shared tests via `testDebugUnitTest` (tech-debt M18).
 
 **iOS:** `iosApp/project.yml` (XcodeGen) is the source of truth for the Xcode project — edit it, then
 `cd iosApp && xcodegen generate && pod install`, and open `iosApp.xcworkspace` (not the `.xcodeproj`). The Xcode

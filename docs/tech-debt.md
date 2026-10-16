@@ -1,7 +1,7 @@
 # Hisaab — Tech Debt & Carryover
 
 **Status:** Tracking doc — items here are deliberate deferrals or known gaps from prior phases.
-**Last updated:** 2026-10-17 — every open item re-checked against the code on `chore/ios-device-build`: H1 closed, H2/H6 moved to Closed, M14/M15 narrowed to what's left, L-MID1 recounted, L6 added. _(prior: 2026-06-01 — Midnight redesign Phases 1–9 shipped (PR #4) + post-audit polish pass; 2026-05-31 — M4 conversational agent M4-1…M4-4 + M4-6, carry-forward/tech-debt sweep, simulator verification — PR #2.)_
+**Last updated:** 2026-10-17 — every open item re-checked against the code on `chore/ios-device-build`: H1 closed, H2/H6 moved to Closed, M14/M15 narrowed to what's left, L-MID1 recounted, L6 + M18 added. _(prior: 2026-06-01 — Midnight redesign Phases 1–9 shipped (PR #4) + post-audit polish pass; 2026-05-31 — M4 conversational agent M4-1…M4-4 + M4-6, carry-forward/tech-debt sweep, simulator verification — PR #2.)_
 **Convention:** Each item carries a target phase. Items unresolved by v1 launch must move to Phase 2 backlog.
 
 > **M3 shipped (2026-05-29):** SMS capture (Android: receiver + backfill + NotificationListener, lock-safe catch-up), tiered parsing (deterministic pre-filter → 6 bank templates → LLM), on-device (MediaPipe Gemma) + cloud BYO-key (Claude/Gemini/OpenAI) providers with redaction + consent, confidence-gated auto-post + Review inbox, Settings/onboarding UX. 239 unit tests + instrumented suites green. M3 closed no prior debt (net-new feature); its residuals are tracked as H7–H8, M13–M17, L3 below.
@@ -54,6 +54,7 @@ Important gaps but not blocking ongoing development.
 | M15 | Receipt-OCR capture engine deferred | M3 spec §2 | Email (EP1–EP3) and voice (M4-5 on-device STT + Gemini cloud STT `2c08e75`) shipped. OCR is still only the `TxnSource.OCR` enum value — no engine | later M3 |
 | M16 | CDN-delivered parser-pattern updates (`parser_patterns_versions`) deferred — bank templates ship in-app | M3 spec §7 | New bank/format support requires an app release until the publish pipeline exists | post-launch |
 | M17 | `Redactor` masks an unformatted 8+ digit amount as an account number | M3-4 review | Rare (BD SMS amounts are usually comma-formatted) but would drop the amount field for cloud parsing of such messages; documented by a test. Tighten the heuristic with context | P0d polish |
+| M18 | `commonTest` can't compile for iOS — `iosSimulatorArm64Test` / `iosX64Test` and therefore `allTests` fail | M3-1 (`data/support/TestDatabase.kt`) | `commonTest` depends on `app.cash.sqldelight:sqlite-driver` (JVM-only `JdbcSqliteDriver`), which has no iOS variant: `compileTestKotlinIosSimulatorArm64` fails with "Could not resolve app.cash.sqldelight:sqlite-driver:2.1.0" (verified 2026-10-17). Only `testDebugUnitTest` runs the shared tests today; the README's `allTests` line is wrong until fixed. Fix: `expect fun createTestDriver()` with JDBC in `androidUnitTest` and the native in-memory driver in `iosTest` | P0d |
 
 ---
 
