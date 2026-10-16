@@ -355,6 +355,7 @@ class AgentViewModelTest {
         assertTrue(userMessageFor(LlmException(LlmError.Network("dns"))).contains("Network", ignoreCase = true))
         assertTrue(userMessageFor(LlmException(LlmError.ProviderError(503, "x"))).contains("503"))
         assertTrue(userMessageFor(LlmException(LlmError.Decode("bad"))).contains("rephrasing", ignoreCase = true))
+        assertTrue(userMessageFor(LlmException(LlmError.Refused("cyber"))).contains("declined", ignoreCase = true))
         // Non-LLM throwable → generic fallback
         assertTrue(userMessageFor(RuntimeException("boom")).contains("Something went wrong", ignoreCase = true))
     }

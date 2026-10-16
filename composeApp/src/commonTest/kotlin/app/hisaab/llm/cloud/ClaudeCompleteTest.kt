@@ -29,7 +29,8 @@ class ClaudeCompleteTest {
             version = request.headers["anthropic-version"]
             apiKeyHeader = request.headers["x-api-key"]
             respond(
-                content = """{"content":[{"type":"text","text":"{\"thought\":\"t\",\"final\":{\"message\":\"ok\"}}"}]}""",
+                content = """{"stop_reason":"end_turn","content":[{"type":"thinking","thinking":"summary"},""" +
+                    """{"type":"text","text":"{\"thought\":\"t\",\"final\":{\"message\":\"ok\"}}"}]}""",
                 status = HttpStatusCode.OK,
                 headers = jsonHeaders(),
             )
@@ -51,6 +52,24 @@ class ClaudeCompleteTest {
         assertTrue(body.contains("\"role\":\"assistant\""), "ASSISTANT turn present")
         assertEquals("2023-06-01", version)
         assertEquals("sk-ant-test", apiKeyHeader)
+        assertTrue(body.contains("\"model\":\"claude-opus-5-5\""), body)
+        assertTrue(body.contains("\"effort\":\"medium\""), body)
+        // The loop asks for 1024, but Opus 5.5 thinking counts toward max_tokens — the provider raises the floor.
+        assertTrue(body.contains("\"max_tokens\":8192"), body)
+    }
+
+    @Test
+    fun `complete maps a refusal stop reason to Refused`() = runTest {
+        val engine = MockEngine {
+            respond(
+                """{"stop_reason":"refusal","stop_details":{"type":"refusal","category":null},"content":[]}""",
+                HttpStatusCode.OK,
+                jsonHeaders(),
+            )
+        }
+        val provider = ClaudeProvider(HttpClient(engine), apiKey = { "k" })
+        val ex = assertFailsWith<LlmException> { provider.complete(listOf(ChatMessage(Role.USER, "hi"))) }
+        assertEquals(app.hisaab.llm.LlmError.Refused(null), ex.error)
     }
 
     @Test

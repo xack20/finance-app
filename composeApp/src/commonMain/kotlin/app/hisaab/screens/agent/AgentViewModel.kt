@@ -329,5 +329,6 @@ internal fun userMessageFor(t: Throwable): String =
         is LlmError.Network -> "Network problem — check your connection and try again."
         is LlmError.ProviderError -> "The model returned an error (HTTP ${e.status}) — please try again."
         is LlmError.Decode -> "The assistant's reply couldn't be read — try rephrasing."
+        is LlmError.Refused -> "The model declined this request — try rephrasing it."
         null -> "Something went wrong — nothing was saved."
     }
