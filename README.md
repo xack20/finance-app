@@ -1,10 +1,9 @@
-````markdown
 # Hisaab
 
 Privacy-first AI financial guide. Bangladesh-first commercial SaaS.
 
 **Documents:**
-- [Product idea + business plan](./docs/idea.md)
+- [Product idea + business plan](./docs/Hisaab%20Financial%20Guide%20Business%20Plan.md)
 - [Master architecture spec](./docs/superpowers/specs/2026-05-27-hisaab-master-architecture-design.md)
 - [Phase P0a plan (foundation)](./docs/superpowers/plans/2026-05-27-phase-p0a-foundation.md)
 - [Midnight redesign spec](./docs/superpowers/specs/2026-05-31-midnight-redesign-design.md)
@@ -24,4 +23,3 @@ Privacy-first AI financial guide. Bangladesh-first commercial SaaS.
 ## Stack
 
 Kotlin Multiplatform · Compose Multiplatform · "Midnight" design system on a Material 3 foundation · SQLDelight + SQLCipher · Supabase · kotlin.test.
-````
