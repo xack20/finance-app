@@ -19,6 +19,16 @@ class ImapLoginGuardTest {
     }
 
     @Test
+    fun `the same credentials are retried after 15 minutes`() {
+        var now = 0L
+        val guard = ImapLoginGuard(now = { now }).apply { recordAuthFailure("a:pw") }
+        now = 14 * 60 * 1000L
+        assertFalse(guard.shouldAttempt("a:pw"))
+        now = 15 * 60 * 1000L
+        assertTrue(guard.shouldAttempt("a:pw")) // e.g. IMAP was just enabled on the account
+    }
+
+    @Test
     fun `a success clears the block`() {
         val guard = ImapLoginGuard().apply { recordAuthFailure("a:pw"); recordSuccess() }
         assertTrue(guard.shouldAttempt("a:pw"))

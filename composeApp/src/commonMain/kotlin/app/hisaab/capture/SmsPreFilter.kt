@@ -48,7 +48,8 @@ class SmsPreFilter(
     }
 
     private companion object {
-        val CURRENCY = Regex("\\b(?:Tk|BDT)\\b|৳", RegexOption.IGNORE_CASE) // ৳ = U+09F3
+        // Letters can't touch the token, digits can: "BDT1,500" / "Tk1500" count, "Tkt" doesn't. ৳ = U+09F3.
+        val CURRENCY = Regex("(?<![A-Za-z])(?:Tk|BDT|Taka)(?![A-Za-z])|৳", RegexOption.IGNORE_CASE)
         val AMOUNT = Regex("[0-9][0-9,]*(?:\\.[0-9]{1,2})?")
         val REF = Regex("\\b(?:TrxID|TxnID|TxnId|TXN)\\b", RegexOption.IGNORE_CASE)
         val DIRECTION = Regex("\\b(?:credited|debited|received|Cash Out|Send Money|Payment)\\b", RegexOption.IGNORE_CASE)

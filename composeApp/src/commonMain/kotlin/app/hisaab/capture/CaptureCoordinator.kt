@@ -5,6 +5,8 @@ import app.hisaab.domain.RawCapture
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -95,9 +97,12 @@ class CaptureCoordinator(
         drainSince(maxOf(0L, cursorStore.currentCursor() - CATCH_UP_OVERLAP_MS))
     }
 
-    /** Re-runs [importAllHistory] if a previous one was interrupted (app locked, process killed). */
-    suspend fun resumePendingImport() {
-        if (importState.isImportPending()) importAllHistory()
+    /**
+     * Re-runs [importAllHistory] if a previous one was interrupted (app locked, process killed) — but not while
+     * the user has SMS capture off; the flag stays set so it resumes once they turn it back on.
+     */
+    suspend fun resumePendingImport(smsCaptureEnabled: Boolean = true) {
+        if (smsCaptureEnabled && importState.isImportPending()) importAllHistory()
     }
 
     /**
@@ -122,6 +127,9 @@ class CaptureCoordinator(
     private suspend fun drainSince(sinceMs: Long, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }) {
         val rows = source.backfillSince(sinceMs).sortedBy { it.receivedAt }
         rows.forEachIndexed { index, raw ->
+            // Duplicates are skipped without suspending, so check explicitly — otherwise a cancelled import runs
+            // to the end and gets recorded as complete.
+            currentCoroutineContext().ensureActive()
             onProgress(index, rows.size)
             process(raw)
         }

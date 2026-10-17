@@ -40,11 +40,19 @@ class CaptureForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Every start must reach startForeground within 5 s, even repeats.
-        ServiceCompat.startForeground(
-            this, NOTIFICATION_ID, notification(notificationText(engine.syncStatuses.value)),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
-        )
+        // Every start must reach startForeground within 5 s, even repeats. Android 12+ can refuse it (e.g. a
+        // sticky restart from the background): stop quietly instead of crash-looping; the next trigger retries.
+        val promoted = runCatching {
+            ServiceCompat.startForeground(
+                this, NOTIFICATION_ID, notification(notificationText(engine.syncStatuses.value)),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+            )
+        }
+        if (promoted.isFailure) {
+            android.util.Log.w("HisaabCapture", "foreground start refused: ${promoted.exceptionOrNull()?.message}")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (!started) {
             started = true
             scope.launch {

@@ -4,6 +4,7 @@ import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.RawCapture
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
@@ -114,6 +115,31 @@ class CaptureCoordinatorTest {
         CaptureCoordinator(source, handler, FakeCaptureConfigRepository(0), importState = store).resumePendingImport()
         assertEquals(listOf("a", "b"), handler.handled.map { it.body })
         assertEquals(false, store.pending)
+    }
+
+    @Test
+    fun `a cancelled import is not marked complete even when the rest is already imported`() = runTest {
+        val source = FakeCaptureService().apply { backfillRows = listOf(sms("a", 100), sms("b", 200)) }
+        val store = FakeImportState()
+        // Cancelled during item a; item b is an already-imported duplicate whose handling never suspends.
+        val handler = object : CaptureHandler {
+            override suspend fun handle(raw: RawCapture) {
+                if (raw.body == "a") kotlinx.coroutines.currentCoroutineContext().cancel()
+            }
+        }
+        val coordinator = CaptureCoordinator(source, handler, FakeCaptureConfigRepository(0), importState = store)
+        launch { coordinator.importAllHistory() }.join()
+        assertTrue(store.pending) // still owed: it was stopped, not finished
+    }
+
+    @Test
+    fun `a pending SMS import doesn't resume while SMS capture is off`() = runTest {
+        val source = FakeCaptureService().apply { backfillRows = listOf(sms("a", 100)) }
+        val store = FakeImportState().apply { pending = true }
+        CaptureCoordinator(source, RecordingHandler(), FakeCaptureConfigRepository(0), importState = store)
+            .resumePendingImport(smsCaptureEnabled = false)
+        assertEquals(null, source.lastBackfillCursor)
+        assertTrue(store.pending) // resumes once SMS capture is back on
     }
 
     @Test

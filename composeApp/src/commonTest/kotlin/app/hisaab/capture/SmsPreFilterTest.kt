@@ -50,6 +50,14 @@ class SmsPreFilterTest {
     }
 
     @Test
+    fun `an email with a glued BDT or Tk amount or the word Taka still counts`() = runTest {
+        val filter = SmsPreFilter(SenderRepository(TestDatabase.create()))
+        assertTrue(filter.classify(email("Amount: BDT1,500.00 debited"), null) is PreFilterResult.UnknownFinancial)
+        assertTrue(filter.classify(email("You spent Tk1500 at Shwapno"), null) is PreFilterResult.UnknownFinancial)
+        assertTrue(filter.classify(email("Payment of Taka 2,000 received"), null) is PreFilterResult.UnknownFinancial)
+    }
+
+    @Test
     fun `an SMS still passes on a direction word alone`() = runTest {
         val filter = SmsPreFilter(SenderRepository(TestDatabase.create()))
         assertTrue(filter.classify(raw("16216", "Your account was debited"), null) is PreFilterResult.UnknownFinancial)

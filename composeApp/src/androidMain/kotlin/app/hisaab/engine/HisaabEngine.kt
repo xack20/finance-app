@@ -57,6 +57,7 @@ import app.hisaab.platform.PlatformFileStore
 import app.hisaab.platform.SecureStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -252,7 +253,11 @@ class HisaabEngine private constructor(
     // Per-channel sync status (Auto-capture screen + background notification). Engine-lifetime scope: the
     // combined flow outlives any one capture run.
     private val engineScope = kotlinx.coroutines.CoroutineScope(
-        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default +
+            // A failure here must not crash the process: the sticky service would restart into the same failure.
+            kotlinx.coroutines.CoroutineExceptionHandler { _, e ->
+                android.util.Log.w("HisaabCapture", "background work failed: ${e.message}")
+            },
     )
     private val clock: () -> Long = { System.currentTimeMillis() }
     private val smsStatus = ChannelStatusTracker(clock)
@@ -521,22 +526,31 @@ class HisaabEngine private constructor(
             return false
         }
         startCapture()
+        return activateBackground()
+    }
+
+    @Synchronized // a UI lock between opening the DB and here must not leave background "active" on a closed DB
+    private fun activateBackground(): Boolean {
+        if (cachedDatabase == null) return false
         if (_backgroundActive.value) return true
         _backgroundActive.value = true
         backgroundJob = engineScope.launch {
-            captureCoordinator.resumePendingImport()
+            captureCoordinator.resumePendingImport(smsCaptureEnabled = captureConfigRepository.get().captureEnabled)
             while (true) {
                 kotlinx.coroutines.delay(CATCH_UP_INTERVAL_MS)
                 captureCoordinator.catchUp()
+                refreshSmsStatus() // keeps "SMS: up to date · last checked" current in the background
             }
         }
         return true
     }
 
+    /** Cancels and WAITS for the background job, so callers may close the DB right after. */
     fun stopBackground() {
-        backgroundJob?.cancel()
+        val job = backgroundJob
         backgroundJob = null
         _backgroundActive.value = false
+        if (job != null) kotlinx.coroutines.runBlocking { job.cancelAndJoin() }
     }
 
     /** UI lock: keep the DB open while background capture runs (only drop the UI's secret copy); else close it. */

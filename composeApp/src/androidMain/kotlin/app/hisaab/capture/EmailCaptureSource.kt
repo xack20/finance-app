@@ -75,14 +75,18 @@ class EmailCaptureSource(
         val cfg = runCatching { credentials() }.getOrNull()
         if (!runCatching { enabled() }.getOrDefault(false) || cfg == null) { status.off(); return false }
         val credentialsKey = "${cfg.email}:${cfg.password}".hashCode().toString()
-        if (!loginGuard.shouldAttempt(credentialsKey)) return false // rejected before; wait for new credentials
+        if (!loginGuard.shouldAttempt(credentialsKey)) {
+            // Rejected recently: keep saying so (a toggle off/on would otherwise leave it reading "Off").
+            status.failed(LOGIN_REJECTED, persistent = true)
+            return false
+        }
         val cursor = runCatching { loadCursor() }.getOrDefault(0L)
         val page = runCatching { withContext(Dispatchers.IO) { fetchPage(cfg, cursor, recentOnly = caughtUp) } }
             .getOrElse { e ->
                 onError(e)
                 if (e is AuthenticationFailedException) {
                     loginGuard.recordAuthFailure(credentialsKey)
-                    status.failed("Email login rejected — check the app password", persistent = true)
+                    status.failed(LOGIN_REJECTED, persistent = true)
                 } else {
                     status.failed(e.message ?: "Email check failed", persistent = false)
                 }
@@ -191,6 +195,7 @@ class EmailCaptureSource(
     }
 
     private companion object {
+        const val LOGIN_REJECTED = "Email login rejected — check the app password"
         /** Once caught up, polls search this far back — wide enough to tolerate clock skew and late delivery. */
         const val RECENT_WINDOW_MS = 2L * 24 * 60 * 60 * 1000
     }
