@@ -349,7 +349,7 @@ class CapturePipeline(
         direction: Direction?,
         refNo: String?,
     ): Boolean {
-        val ref = refNo?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        val ref = normalizeRef(refNo)
         val duplicate = (ref != null && inboxRepo.findLiveByRefNo(ref) != null) ||
             (
                 amount != null && direction != null &&
@@ -362,7 +362,7 @@ class CapturePipeline(
         inboxRepo.insertCandidate(
             candidate(
                 id = randomId(), raw = raw, dedupHash = dedupHash, status = CaptureStatus.DISMISSED,
-                confidence = null, parsedBy = null, model = null, parseError = DUPLICATE, amount = amount,
+                confidence = null, parsedBy = null, model = null, parseError = DUPLICATE_PARSE_ERROR, amount = amount,
                 direction = direction, balanceAfter = null, refNo = refNo, accountId = null, categoryId = null,
                 merchant = null, now = Clock.System.now().toEpochMilliseconds(),
             ),
@@ -448,8 +448,6 @@ class CapturePipeline(
     }
 
     private companion object {
-        const val DUPLICATE = "duplicate"
-        const val DUPLICATE_WINDOW_MS = 10L * 60 * 1000
         const val CURRENCY_BDT = "BDT"
 
         val DEFAULT_CATEGORY_IDS = listOf(

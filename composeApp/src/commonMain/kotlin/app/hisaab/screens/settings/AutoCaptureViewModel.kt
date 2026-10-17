@@ -76,6 +76,11 @@ class AutoCaptureViewModel(
     /** Android battery-optimization exemption, so realme/ColorOS doesn't kill background sync. */
     private val isBackgroundRunningAllowed: () -> Boolean = { true },
     private val openBackgroundRunningSettings: () -> Unit = {},
+    /** One-time cleanup of SMS/email/notification copies captured before cross-channel dedup existed. */
+    private val scanDuplicates: suspend () -> app.hisaab.capture.DuplicateReport = {
+        app.hisaab.capture.DuplicateReport(0, emptyList())
+    },
+    private val removeDuplicates: suspend (List<app.hisaab.capture.DuplicatePair>) -> Int = { 0 },
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     val config: StateFlow<CaptureConfig?> = configRepo.observe()
@@ -117,6 +122,23 @@ class AutoCaptureViewModel(
     }
 
     fun allowBackgroundRunning() = openBackgroundRunningSettings()
+
+    private val _duplicateReport = MutableStateFlow<app.hisaab.capture.DuplicateReport?>(null)
+    /** Last cleanup result: Review copies already dismissed + ledger pairs awaiting the user's confirmation. */
+    val duplicateReport: StateFlow<app.hisaab.capture.DuplicateReport?> = _duplicateReport.asStateFlow()
+
+    fun findDuplicates() {
+        scope.launch { _duplicateReport.value = scanDuplicates() }
+    }
+
+    /** Deletes the later copy of each listed ledger pair — only ever after the user tapped to confirm. */
+    fun removeLedgerDuplicates() {
+        val report = _duplicateReport.value ?: return
+        scope.launch {
+            removeDuplicates(report.ledgerDuplicates)
+            _duplicateReport.value = report.copy(ledgerDuplicates = emptyList())
+        }
+    }
 
     fun requestNotifications() {
         scope.launch { _notificationsDenied.value = !requestNotificationPermission() }

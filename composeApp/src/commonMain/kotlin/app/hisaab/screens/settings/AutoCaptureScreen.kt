@@ -1,5 +1,6 @@
 package app.hisaab.screens.settings
 
+import kotlinx.datetime.toLocalDateTime
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -90,6 +91,16 @@ fun AutoCaptureScreen(
             requestNotificationPermission = { service.requestNotificationPermission() },
             isBackgroundRunningAllowed = { service.isBackgroundRunningAllowed() },
             openBackgroundRunningSettings = { service.openBackgroundRunningSettings() },
+            scanDuplicates = {
+                container.databaseOrNull()
+                    ?.let { app.hisaab.capture.DuplicateCleanup(it, container.captureInboxRepository).scan() }
+                    ?: app.hisaab.capture.DuplicateReport(0, emptyList())
+            },
+            removeDuplicates = { pairs ->
+                container.databaseOrNull()
+                    ?.let { app.hisaab.capture.DuplicateCleanup(it, container.captureInboxRepository).removeLedgerDuplicates(pairs) }
+                    ?: 0
+            },
         )
     }
     DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
@@ -102,6 +113,7 @@ fun AutoCaptureScreen(
     val sync by viewModel.syncStatuses.collectAsState()
     val notificationsDenied by viewModel.notificationsDenied.collectAsState()
     val backgroundAllowed by viewModel.backgroundAllowed.collectAsState()
+    val duplicates by viewModel.duplicateReport.collectAsState()
     // The exemption is granted in a system dialog that doesn't recompose us; re-check while the screen is shown.
     LaunchedEffect(viewModel) {
         while (true) {
@@ -442,12 +454,47 @@ fun AutoCaptureScreen(
                 color = palette.muted,
                 fontSize = 12.sp,
             )
+            Spacer(Modifier.height(12.dp))
+            GlassButton(text = "Find duplicate payments", onClick = { viewModel.findDuplicates() })
+            duplicates?.let { report -> DuplicateReportView(report, palette) { viewModel.removeLedgerDuplicates() } }
             Spacer(Modifier.height(40.dp))
         }
     }
 }
 
 private const val BACKGROUND_RECHECK_MS = 2_000L
+
+/** Cleanup result: Review copies are already dismissed; ledger copies are listed and removed only on tap. */
+@Composable
+private fun DuplicateReportView(
+    report: app.hisaab.capture.DuplicateReport,
+    palette: HisaabColors.Palette,
+    onRemove: () -> Unit,
+) {
+    Spacer(Modifier.height(8.dp))
+    val pairs = report.ledgerDuplicates
+    Text(
+        if (report.dismissedFromReview == 0 && pairs.isEmpty()) "No duplicates found."
+        else "Dismissed ${report.dismissedFromReview} duplicate(s) from Review.",
+        color = palette.onBackground,
+        fontSize = 13.sp,
+    )
+    if (pairs.isEmpty()) return
+    Spacer(Modifier.height(6.dp))
+    Text("${pairs.size} payment(s) are in your ledger twice:", color = palette.onBackground, fontSize = 13.sp)
+    pairs.take(10).forEach { p ->
+        val day = kotlinx.datetime.Instant.fromEpochMilliseconds(p.duplicate.receivedAt)
+            .toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault()).date
+        Text(
+            "Tk ${p.duplicate.amount ?: 0.0} · $day · ${p.keep.channel.name.lowercase()} + ${p.duplicate.channel.name.lowercase()}",
+            color = palette.muted,
+            fontSize = 12.sp,
+        )
+    }
+    if (pairs.size > 10) Text("…and ${pairs.size - 10} more", color = palette.muted, fontSize = 12.sp)
+    Spacer(Modifier.height(6.dp))
+    GlassButton(text = "Remove the ${pairs.size} extra copies", onClick = onRemove)
+}
 
 @Composable
 private fun SyncStatusLine(channel: String, status: ChannelStatus, palette: HisaabColors.Palette) {

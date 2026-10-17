@@ -15,6 +15,12 @@ SELECT * FROM capture_inbox WHERE id = ? LIMIT 1;
 findLiveByRefNo:
 SELECT * FROM capture_inbox WHERE lower(trim(ref_no)) = ? AND status != 'DISMISSED' LIMIT 1;
 
+getLive:
+SELECT * FROM capture_inbox WHERE status != 'DISMISSED' ORDER BY received_at ASC;
+
+markDuplicate:
+UPDATE capture_inbox SET status = 'DISMISSED', parse_error = 'duplicate' WHERE id = ?;
+
 findLiveNear:
 SELECT * FROM capture_inbox
 WHERE amount = ? AND direction = ? AND channel != ? AND received_at BETWEEN ? AND ? AND status != 'DISMISSED';

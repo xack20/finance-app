@@ -95,6 +95,14 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
     suspend fun getById(id: String): CandidateTransaction? =
         queries.getById(id).executeAsOneOrNull()?.toDomain()
 
+    /** Every capture not yet dismissed, oldest first (duplicate cleanup scans these). */
+    suspend fun getLive(): List<CandidateTransaction> = queries.getLive().executeAsList().map { it.toDomain() }
+
+    /** Dismiss as a cross-channel duplicate; blocking so it can run inside a db.transaction. */
+    fun markDuplicateBlocking(id: String) {
+        queries.markDuplicate(id)
+    }
+
     /** A live (not dismissed) capture with this transaction ID; [normalizedRefNo] is trimmed + lowercased. */
     suspend fun findLiveByRefNo(normalizedRefNo: String): CandidateTransaction? =
         queries.findLiveByRefNo(normalizedRefNo).executeAsOneOrNull()?.toDomain()

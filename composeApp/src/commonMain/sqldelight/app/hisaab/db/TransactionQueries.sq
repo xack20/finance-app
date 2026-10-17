@@ -12,6 +12,9 @@ DELETE FROM txn WHERE id = ?;
 getTxn:
 SELECT * FROM txn WHERE id = ?;
 
+findTxnIdsByCaptureId:
+SELECT id FROM txn WHERE capture_id = ?;
+
 observeTxnById:
 SELECT * FROM txn WHERE id = ?;
 

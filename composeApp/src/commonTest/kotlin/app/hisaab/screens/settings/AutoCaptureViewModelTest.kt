@@ -311,6 +311,35 @@ class AutoCaptureViewModelTest {
     }
 
     @Test
+    fun `duplicate cleanup reports Review dismissals and removes ledger copies only on confirm`() = runTest {
+        val pair = app.hisaab.capture.DuplicatePair(keep = dupRow("a"), duplicate = dupRow("b"))
+        var removedWith: List<app.hisaab.capture.DuplicatePair>? = null
+        val v = AutoCaptureViewModel(
+            configRepo = CaptureConfigRepository(TestDatabase.create(), dispatcher),
+            senderRepo = SenderRepository(TestDatabase.create()), accountRepo = AccountRepository(TestDatabase.create()),
+            hasSmsPermission = { true }, requestSmsPermission = { true }, startHistoryImport = {},
+            loadApiKey = { null }, storeApiKey = { _, _ -> }, clearApiKey = {}, router = FakeLlmRouter(),
+            scanDuplicates = { app.hisaab.capture.DuplicateReport(dismissedFromReview = 3, ledgerDuplicates = listOf(pair)) },
+            removeDuplicates = { removedWith = it; it.size },
+        )
+        v.findDuplicates()
+        advanceUntilIdle()
+        assertEquals(3, v.duplicateReport.value?.dismissedFromReview)
+        assertNull(removedWith) // ledger copies wait for the user's confirmation
+        v.removeLedgerDuplicates()
+        advanceUntilIdle()
+        assertEquals(listOf(pair), removedWith)
+        assertEquals(true, v.duplicateReport.value?.ledgerDuplicates?.isEmpty())
+    }
+
+    private fun dupRow(id: String) = app.hisaab.domain.CandidateTransaction(
+        id = id, receivedAt = 0L, channel = app.hisaab.domain.CaptureChannel.SMS, sender = id, rawBody = id,
+        dedupHash = id, status = app.hisaab.domain.CaptureStatus.AUTO_POSTED, confidence = null, parsedBy = null,
+        model = null, parseError = null, amount = 1.0, direction = null, currency = "BDT", balanceAfter = null,
+        refNo = null, proposedAccountId = null, proposedCategoryId = null, proposedMerchant = null, createdAt = 0L,
+    )
+
+    @Test
     fun `granting SMS capture also asks for notification permission`() = runTest {
         var asks = 0
         val v = vm(gateway = FakeCaptureGateway(permissionGranted = true), notificationPermission = { asks++; true })
