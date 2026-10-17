@@ -32,6 +32,29 @@ class SmsPreFilterTest {
         createdAt = 1000L,
     )
 
+    private fun email(body: String) =
+        RawCapture(sender = "noreply@shop.example", body = body, receivedAt = 1000L, channel = CaptureChannel.EMAIL)
+
+    @Test
+    fun `an email needs a real amount or transaction id - payment words alone are not enough`() = runTest {
+        val filter = SmsPreFilter(SenderRepository(TestDatabase.create()))
+        // Receipts/promos full of "payment"/"received" would otherwise each cost a Claude call.
+        assertEquals(PreFilterResult.NotFinancial, filter.classify(email("We received your payment request"), null))
+    }
+
+    @Test
+    fun `an email with a taka amount or a TrxID still goes on for parsing`() = runTest {
+        val filter = SmsPreFilter(SenderRepository(TestDatabase.create()))
+        assertTrue(filter.classify(email("Your order total is Tk 1,250.00"), null) is PreFilterResult.UnknownFinancial)
+        assertTrue(filter.classify(email("TrxID 9XK2LM confirmed"), null) is PreFilterResult.UnknownFinancial)
+    }
+
+    @Test
+    fun `an SMS still passes on a direction word alone`() = runTest {
+        val filter = SmsPreFilter(SenderRepository(TestDatabase.create()))
+        assertTrue(filter.classify(raw("16216", "Your account was debited"), null) is PreFilterResult.UnknownFinancial)
+    }
+
     @Test
     fun `known template sender with money signal classifies KnownTemplate`() = runTest {
         val filter = SmsPreFilter(SenderRepository(TestDatabase.create()))

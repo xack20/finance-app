@@ -1,6 +1,7 @@
 package app.hisaab.capture
 
 import app.hisaab.data.SenderRepository
+import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.RawCapture
 import app.hisaab.domain.SenderMapping
 
@@ -24,7 +25,10 @@ class SmsPreFilter(
         if (mapping != null && !mapping.isFinancial) return PreFilterResult.NotFinancial
 
         val body = BanglaNumerals.normalize(raw.body)
-        if (!hasMoneySignal(body)) return PreFilterResult.NotFinancial
+        // Emails are long and full of "payment"/"received" (receipts, promos); each one reaching the LLM costs
+        // money, so they need a real amount or a transaction ID — a direction word alone isn't enough.
+        val signal = if (raw.channel == CaptureChannel.EMAIL) hasStrongMoneySignal(body) else hasMoneySignal(body)
+        if (!signal) return PreFilterResult.NotFinancial
 
         val templateKey = mapping?.templateKey
         if (mapping != null && !templateKey.isNullOrBlank() && BankTemplates.forKey(templateKey) != null) {
@@ -32,6 +36,9 @@ class SmsPreFilter(
         }
         return PreFilterResult.UnknownFinancial(mapping)
     }
+
+    private fun hasStrongMoneySignal(body: String): Boolean =
+        (CURRENCY.containsMatchIn(body) && AMOUNT.containsMatchIn(body)) || REF.containsMatchIn(body)
 
     private fun hasMoneySignal(body: String): Boolean {
         if (CURRENCY.containsMatchIn(body) && AMOUNT.containsMatchIn(body)) return true
