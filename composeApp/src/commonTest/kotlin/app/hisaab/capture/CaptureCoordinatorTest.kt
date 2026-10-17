@@ -43,7 +43,7 @@ class CaptureCoordinatorTest {
 
         coordinator.catchUp()
 
-        assertEquals(50L, source.lastBackfillCursor)
+        assertEquals(0L, source.lastBackfillCursor) // 24 h overlap floors at 0 for a cursor of 50
         assertEquals(listOf("a", "b", "c"), handler.handled.map { it.body })
         assertEquals(300L, config.cursor) // advanced to max receivedAt
     }
@@ -65,6 +65,64 @@ class CaptureCoordinatorTest {
             assertEquals(listOf("live-1", "live-2"), handler.handled.map { it.body })
             assertEquals(600L, config.cursor)
         }
+
+    @Test
+    fun `email and relay-style captures never move the SMS cursor`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val testDispatcher = UnconfinedTestDispatcher(testScheduler)
+            val source = FakeCaptureService()
+            val config = FakeCaptureConfigRepository(initialCursor = 100)
+            val coordinator = CaptureCoordinator(source, RecordingHandler(), config, dispatcher = testDispatcher)
+            coordinator.start(backgroundScope)
+
+            source.emit(RawCapture(sender = "bank@x.com", body = "e", receivedAt = 9_000, channel = CaptureChannel.EMAIL))
+            assertEquals(100L, config.cursor) // a newer email must not skip SMS still waiting below it
+
+            source.emit(sms("live", 500))
+            assertEquals(500L, config.cursor)
+        }
+
+    @Test
+    fun `catchUp re-reads the 24 hours before the cursor`() = runTest {
+        val source = FakeCaptureService()
+        CaptureCoordinator(source, RecordingHandler(), FakeCaptureConfigRepository(2 * CATCH_UP_OVERLAP_MS)).catchUp()
+        assertEquals(CATCH_UP_OVERLAP_MS, source.lastBackfillCursor)
+
+        CaptureCoordinator(source, RecordingHandler(), FakeCaptureConfigRepository(1_000)).catchUp()
+        assertEquals(0L, source.lastBackfillCursor)
+    }
+
+    private class FakeImportState : ImportStateStore {
+        var pending = false
+        override suspend fun isImportPending() = pending
+        override suspend fun setImportPending(pending: Boolean) { this.pending = pending }
+    }
+
+    @Test
+    fun `importAllHistory resumes after being interrupted`() = runTest {
+        val source = FakeCaptureService().apply { backfillRows = listOf(sms("a", 100), sms("b", 200)) }
+        val store = FakeImportState()
+        val dying = object : CaptureHandler {
+            override suspend fun handle(raw: RawCapture) {
+                if (raw.body == "b") throw kotlinx.coroutines.CancellationException("app locked / killed")
+            }
+        }
+        runCatching { CaptureCoordinator(source, dying, FakeCaptureConfigRepository(0), importState = store).importAllHistory() }
+        assertTrue(store.pending) // interrupted mid-import → still owed
+
+        val handler = RecordingHandler()
+        CaptureCoordinator(source, handler, FakeCaptureConfigRepository(0), importState = store).resumePendingImport()
+        assertEquals(listOf("a", "b"), handler.handled.map { it.body })
+        assertEquals(false, store.pending)
+    }
+
+    @Test
+    fun `resumePendingImport does nothing when no import is pending`() = runTest {
+        val source = FakeCaptureService()
+        CaptureCoordinator(source, RecordingHandler(), FakeCaptureConfigRepository(0), importState = FakeImportState())
+            .resumePendingImport()
+        assertEquals(null, source.lastBackfillCursor)
+    }
 
     @Test
     fun `cursor never moves backward when an older capture arrives`() =
