@@ -150,6 +150,21 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
         queries.purgeRaw(id)
     }
 
+    // ---- capture agent ----
+
+    suspend fun nextQueued(limit: Int): List<CandidateTransaction> =
+        queries.nextQueued(limit.toLong()).executeAsList().map { it.toDomain() }
+
+    fun observeQueuedCount(): Flow<Long> = queries.observeQueuedCount().asFlow().mapToOne(Dispatchers.Default)
+
+    suspend fun messagesFor(questionId: String): List<CandidateTransaction> =
+        queries.forQuestion(questionId).executeAsList().map { it.toDomain() }
+
+    /** An agent run that left this message undecided. */
+    suspend fun bumpAttempts(id: String) {
+        queries.bumpAttempts(id)
+    }
+
     private fun migrations.Capture_inbox.toDomain(): CandidateTransaction = CandidateTransaction(
         id = id,
         receivedAt = received_at,

@@ -98,6 +98,17 @@ class CaptureConfigRepository(
         queries.setNotificationCaptureEnabled(if (enabled) 1L else 0L, now())
     }
 
+    /** AI calls the capture agent made on [today] (local YYYY-MM-DD); 0 once the day has changed. */
+    suspend fun agentCallsToday(today: String): Int {
+        val row = withContext(dispatcher) { ensure(); queries.getConfig().executeAsOne() }
+        return if (row.agent_calls_day == today) row.agent_calls_count.toInt() else 0
+    }
+
+    suspend fun recordAgentCall(today: String) {
+        val count = agentCallsToday(today) + 1
+        withContext(dispatcher) { queries.setAgentCalls(today, count.toLong(), now()) }
+    }
+
     private fun migrations.Capture_config.toDomain(): CaptureConfig = CaptureConfig(
         captureEnabled = capture_enabled == 1L,
         engineMode = EngineMode.valueOf(engine_mode),
