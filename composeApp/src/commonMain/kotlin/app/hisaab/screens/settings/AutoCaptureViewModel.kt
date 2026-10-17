@@ -38,6 +38,9 @@ sealed interface KeyValidation {
 /** Default auto-post confidence threshold (CaptureConfig schema default). */
 const val DEFAULT_AUTO_POST_THRESHOLD: Double = 0.85
 
+/** Slider bounds. Not 0: a near-zero bar would auto-post messages that barely parsed. */
+val AUTO_POST_THRESHOLD_RANGE: ClosedFloatingPointRange<Float> = 0.10f..0.99f
+
 /**
  * Drives the Settings → Auto-capture surface. Pure-Kotlin; platform ops (SMS permission,
  * backfill, secure-storage key I/O) are injected as functional seams so the VM is unit-testable

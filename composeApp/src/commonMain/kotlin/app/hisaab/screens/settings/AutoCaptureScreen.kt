@@ -314,8 +314,15 @@ fun AutoCaptureScreen(
                     MidnightSlider(
                         value = c.autoPostThreshold.toFloat(),
                         onValueChange = { viewModel.setAutoPostThreshold(it.toDouble()) },
-                        valueRange = 0.5f..0.99f,
+                        valueRange = AUTO_POST_THRESHOLD_RANGE,
                     )
+                    if (c.autoPostThreshold < 0.5) {
+                        Text(
+                            "Below 50%, more wrong entries get posted without review — check Review and history often.",
+                            color = palette.accent,
+                            fontSize = 12.sp,
+                        )
+                    }
                     if (c.autoPostThreshold != DEFAULT_AUTO_POST_THRESHOLD) {
                         Text(
                             "Reset to default",
