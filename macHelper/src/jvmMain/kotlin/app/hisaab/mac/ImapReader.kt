@@ -2,6 +2,7 @@ package app.hisaab.mac
 
 import app.hisaab.capture.EmailCapture
 import app.hisaab.capture.ImapConfig
+import app.hisaab.capture.ImapFinancialFilter
 import app.hisaab.domain.RawCapture
 import jakarta.mail.FetchProfile
 import jakarta.mail.Folder
@@ -106,7 +107,10 @@ class ImapReader(
      */
     private fun financialSearch(sinceMs: Long): SearchTerm {
         val keywords = OrTerm(
-            (FINANCIAL_SUBJECT.map { SubjectTerm(it) } + FINANCIAL_FROM.map { FromStringTerm(it) }).toTypedArray(),
+            (
+                ImapFinancialFilter.SUBJECT_KEYWORDS.map { SubjectTerm(it) } +
+                    ImapFinancialFilter.FROM_KEYWORDS.map { FromStringTerm(it) }
+                ).toTypedArray(),
         )
         return if (sinceMs > 0) AndTerm(ReceivedDateTerm(ComparisonTerm.GE, Date(sinceMs)), keywords) else keywords
     }
@@ -132,15 +136,5 @@ class ImapReader(
         /** Max emails processed per poll tick — bounds memory, IMAP body fetches, and upload size.
          *  Small so each pass finishes quickly and the synced counter visibly climbs during backfill. */
         const val MAX_PER_PASS = 50
-
-        // Coarse server-side financial filter. Broad for recall (the phone does the precise filtering);
-        // header-only so the search stays index-fast. Covers BD MFS/banks + generic money terms.
-        val FINANCIAL_SUBJECT = listOf(
-            "transaction", "debited", "credited", "debit", "credit", "payment", "balance",
-            "statement", "BDT", "Taka", "spent", "withdraw", "deposit", "transfer", "purchase",
-            "bKash", "Nagad", "Rocket", "bill", "recharge", "OTP", "card", "fund", "EMI", "due",
-            "invoice", "receipt", "account",
-        )
-        val FINANCIAL_FROM = listOf("bank", "bkash", "nagad", "rocket", "card")
     }
 }

@@ -56,7 +56,7 @@ actual class CaptureService(
     /**
      * Catch-up / one-time backfill: every inbox SMS with `date > cursorMs`, oldest-first.
      * Reads only the inbox; bounded projection; never logs bodies. The coordinator's
-     * `runInitialBackfill(now)` calls this with `now - 90 days` on first grant.
+     * `CaptureCoordinator.importAllHistory()` calls this with 0 to import every SMS on the phone.
      */
     actual override suspend fun backfillSince(cursorMs: Long): List<RawCapture> =
         withContext(Dispatchers.Default) {

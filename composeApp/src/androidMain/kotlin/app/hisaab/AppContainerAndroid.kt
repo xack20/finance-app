@@ -304,8 +304,9 @@ actual class AppContainer(
                 }
             },
             enabled = { captureConfigRepository.get().emailCaptureEnabled },
-            loadCursor = { secureStorage.loadString("imap_email_cursor")?.toLongOrNull() ?: 0L },
-            saveCursor = { secureStorage.storeString("imap_email_cursor", it.toString()) },
+            // UID-based cursor (ImapUidCursor) under a new key: the old "imap_email_cursor" held a timestamp.
+            loadCursor = { secureStorage.loadString("imap_email_uid_cursor")?.toLongOrNull() ?: 0L },
+            saveCursor = { secureStorage.storeString("imap_email_uid_cursor", it.toString()) },
             onError = { e -> android.util.Log.w("HisaabEmail", "email capture: ${e.message}") },
         )
     }

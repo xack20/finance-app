@@ -123,8 +123,7 @@ fun MainGraph() {
                             accountRepo = container.accountRepository,
                             hasSmsPermission = { service.hasSmsPermission() },
                             requestSmsPermission = { service.requestSmsPermission() },
-                            // M3-int Fix 4: route backfill through coordinator.
-                            runBackfill = { nowMs -> container.captureCoordinator.runInitialBackfill(nowMs) },
+                            startHistoryImport = { container.startHistoryImport() },
                             loadApiKey = { key -> container.secureStorage.loadString(key) },
                             storeApiKey = { key, value -> container.secureStorage.storeString(key, value) },
                             clearApiKey = { key -> container.secureStorage.storeString(key, "") },

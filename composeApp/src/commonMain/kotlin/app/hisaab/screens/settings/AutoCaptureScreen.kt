@@ -38,7 +38,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
+import app.hisaab.capture.ImportProgress
 import app.hisaab.design.HisaabColors
+import app.hisaab.platform.KeepScreenOn
 import app.hisaab.design.HisaabShapes
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
@@ -71,8 +73,7 @@ fun AutoCaptureScreen(
             accountRepo = container.accountRepository,
             hasSmsPermission = { service.hasSmsPermission() },
             requestSmsPermission = { service.requestSmsPermission() },
-            // M3-int Fix 4: run backfill through coordinator so each RawCapture is processed.
-            runBackfill = { nowMs -> container.captureCoordinator.runInitialBackfill(nowMs) },
+            startHistoryImport = { container.startHistoryImport() },
             loadApiKey = { key -> container.secureStorage.loadString(key) },
             storeApiKey = { key, value -> container.secureStorage.storeString(key, value) },
             clearApiKey = { key -> container.secureStorage.storeString(key, "") },
@@ -82,6 +83,8 @@ fun AutoCaptureScreen(
             onStopCapture = { container.stopCapture() },
             // Notification fallback: mirror the flag to the OS-bound listener's gate (Android only).
             onSetNotificationGate = { service.setNotificationListenerEnabled(it) },
+            smsImportProgress = container.captureCoordinator.importProgress,
+            emailImportProgress = container.emailImportProgress,
         )
     }
     DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
@@ -90,6 +93,9 @@ fun AutoCaptureScreen(
     val unmapped by viewModel.unmappedSenders.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
     val keyValidation by viewModel.keyValidation.collectAsState()
+    val savedKeys by viewModel.savedKeys.collectAsState()
+    val smsImport by viewModel.smsImportProgress.collectAsState()
+    val emailImport by viewModel.emailImportProgress.collectAsState()
     val permissionDenied by viewModel.permissionDenied.collectAsState()
     // P2 Mac companion: "ready to pair" once signed in + a master secret exists on this device.
     val relayReady = remember { container.secureStorage.loadMasterSecret() != null && container.authRepository.isSignedIn() }
@@ -375,13 +381,32 @@ fun AutoCaptureScreen(
             Spacer(Modifier.height(24.dp))
             Label("History", palette)
             GlassButton(
-                text = "Import last 90 days",
-                onClick = { viewModel.backfillLast90Days() },
-                enabled = c.captureEnabled,
+                text = if (smsImport != null) "Importing SMS…" else "Import all SMS",
+                onClick = { viewModel.importAllHistory() },
+                enabled = c.captureEnabled && smsImport == null,
             )
+            ImportProgressLine("SMS", smsImport, palette)
+            ImportProgressLine("Email", emailImport, palette)
+            if (smsImport != null || emailImport != null) {
+                KeepScreenOn()
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Keep Hisaab open while importing — it pauses when the app locks. " +
+                        "Email resumes by itself; for SMS tap Import again (done messages are skipped).",
+                    color = palette.muted,
+                    fontSize = 12.sp,
+                )
+            }
             Spacer(Modifier.height(40.dp))
         }
     }
+}
+
+@Composable
+private fun ImportProgressLine(label: String, progress: ImportProgress?, palette: HisaabColors.Palette) {
+    progress ?: return
+    Spacer(Modifier.height(8.dp))
+    Text("$label: ${progress.done} of ${progress.total} imported", color = palette.onBackground, fontSize = 13.sp)
 }
 
 /** Public for Task 13 Compose UI tests — renders the real engine-picker rows. */

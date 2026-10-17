@@ -46,6 +46,7 @@ class AutoCaptureViewModelTest {
         gateway: FakeCaptureGateway = FakeCaptureGateway(),
         router: FakeLlmRouter = FakeLlmRouter(),
         keys: FakeKeyStore = FakeKeyStore(),
+        onImport: () -> Unit = {},
     ): AutoCaptureViewModel {
         val config = CaptureConfigRepository(db, dispatcher)
         val senders = SenderRepository(db)
@@ -56,12 +57,7 @@ class AutoCaptureViewModelTest {
             accountRepo = accounts,
             hasSmsPermission = { gateway.hasSmsPermission() },
             requestSmsPermission = { gateway.requestSmsPermission() },
-            // M3-int Fix 4: runBackfill receives nowMs; test shim derives the 90-day cursor so
-            // the `backfill calls gateway with the configured cursor` assertion still passes.
-            runBackfill = { nowMs ->
-                val cursor = (nowMs - 90L * 24L * 60L * 60L * 1000L).coerceAtLeast(0L)
-                gateway.backfillSince(cursor); Unit
-            },
+            startHistoryImport = onImport,
             loadApiKey = keys::load,
             storeApiKey = keys::store,
             clearApiKey = keys::clear,
@@ -283,13 +279,31 @@ class AutoCaptureViewModelTest {
     }
 
     @Test
-    fun `backfill calls gateway with the configured cursor`() = runTest {
-        val db = TestDatabase.create()
-        val gateway = FakeCaptureGateway()
-        val v = vm(db, gateway)
-        v.backfillLast90Days(nowMs = 90L * 24 * 60 * 60 * 1000)
+    fun `configureEmail strips app-password spaces and imports email history from the beginning`() = runTest {
+        val keys = FakeKeyStore()
+        val v = vm(keys = keys)
+        v.configureEmail(" me@gmail.com ", "abcd efgh ijkl mnop") // Gmail shows app passwords in groups of 4
         advanceUntilIdle()
-        assertEquals(0L, gateway.lastBackfillCursor) // 90 days before "now=90d" == 0
+        assertEquals("me@gmail.com", keys.map["imap_email"])
+        assertEquals("abcdefghijklmnop", keys.map["imap_password"])
+        assertNull(keys.map["imap_email_cursor"]) // no "from now on" cursor: all-time history
+    }
+
+    @Test
+    fun `granting SMS permission starts the all-time history import`() = runTest {
+        var imports = 0
+        val v = vm(gateway = FakeCaptureGateway(permissionGranted = true), onImport = { imports++ })
+        v.setCaptureEnabled(true)
+        advanceUntilIdle()
+        assertEquals(1, imports)
+    }
+
+    @Test
+    fun `importAllHistory hands off to the app-scoped import`() = runTest {
+        var imports = 0
+        val v = vm(onImport = { imports++ })
+        v.importAllHistory()
+        assertEquals(1, imports)
     }
 
     // M3-int Fix 3: captureEnabled gates coordinator start/stop via onStartCapture/onStopCapture.
@@ -309,7 +323,7 @@ class AutoCaptureViewModelTest {
             accountRepo = accounts,
             hasSmsPermission = { gateway.hasSmsPermission() },
             requestSmsPermission = { gateway.requestSmsPermission() },
-            runBackfill = { _ -> },
+            startHistoryImport = {},
             loadApiKey = { null },
             storeApiKey = { _, _ -> },
             clearApiKey = { _ -> },
@@ -335,7 +349,7 @@ class AutoCaptureViewModelTest {
             accountRepo = AccountRepository(db),
             hasSmsPermission = { gateway.hasSmsPermission() },
             requestSmsPermission = { gateway.requestSmsPermission() },
-            runBackfill = { _ -> },
+            startHistoryImport = {},
             loadApiKey = { null },
             storeApiKey = { _, _ -> },
             clearApiKey = { _ -> },
@@ -360,7 +374,7 @@ class AutoCaptureViewModelTest {
             accountRepo = AccountRepository(db),
             hasSmsPermission = { false },
             requestSmsPermission = { false },
-            runBackfill = { _ -> },
+            startHistoryImport = {},
             loadApiKey = { null },
             storeApiKey = { _, _ -> },
             clearApiKey = { _ -> },

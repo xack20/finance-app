@@ -4,15 +4,15 @@ import app.hisaab.domain.RawCapture
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** Default historical import window applied on first permission grant (spec §2, §6). */
-const val DEFAULT_BACKFILL_DAYS: Int = 90
-
-/** Milliseconds in one day. */
-private const val MILLIS_PER_DAY: Long = 24L * 60L * 60L * 1000L
+/** How far a running history import has got ([done] of [total] messages); null when none is running. */
+data class ImportProgress(val done: Int, val total: Int)
 
 /**
  * Narrow cursor seam. M3-1's [app.hisaab.data.CaptureConfigRepository] is adapted to this in
@@ -45,6 +45,10 @@ class CaptureCoordinator(
     private val onItemError: (RawCapture, Throwable) -> Unit = { _, _ -> },
 ) {
     private val mutex = Mutex()
+    private val importLock = Mutex()
+
+    private val _importProgress = MutableStateFlow<ImportProgress?>(null)
+    val importProgress: StateFlow<ImportProgress?> = _importProgress.asStateFlow()
 
     /**
      * Starts collecting the live stream on [scope] using [dispatcher] (default: [Dispatchers.Default]
@@ -75,24 +79,26 @@ class CaptureCoordinator(
     }
 
     /**
-     * One-time historical import on first permission grant. Computes a cursor of
-     * `nowMs - DEFAULT_BACKFILL_DAYS days`, imports every SMS newer than that, and advances the
-     * stored cursor through the same monotonic, mutex-serialized path as live/catch-up.
+     * Imports every message the source holds, all time, oldest-first, publishing [importProgress].
      *
-     * M3-5's Settings master toggle invokes this together with `setCaptureEnabled(true)` the moment
-     * SMS permission is granted; this slice ships the seam (the UX wiring lands in M3-5). Because the
-     * cursor only moves forward, re-invoking this after the first run is a no-op for already-imported
-     * messages (the floor is `nowMs - 90d`, but [process] never moves the cursor backward).
+     * Deliberately ignores the live cursor (which may already sit at "now"): the pipeline dedups by
+     * `dedup_hash`, so re-running — e.g. after the app locked mid-import and closed the DB — skips what's
+     * done and resumes cheaply. [process] still never moves the live cursor backward.
      */
-    suspend fun runInitialBackfill(nowMs: Long) {
-        val floor = nowMs - DEFAULT_BACKFILL_DAYS * MILLIS_PER_DAY
-        val since = maxOf(floor, cursorStore.currentCursor())
-        drainSince(since)
+    suspend fun importAllHistory() {
+        if (!importLock.tryLock()) return // one already running (e.g. a double tap) — don't queue a second pass
+        try {
+            drainSince(0L) { done, total -> _importProgress.value = ImportProgress(done, total) }
+        } finally {
+            _importProgress.value = null
+            importLock.unlock()
+        }
     }
 
-    private suspend fun drainSince(sinceMs: Long) {
+    private suspend fun drainSince(sinceMs: Long, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }) {
         val rows = source.backfillSince(sinceMs).sortedBy { it.receivedAt }
-        for (raw in rows) {
+        rows.forEachIndexed { index, raw ->
+            onProgress(index, rows.size)
             process(raw)
         }
     }

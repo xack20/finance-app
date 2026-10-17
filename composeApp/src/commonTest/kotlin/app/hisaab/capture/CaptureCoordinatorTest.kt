@@ -2,11 +2,15 @@ package app.hisaab.capture
 
 import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.RawCapture
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -132,7 +136,7 @@ class CaptureCoordinatorTest {
     @Test
     fun `catchUp - item 1 throws but item 2 still backfills and advances the cursor`() = runTest {
         // Backfill-path twin of the live-stream isolation test below: one bad historical SMS must
-        // not block the rest of the 90-day import.
+        // not block the rest of the history import.
         val config = FakeCaptureConfigRepository(initialCursor = 0)
         val processed = mutableListOf<String>()
         var callCount = 0
@@ -176,35 +180,57 @@ class CaptureCoordinatorTest {
         }
 
     @Test
-    fun `runInitialBackfill queries source with now minus 90 days when no cursor stored`() = runTest {
-        val now = 10_000_000_000L
-        val ninetyDaysMs = 90L * 24L * 60L * 60L * 1000L
-        val source = FakeCaptureService().apply {
-            backfillRows = listOf(sms("hist-1", now - 1_000), sms("hist-2", now - 500))
+    fun `importAllHistory reads the whole inbox from the beginning even after live capture moved the cursor`() =
+        runTest {
+            val source = FakeCaptureService().apply {
+                backfillRows = listOf(sms("2019", 1_000), sms("2024", 5_000))
+            }
+            val config = FakeCaptureConfigRepository(initialCursor = 9_000) // live capture already ran
+            val handler = RecordingHandler()
+            val coordinator = CaptureCoordinator(source, handler, config)
+
+            coordinator.importAllHistory()
+
+            assertEquals(0L, source.lastBackfillCursor) // all time, not "since the cursor"
+            assertEquals(listOf("2019", "2024"), handler.handled.map { it.body })
+            assertEquals(9_000L, config.cursor) // the live cursor never moves backward
         }
-        val config = FakeCaptureConfigRepository(initialCursor = 0)
-        val handler = RecordingHandler()
-        val coordinator = CaptureCoordinator(source, handler, config)
 
-        coordinator.runInitialBackfill(nowMs = now)
+    @Test
+    fun `importAllHistory reports progress per message and clears it when done`() = runTest {
+        val source = FakeCaptureService().apply {
+            backfillRows = listOf(sms("a", 100), sms("b", 200), sms("c", 300))
+        }
+        lateinit var coordinator: CaptureCoordinator
+        val seen = mutableListOf<ImportProgress?>()
+        val handler = object : CaptureHandler {
+            override suspend fun handle(raw: RawCapture) { seen += coordinator.importProgress.value }
+        }
+        coordinator = CaptureCoordinator(source, handler, FakeCaptureConfigRepository(initialCursor = 0))
 
-        assertEquals(DEFAULT_BACKFILL_DAYS, 90)                       // constant is the locked default
-        assertEquals(now - ninetyDaysMs, source.lastBackfillCursor)  // cursor = now - 90d
-        assertEquals(listOf("hist-1", "hist-2"), handler.handled.map { it.body })
-        assertEquals(now - 500, config.cursor)
+        coordinator.importAllHistory()
+
+        assertEquals<List<ImportProgress?>>(listOf(ImportProgress(0, 3), ImportProgress(1, 3), ImportProgress(2, 3)), seen)
+        assertNull(coordinator.importProgress.value)
     }
 
     @Test
-    fun `runInitialBackfill uses the stored cursor when it is newer than the 90-day floor`() = runTest {
-        val now = 10_000_000_000L
-        val storedCursor = now - 1_000   // newer than now-90d → must win
-        val source = FakeCaptureService().apply { backfillRows = emptyList() }
-        val config = FakeCaptureConfigRepository(initialCursor = storedCursor)
-        val handler = RecordingHandler()
-        val coordinator = CaptureCoordinator(source, handler, config)
+    fun `a second importAllHistory while one is running is ignored`() = runTest {
+        val source = FakeCaptureService().apply { backfillRows = listOf(sms("a", 100), sms("b", 200)) }
+        val gate = CompletableDeferred<Unit>()
+        val handled = mutableListOf<String>()
+        val handler = object : CaptureHandler {
+            override suspend fun handle(raw: RawCapture) { gate.await(); handled += raw.body }
+        }
+        val coordinator = CaptureCoordinator(source, handler, FakeCaptureConfigRepository(initialCursor = 0))
 
-        coordinator.runInitialBackfill(nowMs = now)
+        val first = launch { coordinator.importAllHistory() }
+        runCurrent() // first import is now parked inside item "a"
+        val second = launch { coordinator.importAllHistory() } // e.g. a double tap
+        runCurrent()
+        gate.complete(Unit)
+        first.join(); second.join()
 
-        assertEquals(storedCursor, source.lastBackfillCursor) // never re-imports older than the cursor
+        assertEquals(listOf("a", "b"), handled) // one pass, not two
     }
 }

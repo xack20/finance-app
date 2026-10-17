@@ -1,5 +1,6 @@
 package app.hisaab.screens.settings
 
+import app.hisaab.capture.ImportProgress
 import app.hisaab.data.AccountRepository
 import app.hisaab.data.CaptureConfigRepository
 import app.hisaab.data.SenderRepository
@@ -48,8 +49,8 @@ class AutoCaptureViewModel(
     private val accountRepo: AccountRepository,
     private val hasSmsPermission: suspend () -> Boolean,
     private val requestSmsPermission: suspend () -> Boolean,
-    /** Runs the coordinator's initial backfill for the given nowMs timestamp. */
-    private val runBackfill: suspend (nowMs: Long) -> Unit,
+    /** Starts the all-time history import in the app's capture scope, so leaving this screen can't cancel it. */
+    private val startHistoryImport: () -> Unit,
     private val loadApiKey: (key: String) -> String?,
     private val storeApiKey: (key: String, value: String) -> Unit,
     private val clearApiKey: (key: String) -> Unit,
@@ -60,6 +61,9 @@ class AutoCaptureViewModel(
     private val onStopCapture: () -> Unit = {},
     /** Android-only: mirror the notification flag to the OS-bound listener's process-global gate. */
     private val onSetNotificationGate: (Boolean) -> Unit = {},
+    /** Progress of a running SMS / email history import (null when idle) — shown on the screen. */
+    val smsImportProgress: StateFlow<ImportProgress?> = MutableStateFlow(null),
+    val emailImportProgress: StateFlow<ImportProgress?> = MutableStateFlow(null),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     val config: StateFlow<CaptureConfig?> = configRepo.observe()
@@ -102,8 +106,7 @@ class AutoCaptureViewModel(
                 configRepo.setCaptureEnabled(true)
                 _permissionDenied.value = false
                 onStartCapture()
-                // M3-int Fix 4: route backfill through coordinator so each RawCapture is processed.
-                runBackfill(currentMillis())
+                startHistoryImport()
             } else {
                 _permissionDenied.value = true
                 configRepo.setCaptureEnabled(false)
@@ -130,10 +133,9 @@ class AutoCaptureViewModel(
             val trimmed = email.trim()
             if (app.hisaab.capture.ImapHosts.forEmail(trimmed) == null) return@launch // unsupported provider
             storeApiKey("imap_email", trimmed)
-            storeApiKey("imap_password", appPassword)
-            if (loadApiKey("imap_email_cursor").isNullOrBlank()) {
-                storeApiKey("imap_email_cursor", currentMillis().toString()) // capture going forward
-            }
+            // Gmail displays app passwords in groups of 4 ("abcd efgh …"); the spaces break IMAP login.
+            storeApiKey("imap_password", appPassword.filterNot(Char::isWhitespace))
+            // No cursor is seeded: the email source starts from the oldest bank email (all-time history).
             configRepo.setEmailCaptureEnabled(true)
             onStartCapture()
         }
@@ -267,10 +269,7 @@ class AutoCaptureViewModel(
 
     // ---- Backfill ----
 
-    fun backfillLast90Days(nowMs: Long = currentMillis()) {
-        // M3-int Fix 4: route through coordinator's runInitialBackfill so each SMS is processed.
-        scope.launch { runBackfill(nowMs) }
-    }
+    fun importAllHistory() = startHistoryImport()
 
     private fun keyName(provider: CloudProvider): String = "llm_api_key_${provider.name}"
 
