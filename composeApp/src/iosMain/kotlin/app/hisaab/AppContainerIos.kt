@@ -307,9 +307,6 @@ actual class AppContainer {
     actual val syncStatuses: kotlinx.coroutines.flow.StateFlow<app.hisaab.capture.SyncStatuses> =
         kotlinx.coroutines.flow.MutableStateFlow(app.hisaab.capture.SyncStatuses())
 
-    // iOS has no in-app IMAP (email arrives via the Mac relay), so there is never an email import to report.
-    actual val emailImportProgress: kotlinx.coroutines.flow.StateFlow<app.hisaab.capture.ImportProgress?> =
-        kotlinx.coroutines.flow.MutableStateFlow(null)
 
     actual suspend fun confirmCandidate(candidateId: String): Boolean {
         val db = cachedDatabase ?: return false

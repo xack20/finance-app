@@ -352,9 +352,6 @@ class HisaabEngine private constructor(
         captureScope?.launch(kotlinx.coroutines.Dispatchers.Default) { captureCoordinator.importAllHistory() }
     }
 
-    val emailImportProgress: kotlinx.coroutines.flow.StateFlow<app.hisaab.capture.ImportProgress?>
-        get() = emailCaptureSource.progress
-
     /**
      * Atomically posts a pending candidate to the ledger and marks it CONFIRMED in one db.transaction.
      * Links the txn at insert time via NewTransaction.captureId (R1: no link method).

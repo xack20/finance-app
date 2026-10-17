@@ -7,7 +7,6 @@ import app.hisaab.auth.AuthRepository
 import app.hisaab.capture.CaptureCoordinator
 import app.hisaab.capture.CaptureEvent
 import app.hisaab.capture.CapturePipeline
-import app.hisaab.capture.ImportProgress
 import app.hisaab.crypto.BlobCrypto
 import app.hisaab.crypto.CryptoService
 import app.hisaab.crypto.MnemonicService
@@ -99,7 +98,6 @@ actual class AppContainer(
 
     actual fun captureCoordinatorOrNull(): CaptureCoordinator? = engine.captureCoordinatorOrNull()
     actual fun startHistoryImport() = engine.startHistoryImport()
-    actual val emailImportProgress: StateFlow<ImportProgress?> get() = engine.emailImportProgress
     actual val syncStatuses: StateFlow<app.hisaab.capture.SyncStatuses> get() = engine.syncStatuses
 
     actual fun lastCrashReport(): String? = CrashLog.read(context)

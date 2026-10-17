@@ -23,4 +23,10 @@ expect class CaptureService : CaptureSource {
     fun hasNotificationAccess(): Boolean
     /** Arm/disarm the OS-bound notification listener's forwarding gate (Android only; no-op elsewhere). */
     fun setNotificationListenerEnabled(enabled: Boolean)
+    /** Background sync shows its status in a notification; Android 13+ needs runtime permission (true elsewhere). */
+    fun hasNotificationPermission(): Boolean
+    suspend fun requestNotificationPermission(): Boolean
+    /** True when the OS won't kill background sync for battery (Android battery-optimization exemption). */
+    fun isBackgroundRunningAllowed(): Boolean
+    fun openBackgroundRunningSettings()
 }

@@ -27,9 +27,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 
@@ -41,7 +38,7 @@ import kotlinx.coroutines.withContext
  *
  * All-time history: a server-side financial search (header-only, index-fast) picks candidate mail, then pages
  * through it oldest-first by IMAP UID ([ImapUidCursor], persisted via [loadCursor]/[saveCursor]), page after
- * page until caught up, publishing [progress]. Once caught up, polls only recent mail every [pollIntervalMs].
+ * page until caught up, reporting to [status]. Once caught up, polls only recent mail every [pollIntervalMs].
  * Read-only; never modifies the mailbox.
  */
 class EmailCaptureSource(
@@ -56,11 +53,6 @@ class EmailCaptureSource(
 ) : CaptureSource {
 
     private val loginGuard = ImapLoginGuard()
-
-    private val _progress = MutableStateFlow<ImportProgress?>(null)
-
-    /** Email history import progress for the Auto-capture screen; null once caught up. */
-    val progress: StateFlow<ImportProgress?> = _progress.asStateFlow()
 
     /** Set once a pass finds nothing left; later polls search only recent mail instead of the whole mailbox. */
     private var caughtUp = false
@@ -88,7 +80,6 @@ class EmailCaptureSource(
         val page = runCatching { withContext(Dispatchers.IO) { fetchPage(cfg, cursor, recentOnly = caughtUp) } }
             .getOrElse { e ->
                 onError(e)
-                _progress.value = null
                 if (e is AuthenticationFailedException) {
                     loginGuard.recordAuthFailure(credentialsKey)
                     status.failed("Email login rejected — check the app password", persistent = true)
@@ -102,7 +93,6 @@ class EmailCaptureSource(
         runCatching { saveCursor(page.newCursor) }.onFailure { onError(it); return false }
         caughtUp = page.remaining == 0
         readThisImport = if (caughtUp) 0 else readThisImport + page.read
-        _progress.value = if (caughtUp) null else ImportProgress(readThisImport, readThisImport + page.remaining)
         if (caughtUp) status.succeeded() else status.importing(readThisImport, readThisImport + page.remaining)
         Log.i("HisaabEmail", "page read=${page.read} captured=${page.captures.size} remaining=${page.remaining}")
         return !caughtUp

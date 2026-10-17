@@ -1,6 +1,6 @@
 package app.hisaab.screens.settings
 
-import app.hisaab.capture.ImportProgress
+import app.hisaab.capture.SyncStatuses
 import app.hisaab.data.AccountRepository
 import app.hisaab.data.CaptureConfigRepository
 import app.hisaab.data.SenderRepository
@@ -61,9 +61,14 @@ class AutoCaptureViewModel(
     private val onStopCapture: () -> Unit = {},
     /** Android-only: mirror the notification flag to the OS-bound listener's process-global gate. */
     private val onSetNotificationGate: (Boolean) -> Unit = {},
-    /** Progress of a running SMS / email history import (null when idle) — shown on the screen. */
-    val smsImportProgress: StateFlow<ImportProgress?> = MutableStateFlow(null),
-    val emailImportProgress: StateFlow<ImportProgress?> = MutableStateFlow(null),
+    /** Live per-channel status (SMS, email, Mac relay) — one line each on the screen. */
+    val syncStatuses: StateFlow<SyncStatuses> = MutableStateFlow(SyncStatuses()),
+    /** Background sync reports through a notification (Android 13+ runtime permission). */
+    private val hasNotificationPermission: () -> Boolean = { true },
+    private val requestNotificationPermission: suspend () -> Boolean = { true },
+    /** Android battery-optimization exemption, so realme/ColorOS doesn't kill background sync. */
+    private val isBackgroundRunningAllowed: () -> Boolean = { true },
+    private val openBackgroundRunningSettings: () -> Unit = {},
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     val config: StateFlow<CaptureConfig?> = configRepo.observe()
@@ -92,6 +97,24 @@ class AutoCaptureViewModel(
     private val _permissionDenied = MutableStateFlow(false)
     val permissionDenied: StateFlow<Boolean> = _permissionDenied.asStateFlow()
 
+    private val _notificationsDenied = MutableStateFlow(!hasNotificationPermission())
+    /** True → the screen warns that sync runs but its status can't be seen. Capture stays on regardless. */
+    val notificationsDenied: StateFlow<Boolean> = _notificationsDenied.asStateFlow()
+
+    private val _backgroundAllowed = MutableStateFlow(isBackgroundRunningAllowed())
+    val backgroundAllowed: StateFlow<Boolean> = _backgroundAllowed.asStateFlow()
+
+    /** Re-reads the exemption (the user may have just granted it in the system dialog). */
+    fun refreshBackgroundAllowed() {
+        _backgroundAllowed.value = isBackgroundRunningAllowed()
+    }
+
+    fun allowBackgroundRunning() = openBackgroundRunningSettings()
+
+    fun requestNotifications() {
+        scope.launch { _notificationsDenied.value = !requestNotificationPermission() }
+    }
+
     // ---- Master toggle ----
 
     fun setCaptureEnabled(enabled: Boolean) {
@@ -107,6 +130,7 @@ class AutoCaptureViewModel(
                 _permissionDenied.value = false
                 onStartCapture()
                 startHistoryImport()
+                _notificationsDenied.value = !requestNotificationPermission()
             } else {
                 _permissionDenied.value = true
                 configRepo.setCaptureEnabled(false)

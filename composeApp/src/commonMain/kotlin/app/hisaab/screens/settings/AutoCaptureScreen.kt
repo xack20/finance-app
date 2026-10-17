@@ -3,6 +3,8 @@ package app.hisaab.screens.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,9 +40,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
-import app.hisaab.capture.ImportProgress
+import app.hisaab.capture.ChannelStatus
+import app.hisaab.capture.label
 import app.hisaab.design.HisaabColors
-import app.hisaab.platform.KeepScreenOn
 import app.hisaab.design.HisaabShapes
 import app.hisaab.design.HisaabSpacing
 import app.hisaab.design.LocalHisaabPalette
@@ -83,8 +85,11 @@ fun AutoCaptureScreen(
             onStopCapture = { container.stopCapture() },
             // Notification fallback: mirror the flag to the OS-bound listener's gate (Android only).
             onSetNotificationGate = { service.setNotificationListenerEnabled(it) },
-            smsImportProgress = container.captureCoordinator.importProgress,
-            emailImportProgress = container.emailImportProgress,
+            syncStatuses = container.syncStatuses,
+            hasNotificationPermission = { service.hasNotificationPermission() },
+            requestNotificationPermission = { service.requestNotificationPermission() },
+            isBackgroundRunningAllowed = { service.isBackgroundRunningAllowed() },
+            openBackgroundRunningSettings = { service.openBackgroundRunningSettings() },
         )
     }
     DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
@@ -94,8 +99,16 @@ fun AutoCaptureScreen(
     val accounts by viewModel.accounts.collectAsState()
     val keyValidation by viewModel.keyValidation.collectAsState()
     val savedKeys by viewModel.savedKeys.collectAsState()
-    val smsImport by viewModel.smsImportProgress.collectAsState()
-    val emailImport by viewModel.emailImportProgress.collectAsState()
+    val sync by viewModel.syncStatuses.collectAsState()
+    val notificationsDenied by viewModel.notificationsDenied.collectAsState()
+    val backgroundAllowed by viewModel.backgroundAllowed.collectAsState()
+    // The exemption is granted in a system dialog that doesn't recompose us; re-check while the screen is shown.
+    LaunchedEffect(viewModel) {
+        while (true) {
+            viewModel.refreshBackgroundAllowed()
+            delay(BACKGROUND_RECHECK_MS)
+        }
+    }
     val permissionDenied by viewModel.permissionDenied.collectAsState()
     // P2 Mac companion: "ready to pair" once signed in + a master secret exists on this device.
     val relayReady = remember { container.secureStorage.loadMasterSecret() != null && container.authRepository.isSignedIn() }
@@ -377,36 +390,59 @@ fun AutoCaptureScreen(
                 )
             }
 
+            // ── Sync status ──────────────────────────────────────────────────
+            Spacer(Modifier.height(24.dp))
+            Label("Sync", palette)
+            SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+                SyncStatusLine("SMS", sync.sms, palette)
+                SyncStatusLine("Email", sync.email, palette)
+                SyncStatusLine("Mac relay", sync.relay, palette)
+            }
+            if (!backgroundAllowed) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Background running isn't allowed — your phone may stop sync when Hisaab is closed. Tap to allow.",
+                    color = palette.accent,
+                    fontSize = 12.sp,
+                    modifier = Modifier.clickable { viewModel.allowBackgroundRunning() },
+                )
+            }
+            if (notificationsDenied) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Notifications are off — sync runs but you can't see its status. Tap to allow.",
+                    color = palette.accent,
+                    fontSize = 12.sp,
+                    modifier = Modifier.clickable { viewModel.requestNotifications() },
+                )
+            }
+
             // ── History ──────────────────────────────────────────────────────
             Spacer(Modifier.height(24.dp))
             Label("History", palette)
+            val smsImporting = sync.sms is ChannelStatus.Importing
             GlassButton(
-                text = if (smsImport != null) "Importing SMS…" else "Import all SMS",
+                text = if (smsImporting) "Importing SMS…" else "Import all SMS",
                 onClick = { viewModel.importAllHistory() },
-                enabled = c.captureEnabled && smsImport == null,
+                enabled = c.captureEnabled && !smsImporting,
             )
-            ImportProgressLine("SMS", smsImport, palette)
-            ImportProgressLine("Email", emailImport, palette)
-            if (smsImport != null || emailImport != null) {
-                KeepScreenOn()
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Keep Hisaab open while importing — it pauses when the app locks. " +
-                        "Email resumes by itself; for SMS tap Import again (done messages are skipped).",
-                    color = palette.muted,
-                    fontSize = 12.sp,
-                )
-            }
             Spacer(Modifier.height(40.dp))
         }
     }
 }
 
+private const val BACKGROUND_RECHECK_MS = 2_000L
+
 @Composable
-private fun ImportProgressLine(label: String, progress: ImportProgress?, palette: HisaabColors.Palette) {
-    progress ?: return
-    Spacer(Modifier.height(8.dp))
-    Text("$label: ${progress.done} of ${progress.total} imported", color = palette.onBackground, fontSize = 13.sp)
+private fun SyncStatusLine(channel: String, status: ChannelStatus, palette: HisaabColors.Palette) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(channel, color = palette.onBackground, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Text(
+            status.label(),
+            color = if (status is ChannelStatus.Error) palette.negative else palette.muted,
+            fontSize = 13.sp,
+        )
+    }
 }
 
 /** Public for Task 13 Compose UI tests — renders the real engine-picker rows. */

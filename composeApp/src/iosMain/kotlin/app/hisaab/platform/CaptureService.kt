@@ -15,4 +15,9 @@ actual class CaptureService : CaptureSource {
     actual fun openNotificationAccessSettings() { /* no-op on iOS */ }
     actual fun hasNotificationAccess(): Boolean = false // iOS has no notification-listener API
     actual fun setNotificationListenerEnabled(enabled: Boolean) { /* no-op on iOS */ }
+    // iOS has no background capture service, so there's nothing to ask for.
+    actual fun hasNotificationPermission(): Boolean = true
+    actual suspend fun requestNotificationPermission(): Boolean = true
+    actual fun isBackgroundRunningAllowed(): Boolean = true
+    actual fun openBackgroundRunningSettings() { /* no-op on iOS */ }
 }

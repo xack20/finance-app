@@ -47,6 +47,7 @@ class AutoCaptureViewModelTest {
         router: FakeLlmRouter = FakeLlmRouter(),
         keys: FakeKeyStore = FakeKeyStore(),
         onImport: () -> Unit = {},
+        notificationPermission: suspend () -> Boolean = { true },
     ): AutoCaptureViewModel {
         val config = CaptureConfigRepository(db, dispatcher)
         val senders = SenderRepository(db)
@@ -58,6 +59,7 @@ class AutoCaptureViewModelTest {
             hasSmsPermission = { gateway.hasSmsPermission() },
             requestSmsPermission = { gateway.requestSmsPermission() },
             startHistoryImport = onImport,
+            requestNotificationPermission = notificationPermission,
             loadApiKey = keys::load,
             storeApiKey = keys::store,
             clearApiKey = keys::clear,
@@ -287,6 +289,26 @@ class AutoCaptureViewModelTest {
         assertEquals("me@gmail.com", keys.map["imap_email"])
         assertEquals("abcdefghijklmnop", keys.map["imap_password"])
         assertNull(keys.map["imap_email_cursor"]) // no "from now on" cursor: all-time history
+    }
+
+    @Test
+    fun `granting SMS capture also asks for notification permission`() = runTest {
+        var asks = 0
+        val v = vm(gateway = FakeCaptureGateway(permissionGranted = true), notificationPermission = { asks++; true })
+        v.setCaptureEnabled(true)
+        advanceUntilIdle()
+        assertEquals(1, asks) // background sync shows its status in a notification
+        assertEquals(false, v.notificationsDenied.value)
+    }
+
+    @Test
+    fun `denied notification permission raises the warning but keeps capture on`() = runTest {
+        val db = TestDatabase.create()
+        val v = vm(db, FakeCaptureGateway(permissionGranted = true), notificationPermission = { false })
+        v.setCaptureEnabled(true)
+        advanceUntilIdle()
+        assertEquals(true, v.notificationsDenied.value)
+        assertTrue(CaptureConfigRepository(db, dispatcher).get().captureEnabled)
     }
 
     @Test

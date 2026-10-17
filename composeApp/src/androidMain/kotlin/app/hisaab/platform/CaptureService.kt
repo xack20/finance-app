@@ -1,9 +1,15 @@
 package app.hisaab.platform
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
+import androidx.core.content.ContextCompat
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.FragmentActivity
@@ -37,6 +43,12 @@ actual class CaptureService(
         activity.registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
             val allGranted = REQUIRED_SMS_PERMISSIONS.all { grants[it] == true }
             permissionResult.tryEmit(allGranted)
+        }
+
+    private val notificationResult = MutableSharedFlow<Boolean>(replay = 0, extraBufferCapacity = 1)
+    private val notificationLauncher: ActivityResultLauncher<String> =
+        activity.registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            notificationResult.tryEmit(granted)
         }
 
     actual override fun capabilities(): Set<CaptureChannel> = sms.capabilities()
@@ -76,5 +88,27 @@ actual class CaptureService(
     /** Mirrors the persisted notification flag to the OS-bound listener's process-global gate. */
     actual fun setNotificationListenerEnabled(enabled: Boolean) {
         app.hisaab.capture.NotificationCaptureGate.enabled = enabled
+    }
+
+    actual fun hasNotificationPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    actual suspend fun requestNotificationPermission(): Boolean = permissionMutex.withLock {
+        if (hasNotificationPermission()) return@withLock true
+        notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        notificationResult.first()
+    }
+
+    actual fun isBackgroundRunningAllowed(): Boolean =
+        context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+
+    /** The system "let this app run in the background" dialog — realme/ColorOS otherwise kills background sync. */
+    actual fun openBackgroundRunningSettings() {
+        context.startActivity(
+            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 }
