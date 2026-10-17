@@ -86,3 +86,28 @@ provider/key/consent, sync status and history import, and gain: contacts permiss
 
 **Cost note.** Every message (not only "money-looking" ones) now goes to the cloud model, in batches of 25.
 The ~11.5k-SMS history plus the ~2.9k old Review items is roughly 600 batches — about a day at the cap.
+
+## Phase 1b — Claude via the Mac (subscription), 2026-10-17
+
+The user ran out of API credit and asked to use their Claude subscription the way `local-lmcanvas` does: by
+driving the Claude Code CLI installed on their Mac (`claude -p`, logged in with the subscription). A phone can't
+run that CLI, so the Mac companion becomes the phone's model endpoint. Only the model call moves; the queue,
+validation, ledger writes and questions stay on the phone.
+
+- **Provider choice:** a new cloud provider "Claude via my Mac". When selected, every `AgentProvider.complete`
+  (capture agent and chat assistant) goes to the Mac instead of `api.anthropic.com`. No API key is used.
+- **Transport *(my call)*:** direct HTTP from the phone to the Mac (same Wi-Fi, or a Tailscale address), port
+  47800. The user types the address the companion shows. Bodies are sealed with XChaCha20-Poly1305 under a
+  bridge key derived (HKDF, "hisaab/bridge/v1") from the relay key both devices already derive from the
+  recovery phrase — so the channel is confidential and authenticated even though it is plain HTTP. Requests
+  carry an id and a send time; the Mac rejects anything older than 5 minutes or seen before.
+- **On the Mac:** `claude -p --output-format json --system-prompt-file … --tools "" --strict-mcp-config
+  --setting-sources "" --no-session-persistence`, run in an empty folder with `ANTHROPIC_API_KEY` /
+  `ANTHROPIC_AUTH_TOKEN` removed from the environment (so the subscription login is used, never an API key),
+  the conversation replayed as a transcript on stdin, one request at a time, 5-minute timeout.
+- **Pairing:** the companion's existing recovery-phrase pairing. Supabase sign-in becomes optional
+  ("bridge only") because an Android phone reads its own SMS.
+- **Failures:** Mac unreachable → network error (the worker backs off and messages wait); subscription usage
+  limit → rate-limited (backs off); a CLI error → provider error.
+- **Rules:** personal use only — Anthropic doesn't allow products to offer claude.ai subscription login to
+  others without approval; shipped builds for other people keep API keys.
