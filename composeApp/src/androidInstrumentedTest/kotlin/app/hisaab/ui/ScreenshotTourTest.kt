@@ -42,8 +42,9 @@ import app.hisaab.domain.ParsedBy
 import app.hisaab.domain.RecurringHit
 import app.hisaab.domain.YearMonth
 import app.hisaab.screens.agent.ReviewCard
-import app.hisaab.screens.capture.ReviewCandidate
-import app.hisaab.screens.capture.ReviewInboxContent
+import app.hisaab.domain.AgentQuestion
+import app.hisaab.screens.capture.QuestionCard
+import app.hisaab.screens.capture.QuestionsContent
 import app.hisaab.screens.month.BudgetProgressList
 import app.hisaab.screens.month.CategoryBarChart
 import app.hisaab.screens.month.PerDayBarChart
@@ -122,35 +123,27 @@ class ScreenshotTourTest {
                 noAgent(AgentUiState(gate = AgentAvailability.Unavailable("Add an API key in Settings to use the assistant.")))
             },
             "06-capture-optin" to { CaptureOptInCard(onTurnOn = {}, onMaybeLater = {}) },
-            "23-review-inbox" to {
-                ReviewInboxContent(
-                    pending = listOf(
-                        ReviewCandidate(
-                            candidate = CandidateTransaction(
-                                id = "c1", receivedAt = 1748390400000L, channel = CaptureChannel.SMS,
-                                sender = "bKash", rawBody = "You have received Tk 1,200.00 from 01712345678. Ref 9XK2.",
-                                dedupHash = "h1", status = CaptureStatus.PENDING, confidence = 0.92,
-                                parsedBy = ParsedBy.ON_DEVICE, model = null, parseError = null,
-                                amount = 1200.0, direction = Direction.CREDIT, currency = "BDT",
-                                balanceAfter = 5400.0, refNo = "9XK2", proposedAccountId = "acc_bkash",
-                                proposedCategoryId = "income", proposedMerchant = "Rahim", createdAt = 1748390400000L,
+            "23-questions" to {
+                QuestionsContent(
+                    cards = listOf(
+                        QuestionCard(
+                            question = AgentQuestion(
+                                id = "q1", question = "Whose card ends 1234 — yours?", options = listOf("Mine", "My wife's"),
+                                answer = null, createdAt = 1748390400000L,
                             ),
-                            accountName = "bKash", categoryName = "Income",
-                        ),
-                        ReviewCandidate(
-                            candidate = CandidateTransaction(
-                                id = "c2", receivedAt = 1748131200000L, channel = CaptureChannel.SMS,
-                                sender = "BRAC BANK", rawBody = "Debit Tk 850.00 at SHWAPNO on 25-May. Avl bal Tk 12,300.",
-                                dedupHash = "h2", status = CaptureStatus.PENDING, confidence = 0.64,
-                                parsedBy = ParsedBy.TEMPLATE, model = null, parseError = null,
-                                amount = 850.0, direction = Direction.DEBIT, currency = "BDT",
-                                balanceAfter = 12300.0, refNo = null, proposedAccountId = "acc_brac",
-                                proposedCategoryId = null, proposedMerchant = "Shwapno", createdAt = 1748131200000L,
+                            messages = listOf(
+                                CandidateTransaction(
+                                    id = "c1", receivedAt = 1748390400000L, channel = CaptureChannel.EMAIL,
+                                    sender = "alerts@citybank.com", rawBody = "Card ending 1234 charged BDT 850.00 at SHWAPNO.",
+                                    dedupHash = "h1", status = CaptureStatus.PENDING, confidence = null,
+                                    parsedBy = null, model = null, parseError = null, amount = null, direction = null,
+                                    currency = "BDT", balanceAfter = null, refNo = null, proposedAccountId = null,
+                                    proposedCategoryId = null, proposedMerchant = null, createdAt = 1748390400000L,
+                                ),
                             ),
-                            accountName = "BRAC Bank", categoryName = null,
                         ),
                     ),
-                    onBack = {}, onConfirm = {}, onConfirmAllHighConfidence = {}, onDismiss = {}, onEdit = {},
+                    onBack = {}, onAnswer = { _, _ -> }, onNotAPayment = {},
                 )
             },
             "30-chart-category" to {

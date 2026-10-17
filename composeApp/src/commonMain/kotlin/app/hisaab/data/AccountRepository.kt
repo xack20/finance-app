@@ -45,7 +45,6 @@ class AccountRepository(private val db: HisaabDatabase) {
     /**
      * Non-suspending variant for use inside a [app.hisaab.db.HisaabDatabase.transaction] block.
      * Identical to [add] but callable synchronously from within a DB transaction.
-     * Called by AccountMatcher's atomic auto-create path.
      */
     fun addBlocking(
         name: String,

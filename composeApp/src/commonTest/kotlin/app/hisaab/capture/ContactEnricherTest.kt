@@ -24,4 +24,16 @@ class ContactEnricherTest {
         val text = "Sent Tk 50 to 01899999999"
         assertEquals(text, enrichWithContacts(text) { book[it] })
     }
+
+    @Test
+    fun `what leaves the phone keeps the contact name but not the number or a code`() {
+        val out = app.hisaab.capture.agent.prepareForCloud(
+            "Sent Tk 500 to 01712345678. Your OTP for next login is 449911", { book[it] }, redact = true,
+        )
+        assertEquals(true, "Rahim Bhai" in out, out)
+        assertEquals(false, "01712345678" in out, out)
+        assertEquals(false, "449911" in out, out)
+        assertEquals(true, "Tk 500" in out, out)
+    }
 }
+

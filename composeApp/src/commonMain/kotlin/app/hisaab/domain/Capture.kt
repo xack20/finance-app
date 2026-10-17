@@ -15,9 +15,6 @@ enum class ParsedBy { TEMPLATE, ON_DEVICE, CLOUD_CLAUDE, CLOUD_GEMINI, CLOUD_OPE
 /** Money flow direction extracted from a capture. */
 enum class Direction { DEBIT, CREDIT }
 
-/** Classification of a known sender. */
-enum class BankType { BKASH, NAGAD, ROCKET, BANK, CARD, OTHER }
-
 /** User-selected parsing engine. */
 enum class EngineMode { ON_DEVICE, CLOUD }
 
@@ -55,18 +52,6 @@ data class CandidateTransaction(
     val attempts: Int = 0,
 )
 
-/** A known/learned sender → account mapping + pre-filter allowlist entry. */
-data class SenderMapping(
-    val id: String,
-    val senderId: String,
-    val displayName: String,
-    val bankType: BankType,
-    val isFinancial: Boolean,
-    val templateKey: String?,
-    val accountId: String?,
-    val createdAt: Long,
-)
-
 /** Single-row capture/engine configuration. API key stays in SecureStorage. */
 data class CaptureConfig(
     val captureEnabled: Boolean,
@@ -87,4 +72,7 @@ data class CaptureConfig(
     /** When true, the Android NotificationListener fallback forwards posted notifications. */
     val notificationCaptureEnabled: Boolean = false,
     val updatedAt: Long,
+    /** Capture agent's AI calls on [agentCallsDay] (local YYYY-MM-DD) — the daily cap. */
+    val agentCallsDay: String? = null,
+    val agentCallsCount: Int = 0,
 )

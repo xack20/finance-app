@@ -281,7 +281,7 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
 
         Spacer(Modifier.height(16.dp))
 
-        // Review banner — only shown when pendingCount > 0
+        // Questions banner — only shown while the capture agent is waiting on the user
         if (pendingCount > 0) {
             SurfaceCard(
                 modifier = Modifier
@@ -306,13 +306,13 @@ fun TodayScreen(onTxnClick: (String) -> Unit, onReview: () -> Unit, onAutoCaptur
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            if (pendingCount == 1L) "1 transaction to review" else "$pendingCount transactions to review",
+                            if (pendingCount == 1L) "1 question from Hisaab" else "$pendingCount questions from Hisaab",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
                             color = palette.onBackground,
                         )
                         Text(
-                            "Auto-captured from SMS",
+                            "About messages it couldn't work out",
                             fontSize = 13.sp,
                             color = palette.muted,
                         )

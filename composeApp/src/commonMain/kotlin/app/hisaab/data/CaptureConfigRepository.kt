@@ -124,6 +124,8 @@ class CaptureConfigRepository(
         relayCaptureEnabled = relay_capture_enabled == 1L,
         emailCaptureEnabled = email_capture_enabled == 1L,
         notificationCaptureEnabled = notification_capture_enabled == 1L,
+        agentCallsDay = agent_calls_day,
+        agentCallsCount = agent_calls_count.toInt(),
         updatedAt = updated_at,
     )
 }

@@ -76,7 +76,7 @@ class CaptureCommitter(
                         db.captureInboxQueriesQueries.linkPosted(
                             d.amount, direction.name, accountId, categoryId, d.merchant, MODEL_LABEL, message.id,
                         )
-                        events += CaptureEvent.AutoPosted(txnId, message.id, d.amount, message.sender, direction)
+                        events += CaptureEvent.AutoPosted(txnId, message.id, d.amount, message.sender, direction, message.receivedAt)
                     }
                     is CaptureDecision.PostTransfer -> {
                         val message = primary(d)

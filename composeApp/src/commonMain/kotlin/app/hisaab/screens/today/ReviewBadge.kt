@@ -21,7 +21,7 @@ fun ReviewBadge(
 ) {
     if (count <= 0L) return
     Text(
-        text = "$count to review",
+        text = if (count == 1L) "1 question" else "$count questions",
         color = palette.background,
         fontSize = 12.sp,
         modifier = modifier

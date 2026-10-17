@@ -1,5 +1,8 @@
 package app.hisaab
 
+import kotlinx.datetime.toLocalDateTime
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import app.cash.sqldelight.db.SqlDriver
 import app.hisaab.auth.AuthRepository
 import app.hisaab.auth.SupabaseAuthRepository
@@ -16,7 +19,6 @@ import app.hisaab.data.InsightRepository
 import app.hisaab.data.LendBorrowRepository
 import app.hisaab.data.MerchantRepository
 import app.hisaab.data.PersonRepository
-import app.hisaab.data.SenderRepository
 import app.hisaab.data.TagRepository
 import app.hisaab.data.TransactionRepository
 import app.hisaab.capture.CaptureCoordinator
@@ -233,25 +235,40 @@ actual class AppContainer {
     actual val captureEvents: kotlinx.coroutines.flow.SharedFlow<app.hisaab.capture.CaptureEvent> =
         captureEventsFlow
 
-    // M3-3: fresh CapturePipeline built on every access so it always binds the current open DB
-    // (fresh-DB resolution pattern per lock/unlock lifecycle requirement).
-    actual val capturePipeline: app.hisaab.capture.CapturePipeline
-        get() = app.hisaab.capture.CapturePipeline(
-            db = requireDb(),
-            inboxRepo = captureInboxRepository,
-            senderRepo = senderRepository,
-            accountMatcher = app.hisaab.capture.AccountMatcher(accountRepository, senderRepository, requireDb()),
-            preFilter = app.hisaab.capture.SmsPreFilter(senderRepository),
-            llmRouter = llmRouter,
-            txnRepo = transactionRepository,
-            configRepo = captureConfigRepository,
-            captureEvents = captureEventsFlow,
+    // Capture agent: relay captures are queued; this worker drains the queue through the agent while capture runs.
+    private var captureWorker: app.hisaab.capture.agent.CaptureAgentWorker? = null
+    private val aiStatus = app.hisaab.capture.ChannelStatusTracker(now = {
+        kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+    })
+
+    actual fun kickCaptureAgent() {
+        captureWorker?.kick()
+    }
+
+    private fun newCaptureWorker(): app.hisaab.capture.agent.CaptureAgentWorker {
+        val budget = app.hisaab.capture.agent.ConfigCallBudget(captureConfigRepository) {
+            kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault()).date.toString()
+        }
+        return app.hisaab.capture.agent.CaptureAgentWorker(
+            inbox = captureInboxRepository,
+            processor = {
+                cachedDatabase?.let { db ->
+                    app.hisaab.capture.agent.buildCaptureAgent(
+                        db, llmRouter, budget, redact = { captureConfigRepository.get().redactionEnabled },
+                    )
+                }
+            },
+            budget = budget,
+            status = aiStatus,
         )
+    }
 
     actual val captureInboxRepository: CaptureInboxRepository
         get() = CaptureInboxRepository(requireDb())
-    actual val senderRepository: SenderRepository
-        get() = SenderRepository(requireDb())
+    actual val agentQuestionRepository: app.hisaab.data.AgentQuestionRepository
+        get() = app.hisaab.data.AgentQuestionRepository(requireDb())
+    actual val agentMemoryRepository: app.hisaab.data.AgentMemoryRepository
+        get() = app.hisaab.data.AgentMemoryRepository(requireDb())
     actual val captureConfigRepository: CaptureConfigRepository
         get() = CaptureConfigRepository(requireDb())
 
@@ -261,9 +278,10 @@ actual class AppContainer {
             override suspend fun currentCursor(): Long = captureConfigRepository.get().lastSmsCursor
             override suspend fun advanceCursor(toMs: Long) { captureConfigRepository.setCursor(toMs) }
         }
-        // M3-3: reference capturePipeline inside the lambda so it resolves FRESH on each invocation
-        // (ensures the pipeline always binds the current open DB after a lock/unlock cycle).
-        val handler = CaptureHandler { capturePipeline.process(it) }
+        // Resolve the inbox FRESH per message so it always binds the current open DB after a lock/unlock cycle.
+        val handler = CaptureHandler { raw ->
+            app.hisaab.capture.CaptureQueue(captureInboxRepository) { kickCaptureAgent() }.handle(raw)
+        }
         // P2: platform source (PASTE-only on iOS) PLUS the Mac→phone relay — the relay is the path
         // that actually delivers SMS to iPhone (iOS can't read SMS natively). Inert until enabled.
         val source = CompositeCaptureSource(listOf(captureService, relayCaptureSource))
@@ -303,9 +321,13 @@ actual class AppContainer {
 
     actual fun clearCrashReport() {}
 
-    // shortcut: iOS doesn't publish relay status yet (all Off); wire RelayCaptureSource(status = …) if iPhone needs it.
+    // shortcut: iOS doesn't publish relay status yet (Off); wire RelayCaptureSource(status = …) if iPhone needs it.
     actual val syncStatuses: kotlinx.coroutines.flow.StateFlow<app.hisaab.capture.SyncStatuses> =
-        kotlinx.coroutines.flow.MutableStateFlow(app.hisaab.capture.SyncStatuses())
+        aiStatus.status.map { app.hisaab.capture.SyncStatuses(ai = it) }.stateIn(
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default),
+            kotlinx.coroutines.flow.SharingStarted.Eagerly,
+            app.hisaab.capture.SyncStatuses(),
+        )
 
 
     actual suspend fun confirmCandidate(candidateId: String): Boolean {
@@ -354,7 +376,6 @@ actual class AppContainer {
         kotlinx.coroutines.runBlocking {
             categoryRepository.ensureDefaults()
             accountRepository.ensureDefaultCashAccount()
-            senderRepository.seedKnownSenders()
         }
         // M3-int Fix 3: start capture only when captureEnabled is true.
         startCapture()
@@ -376,6 +397,7 @@ actual class AppContainer {
         )
         captureScope = scope
         captureCoordinator.start(scope)
+        captureWorker = newCaptureWorker().also { it.start(scope) }
         // M3-int Fix 2: recover SMS received while DB was locked (no-op on iOS — CaptureService
         // yields nothing, but the call is symmetric and harmless).
         scope.launch(kotlinx.coroutines.Dispatchers.Default) { captureCoordinator.catchUp() }
@@ -384,6 +406,7 @@ actual class AppContainer {
     actual fun stopCapture() {
         val scope = captureScope ?: return
         captureScope = null
+        captureWorker = null
         kotlinx.coroutines.runBlocking {
             (scope.coroutineContext[kotlinx.coroutines.Job])?.let { j -> j.cancel(); j.join() }
         }

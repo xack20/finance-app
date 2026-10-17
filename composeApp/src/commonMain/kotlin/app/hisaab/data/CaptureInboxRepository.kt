@@ -95,37 +95,6 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
     suspend fun getById(id: String): CandidateTransaction? =
         queries.getById(id).executeAsOneOrNull()?.toDomain()
 
-    suspend fun waitingSendersWithoutAccount(): List<String> = queries.waitingSendersWithoutAccount().executeAsList()
-
-    /** After the user maps [senderId]: its waiting items without an account get [accountId]; returns them. */
-    suspend fun assignAccountToPending(senderId: String, accountId: String): List<CandidateTransaction> {
-        val waiting = queries.findPendingWithoutAccount(senderId).executeAsList().map { it.toDomain() }
-        queries.transaction { waiting.forEach { queries.setProposedAccount(accountId, it.id) } }
-        return waiting.map { it.copy(proposedAccountId = accountId) }
-    }
-
-    /** Every capture not yet dismissed, oldest first (duplicate cleanup scans these). */
-    suspend fun getLive(): List<CandidateTransaction> = queries.getLive().executeAsList().map { it.toDomain() }
-
-    /** Dismiss as a cross-channel duplicate; blocking so it can run inside a db.transaction. */
-    fun markDuplicateBlocking(id: String) {
-        queries.markDuplicate(id)
-    }
-
-    /** A live (not dismissed) capture with this transaction ID; [normalizedRefNo] is trimmed + lowercased. */
-    suspend fun findLiveByRefNo(normalizedRefNo: String): CandidateTransaction? =
-        queries.findLiveByRefNo(normalizedRefNo).executeAsOneOrNull()?.toDomain()
-
-    /** Live captures of the same amount + direction from a channel other than [channel], received in the window. */
-    suspend fun findLiveNear(
-        amount: Double,
-        direction: app.hisaab.domain.Direction,
-        channel: app.hisaab.domain.CaptureChannel,
-        fromMs: Long,
-        toMs: Long,
-    ): List<CandidateTransaction> =
-        queries.findLiveNear(amount, direction.name, channel.name, fromMs, toMs).executeAsList().map { it.toDomain() }
-
     suspend fun markAutoPosted(id: String) {
         queries.updateStatus(CaptureStatus.AUTO_POSTED.name, id)
     }
@@ -156,6 +125,10 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
         queries.nextQueued(limit.toLong()).executeAsList().map { it.toDomain() }
 
     fun observeQueuedCount(): Flow<Long> = queries.observeQueuedCount().asFlow().mapToOne(Dispatchers.Default)
+
+    /** Questions the capture agent is waiting on the user for. */
+    fun observeOpenQuestionCount(): Flow<Long> =
+        queries.observeOpenQuestionCount().asFlow().mapToOne(Dispatchers.Default)
 
     suspend fun queuedCount(): Int = queries.observeQueuedCount().executeAsOne().toInt()
 

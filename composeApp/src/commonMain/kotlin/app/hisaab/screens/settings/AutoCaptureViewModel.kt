@@ -1,15 +1,11 @@
 package app.hisaab.screens.settings
 
 import app.hisaab.capture.SyncStatuses
-import kotlin.math.roundToInt
-import app.hisaab.data.AccountRepository
 import app.hisaab.data.CaptureConfigRepository
-import app.hisaab.data.SenderRepository
-import app.hisaab.domain.BankType
+import app.hisaab.domain.AgentMemory
 import app.hisaab.domain.CaptureConfig
 import app.hisaab.domain.CloudProvider
 import app.hisaab.domain.EngineMode
-import app.hisaab.domain.SenderMapping
 import app.hisaab.llm.LlmError
 import app.hisaab.llm.LlmException
 import app.hisaab.llm.LlmRouter
@@ -18,15 +14,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.random.Random
+import kotlinx.datetime.toLocalDateTime
 
 /** Result of a "Validate" tap on the cloud key field; [Invalid] says why, in user-facing words. */
 sealed interface KeyValidation {
@@ -36,15 +34,6 @@ sealed interface KeyValidation {
     data class Invalid(val reason: String) : KeyValidation
 }
 
-/** Default auto-post confidence threshold (CaptureConfig schema default). */
-const val DEFAULT_AUTO_POST_THRESHOLD: Double = 0.85
-
-/** A threshold as the whole percent the user picked (slider floats arrive as 0.28999… for 29%). */
-fun thresholdPercent(threshold: Double): Int = (threshold * 100).roundToInt()
-
-/** Slider bounds. Not 0: a near-zero bar would auto-post messages that barely parsed. */
-val AUTO_POST_THRESHOLD_RANGE: ClosedFloatingPointRange<Float> = 0.10f..0.99f
-
 /**
  * Drives the Settings → Auto-capture surface. Pure-Kotlin; platform ops (SMS permission,
  * backfill, secure-storage key I/O) are injected as functional seams so the VM is unit-testable
@@ -52,8 +41,6 @@ val AUTO_POST_THRESHOLD_RANGE: ClosedFloatingPointRange<Float> = 0.10f..0.99f
  */
 class AutoCaptureViewModel(
     private val configRepo: CaptureConfigRepository,
-    private val senderRepo: SenderRepository,
-    private val accountRepo: AccountRepository,
     private val hasSmsPermission: suspend () -> Boolean,
     private val requestSmsPermission: suspend () -> Boolean,
     /** Starts the all-time history import in the app's capture scope, so leaving this screen can't cancel it. */
@@ -76,35 +63,35 @@ class AutoCaptureViewModel(
     /** Android battery-optimization exemption, so realme/ColorOS doesn't kill background sync. */
     private val isBackgroundRunningAllowed: () -> Boolean = { true },
     private val openBackgroundRunningSettings: () -> Unit = {},
-    /** One-time cleanup of SMS/email/notification copies captured before cross-channel dedup existed. */
-    private val scanDuplicates: suspend () -> app.hisaab.capture.DuplicateReport = {
-        app.hisaab.capture.DuplicateReport(0, emptyList())
+    /** What the capture agent learned ("What Hisaab has learned"); each can be forgotten. */
+    val memories: Flow<List<AgentMemory>> = flowOf(emptyList()),
+    private val forgetMemoryById: suspend (String) -> Unit = {},
+    /** Contacts let the agent name who money went to (Android). */
+    private val hasContactsPermission: () -> Boolean = { false },
+    private val requestContactsPermission: suspend () -> Boolean = { false },
+    /** Local date (YYYY-MM-DD) the daily AI-call count is kept for. */
+    private val today: () -> String = {
+        kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault()).date.toString()
     },
-    private val removeDuplicates: suspend (List<app.hisaab.capture.DuplicatePair>) -> Int = { 0 },
-    /** Gives a newly mapped sender's waiting Review items its account (returns them). */
-    private val assignPendingAccount: suspend (senderId: String, accountId: String) -> List<app.hisaab.domain.CandidateTransaction> =
-        { _, _ -> emptyList() },
-    private val confirmCandidate: suspend (candidateId: String) -> Boolean = { false },
-    /** Registers senders of already-waiting items so they can be mapped (runs when the screen opens). */
-    private val registerWaitingSenders: suspend () -> Unit = {},
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     val config: StateFlow<CaptureConfig?> = configRepo.observe()
         .stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val senders: StateFlow<List<SenderMapping>> = senderRepo.observeAll()
-        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** AI calls the capture agent made today, against [app.hisaab.capture.agent.CaptureAgentWorker.DAILY_CALL_CAP]. */
+    val aiCallsToday: StateFlow<Int> = configRepo.observe()
+        .map { cfg -> if (cfg.agentCallsDay == today()) cfg.agentCallsCount else 0 }
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    /** "New sender detected" prompts: financial senders with no mapped account yet. */
-    val unmappedSenders: StateFlow<List<SenderMapping>> = senderRepo.observeAll()
-        .map { all -> all.filter { it.isFinancial && it.accountId == null } }
-        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val _contactsAllowed = MutableStateFlow(hasContactsPermission())
+    val contactsAllowed: StateFlow<Boolean> = _contactsAllowed.asStateFlow()
 
-    val accounts = accountRepo.observeActive()
-        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    fun allowContacts() {
+        scope.launch { _contactsAllowed.value = requestContactsPermission() }
+    }
 
-    init {
-        scope.launch { registerWaitingSenders() }
+    fun forgetMemory(id: String) {
+        scope.launch { forgetMemoryById(id) }
     }
 
     private val _keyValidation = MutableStateFlow<KeyValidation>(KeyValidation.Idle)
@@ -132,23 +119,6 @@ class AutoCaptureViewModel(
     }
 
     fun allowBackgroundRunning() = openBackgroundRunningSettings()
-
-    private val _duplicateReport = MutableStateFlow<app.hisaab.capture.DuplicateReport?>(null)
-    /** Last cleanup result: Review copies already dismissed + ledger pairs awaiting the user's confirmation. */
-    val duplicateReport: StateFlow<app.hisaab.capture.DuplicateReport?> = _duplicateReport.asStateFlow()
-
-    fun findDuplicates() {
-        scope.launch { _duplicateReport.value = scanDuplicates() }
-    }
-
-    /** Deletes the later copy of each listed ledger pair — only ever after the user tapped to confirm. */
-    fun removeLedgerDuplicates() {
-        val report = _duplicateReport.value ?: return
-        scope.launch {
-            removeDuplicates(report.ledgerDuplicates)
-            _duplicateReport.value = report.copy(ledgerDuplicates = emptyList())
-        }
-    }
 
     fun requestNotifications() {
         scope.launch { _notificationsDenied.value = !requestNotificationPermission() }
@@ -287,12 +257,6 @@ class AutoCaptureViewModel(
     // ---- Safety ----
 
     fun setRedaction(enabled: Boolean) { scope.launch { configRepo.setRedaction(enabled) } }
-    fun setAlwaysReview(enabled: Boolean) { scope.launch { configRepo.setAlwaysReview(enabled) } }
-    fun setAutoPostThreshold(threshold: Double) { scope.launch { configRepo.setAutoPostThreshold(threshold) } }
-
-    /** Restores the advanced confidence slider to the shipped default (0.85). */
-    fun resetThresholdToDefault() { scope.launch { configRepo.setAutoPostThreshold(DEFAULT_AUTO_POST_THRESHOLD) } }
-
     // ---- Consent ----
 
     /**
@@ -304,53 +268,11 @@ class AutoCaptureViewModel(
     }
     fun revokeConsent() { scope.launch { configRepo.clearConsent() } }
 
-    // ---- Senders ----
-
-    fun addSender(senderId: String, displayName: String, bankType: BankType) {
-        scope.launch {
-            senderRepo.upsert(
-                SenderMapping(
-                    id = randomId(),
-                    senderId = senderId,
-                    displayName = displayName,
-                    bankType = bankType,
-                    isFinancial = true,
-                    templateKey = null,
-                    accountId = null,
-                    createdAt = currentMillis(),
-                ),
-            )
-        }
-    }
-
-    fun setSenderAccount(senderId: String, accountId: String) {
-        scope.launch {
-            senderRepo.setAccount(senderId, accountId)
-            // Its waiting items can post now: confirm those at or above the user's auto-post confidence.
-            val threshold = configRepo.get().autoPostThreshold
-            assignPendingAccount(senderId, accountId)
-                .filter { (it.confidence ?: 0.0) >= threshold }
-                .forEach { confirmCandidate(it.id) }
-        }
-    }
-
-    fun setSenderEnabled(senderId: String, enabled: Boolean) {
-        scope.launch {
-            val existing = senderRepo.findBySenderId(senderId) ?: return@launch
-            senderRepo.upsert(existing.copy(isFinancial = enabled))
-        }
-    }
-
     // ---- Backfill ----
 
     fun importAllHistory() = startHistoryImport()
 
     private fun keyName(provider: CloudProvider): String = "llm_api_key_${provider.name}"
-
-    private fun randomId(): String {
-        val bytes = Random.Default.nextBytes(16)
-        return bytes.joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
-    }
 
     private fun currentMillis(): Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
 

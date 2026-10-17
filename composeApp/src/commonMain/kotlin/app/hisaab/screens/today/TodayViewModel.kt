@@ -109,7 +109,8 @@ class TodayViewModel(
         }
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val pendingCount: StateFlow<Long> = inboxRepo.observePendingCount()
+    /** Questions the capture agent is waiting on the user for (the banner opens them). */
+    val pendingCount: StateFlow<Long> = inboxRepo.observeOpenQuestionCount()
         .stateIn(scope, SharingStarted.WhileSubscribed(5_000), 0L)
 
     /** True once the user has dismissed the capture opt-in card (persisted across restarts). */

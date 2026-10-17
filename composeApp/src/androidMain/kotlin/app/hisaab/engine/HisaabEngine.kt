@@ -1,6 +1,7 @@
 package app.hisaab.engine
 
 import android.content.Context
+import kotlinx.datetime.toLocalDateTime
 import app.cash.sqldelight.db.SqlDriver
 import app.hisaab.agent.AgentProvider
 import app.hisaab.agent.AgentRuntime
@@ -36,7 +37,6 @@ import app.hisaab.data.InsightRepository
 import app.hisaab.data.LendBorrowRepository
 import app.hisaab.data.MerchantRepository
 import app.hisaab.data.PersonRepository
-import app.hisaab.data.SenderRepository
 import app.hisaab.data.TagRepository
 import app.hisaab.data.TransactionRepository
 import app.hisaab.db.DatabaseDriverFactory
@@ -225,32 +225,69 @@ class HisaabEngine private constructor(
     val captureEvents: kotlinx.coroutines.flow.SharedFlow<app.hisaab.capture.CaptureEvent> =
         captureEventsFlow
 
-    // M3-3: fresh CapturePipeline built on every access so it always binds the current open DB
-    // (fresh-DB resolution pattern per lock/unlock lifecycle requirement).
-    val capturePipeline: app.hisaab.capture.CapturePipeline
-        get() = app.hisaab.capture.CapturePipeline(
-            db = requireDb(),
-            inboxRepo = captureInboxRepository,
-            senderRepo = senderRepository,
-            accountMatcher = app.hisaab.capture.AccountMatcher(accountRepository, senderRepository, requireDb()),
-            preFilter = app.hisaab.capture.SmsPreFilter(senderRepository),
-            llmRouter = llmRouter,
-            txnRepo = transactionRepository,
-            configRepo = captureConfigRepository,
-            captureEvents = captureEventsFlow,
-            onLlmError = { _, error ->
-                // Only a rejected key needs the user; one-off failures leave the capture PENDING for review.
-                if (error == app.hisaab.llm.LlmError.InvalidKey) {
-                    aiStatus.failed("key rejected — update it in Auto-capture", persistent = true)
+    // Capture agent (spec 2026-10-17-agentic-hisaab-design): sources queue every message; this worker drains the
+    // queue through the agent while capture runs. Created per capture run, so it always binds the open DB.
+    @Volatile
+    private var captureWorker: app.hisaab.capture.agent.CaptureAgentWorker? = null
+
+    /** Something was queued or a question answered: let the agent read soon. */
+    fun kickCaptureAgent() {
+        captureWorker?.kick()
+    }
+
+    private fun newCaptureWorker(): app.hisaab.capture.agent.CaptureAgentWorker {
+        val budget = app.hisaab.capture.agent.ConfigCallBudget(captureConfigRepository) {
+            kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault()).date.toString()
+        }
+        return app.hisaab.capture.agent.CaptureAgentWorker(
+            inbox = captureInboxRepository,
+            processor = {
+                cachedDatabase?.let { db ->
+                    app.hisaab.capture.agent.buildCaptureAgent(
+                        db, llmRouter, budget,
+                        redact = { captureConfigRepository.get().redactionEnabled },
+                        contactName = ::contactName,
+                    )
                 }
             },
-            onLlmSuccess = { aiStatus.succeeded() },
+            budget = budget,
+            status = aiStatus,
+            // Only live payments pop the "auto-added" snackbar; history imports post thousands of old ones.
+            onPosted = { events ->
+                val now = System.currentTimeMillis()
+                events.filter { now - it.receivedAt < LIVE_SNACKBAR_WINDOW_MS }.forEach { captureEventsFlow.emit(it) }
+            },
         )
+    }
+
+    // shortcut: names are cached for the process lifetime; a contact renamed today shows its old name until restart.
+    private val contactNames = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** Phone-book name for a BD mobile number, or null (no permission / not a contact). Runs off the main thread. */
+    private fun contactName(phone: String): String? {
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.READ_CONTACTS,
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!granted) return null
+        contactNames[phone]?.let { return it.ifEmpty { null } }
+        val uri = android.net.Uri.withAppendedPath(
+            android.provider.ContactsContract.PhoneLookup.CONTENT_FILTER_URI, android.net.Uri.encode(phone),
+        )
+        val name = runCatching {
+            context.contentResolver.query(
+                uri, arrayOf(android.provider.ContactsContract.PhoneLookup.DISPLAY_NAME), null, null, null,
+            )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+        }.getOrNull()
+        contactNames[phone] = name.orEmpty()
+        return name
+    }
 
     val captureInboxRepository: CaptureInboxRepository
         get() = CaptureInboxRepository(requireDb())
-    val senderRepository: SenderRepository
-        get() = SenderRepository(requireDb())
+    val agentQuestionRepository: app.hisaab.data.AgentQuestionRepository
+        get() = app.hisaab.data.AgentQuestionRepository(requireDb())
+    val agentMemoryRepository: app.hisaab.data.AgentMemoryRepository
+        get() = app.hisaab.data.AgentMemoryRepository(requireDb())
     val captureConfigRepository: CaptureConfigRepository
         get() = CaptureConfigRepository(requireDb())
 
@@ -298,9 +335,10 @@ class HisaabEngine private constructor(
             override suspend fun currentCursor(): Long = captureConfigRepository.get().lastSmsCursor
             override suspend fun advanceCursor(toMs: Long) { captureConfigRepository.setCursor(toMs) }
         }
-        // M3-3: reference capturePipeline inside the lambda so it resolves FRESH on each invocation
-        // (ensures the pipeline always binds the current open DB after a lock/unlock cycle).
-        val handler = CaptureHandler { capturePipeline.process(it) }
+        // Resolve the inbox FRESH per message so it always binds the current open DB after a lock/unlock cycle.
+        val handler = CaptureHandler { raw ->
+            app.hisaab.capture.CaptureQueue(captureInboxRepository) { kickCaptureAgent() }.handle(raw)
+        }
         // P2: the platform SMS/notification source PLUS the Mac→phone relay, fanned through the one
         // coordinator (single Mutex). The relay stays inert until relayCaptureEnabled + a master
         // secret + a session exist, so this composite is safe to always install.
@@ -440,7 +478,6 @@ class HisaabEngine private constructor(
         kotlinx.coroutines.runBlocking {
             categoryRepository.ensureDefaults()
             accountRepository.ensureDefaultCashAccount()
-            senderRepository.seedKnownSenders()
         }
         // M3-int Fix 3: start capture only when captureEnabled is true (no unconditional start).
         startCapture()
@@ -469,6 +506,7 @@ class HisaabEngine private constructor(
         )
         captureScope = scope
         captureCoordinator.start(scope)
+        captureWorker = newCaptureWorker().also { it.start(scope) }
         // M3-int Fix 2: wire catch-up so SMS received while DB was locked are recovered.
         scope.launch(kotlinx.coroutines.Dispatchers.Default) {
             captureCoordinator.catchUp()
@@ -495,6 +533,7 @@ class HisaabEngine private constructor(
     fun stopCapture() {
         val scope = captureScope ?: return
         captureScope = null
+        captureWorker = null
         kotlinx.coroutines.runBlocking {
             (scope.coroutineContext[kotlinx.coroutines.Job])?.let { j -> j.cancel(); j.join() }
         }
@@ -608,6 +647,7 @@ class HisaabEngine private constructor(
 
     companion object {
         private const val IMPORT_PENDING_KEY = "sms_history_import_pending"
+        private const val LIVE_SNACKBAR_WINDOW_MS = 10 * 60_000L
         private const val CATCH_UP_INTERVAL_MS = 15L * 60 * 1000
 
         @Volatile private var instance: HisaabEngine? = null

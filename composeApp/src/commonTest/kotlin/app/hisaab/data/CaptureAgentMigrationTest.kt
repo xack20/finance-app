@@ -3,11 +3,9 @@ package app.hisaab.data
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import app.hisaab.db.HisaabDatabase
 import app.hisaab.domain.AccountKind
-import app.hisaab.domain.BankType
 import app.hisaab.domain.CandidateTransaction
 import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.CaptureStatus
-import app.hisaab.domain.SenderMapping
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -29,17 +27,15 @@ class CaptureAgentMigrationTest {
         HisaabDatabase.Schema.migrate(driver, 1, 10) // the schema a phone has before this migration
         val db = HisaabDatabase(driver)
         val inbox = CaptureInboxRepository(db)
-        val senders = SenderRepository(db)
         inbox.insertCandidate(row("waiting", CaptureStatus.PENDING))
         inbox.insertCandidate(row("posted", CaptureStatus.AUTO_POSTED))
         val card = AccountRepository(db).add("City Bank card", AccountKind.CARD, institution = null)
-        senders.upsert(
-            SenderMapping(
-                id = "s1", senderId = "alerts@citybank.com", displayName = "City", bankType = BankType.OTHER,
-                isFinancial = true, templateKey = null, accountId = null, createdAt = 1L,
-            ),
+        driver.execute(
+            null,
+            "INSERT INTO sender_registry(id, sender_id, display_name, bank_type, is_financial, account_id, created_at) " +
+                "VALUES ('s1', 'alerts@citybank.com', 'City', 'OTHER', 1, '$card', 1)",
+            0,
         )
-        senders.setAccount("alerts@citybank.com", card)
 
         HisaabDatabase.Schema.migrate(driver, 10, 11)
 

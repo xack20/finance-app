@@ -6,7 +6,6 @@ import app.hisaab.agent.AgentRuntime
 import app.hisaab.auth.AuthRepository
 import app.hisaab.capture.CaptureCoordinator
 import app.hisaab.capture.CaptureEvent
-import app.hisaab.capture.CapturePipeline
 import app.hisaab.crypto.BlobCrypto
 import app.hisaab.crypto.CryptoService
 import app.hisaab.crypto.MnemonicService
@@ -21,7 +20,6 @@ import app.hisaab.data.InsightRepository
 import app.hisaab.data.LendBorrowRepository
 import app.hisaab.data.MerchantRepository
 import app.hisaab.data.PersonRepository
-import app.hisaab.data.SenderRepository
 import app.hisaab.data.TagRepository
 import app.hisaab.data.TransactionRepository
 import app.hisaab.db.DatabaseDriverFactory
@@ -83,7 +81,10 @@ actual class AppContainer(
     actual val attachmentRepository: AttachmentRepository get() = engine.attachmentRepository
     actual val insightRepository: InsightRepository get() = engine.insightRepository
     actual val captureInboxRepository: CaptureInboxRepository get() = engine.captureInboxRepository
-    actual val senderRepository: SenderRepository get() = engine.senderRepository
+    actual val agentQuestionRepository: app.hisaab.data.AgentQuestionRepository
+        get() = engine.agentQuestionRepository
+    actual val agentMemoryRepository: app.hisaab.data.AgentMemoryRepository
+        get() = engine.agentMemoryRepository
     actual val captureConfigRepository: CaptureConfigRepository get() = engine.captureConfigRepository
     actual val captureCoordinator: CaptureCoordinator get() = engine.captureCoordinator
 
@@ -93,11 +94,11 @@ actual class AppContainer(
     actual fun agentRuntime(): AgentRuntime = engine.agentRuntime()
 
     actual val llmRouter: LlmRouter get() = engine.llmRouter
-    actual val capturePipeline: CapturePipeline get() = engine.capturePipeline
     actual val captureEvents: SharedFlow<CaptureEvent> get() = engine.captureEvents
 
     actual fun captureCoordinatorOrNull(): CaptureCoordinator? = engine.captureCoordinatorOrNull()
     actual fun startHistoryImport() = engine.startHistoryImport()
+    actual fun kickCaptureAgent() = engine.kickCaptureAgent()
     actual val syncStatuses: StateFlow<app.hisaab.capture.SyncStatuses> get() = engine.syncStatuses
 
     actual fun lastCrashReport(): String? = CrashLog.read(context)

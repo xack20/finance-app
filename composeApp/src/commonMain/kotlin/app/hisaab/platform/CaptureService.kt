@@ -27,6 +27,9 @@ expect class CaptureService : CaptureSource {
     fun hasNotificationPermission(): Boolean
     suspend fun requestNotificationPermission(): Boolean
     /** True when the OS won't kill background sync for battery (Android battery-optimization exemption). */
+    /** Contacts let the capture agent name the person in "Sent Tk 500 to 017…" (Android; false elsewhere). */
+    fun hasContactsPermission(): Boolean
+    suspend fun requestContactsPermission(): Boolean
     fun isBackgroundRunningAllowed(): Boolean
     fun openBackgroundRunningSettings()
 }

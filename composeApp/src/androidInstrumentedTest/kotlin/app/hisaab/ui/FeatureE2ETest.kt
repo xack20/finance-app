@@ -28,7 +28,7 @@ import app.hisaab.domain.Direction
 import app.hisaab.domain.LendBorrowDirection
 import app.hisaab.domain.ParsedBy
 import app.hisaab.domain.TxnKind
-import app.hisaab.screens.capture.ReviewInboxScreen
+import app.hisaab.screens.capture.QuestionsScreen
 import app.hisaab.screens.entry.EntryScreen
 import app.hisaab.screens.main.MainGraph
 import app.hisaab.screens.people.PeopleListScreen
@@ -190,45 +190,39 @@ class FeatureE2ETest {
     }
 
     @Test
-    fun confirm_capture_candidate_posts_to_ledger() {
+    fun answering_an_agent_question_hands_the_message_back_to_the_agent() {
         container = composeRule.activity.container
         container.openDatabase(secret)
-        runBlocking {
-            val cashId = container.accountRepository.observeActive().first()
-                .first { it.kind == AccountKind.CASH }.id
+        val questionId = runBlocking {
             val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
             container.captureInboxRepository.insertCandidate(
                 CandidateTransaction(
-                    id = "cap-confirm-1", receivedAt = now - 1_800_000L, channel = CaptureChannel.SMS,
-                    sender = "bKash", rawBody = "You have received Tk 1,500.00 from 01711-000000. TrxID 9AB12CD34E",
-                    dedupHash = "hash-cap-confirm-1", status = CaptureStatus.PENDING, confidence = 0.62,
-                    parsedBy = ParsedBy.TEMPLATE, model = null, parseError = null,
-                    amount = 1_500.0, direction = Direction.CREDIT, currency = "BDT",
-                    balanceAfter = 4_250.0, refNo = "9AB12CD34E", proposedAccountId = cashId,
-                    proposedCategoryId = "other", proposedMerchant = null, createdAt = now - 1_700_000L,
+                    id = "cap-q-1", receivedAt = now - 1_800_000L, channel = CaptureChannel.EMAIL,
+                    sender = "alerts@citybank.com", rawBody = "Card ending 1234 charged BDT 900 at DARAZ",
+                    dedupHash = "hash-cap-q-1", status = CaptureStatus.QUEUED, confidence = null,
+                    parsedBy = null, model = null, parseError = null, amount = null, direction = null,
+                    currency = "BDT", balanceAfter = null, refNo = null, proposedAccountId = null,
+                    proposedCategoryId = null, proposedMerchant = null, createdAt = now - 1_700_000L,
                 )
             )
+            requireNotNull(container.databaseOrNull()).transactionWithResult {
+                container.agentQuestionRepository.askBlocking("Whose card ends 1234?", listOf("Mine"), listOf("cap-q-1"))
+            }
         }
         composeRule.setContent {
             HisaabTheme(darkTheme = false) {
                 CompositionLocalProvider(LocalAppContainer provides container) {
-                    ReviewInboxScreen(onBack = {}, onEdit = {})
+                    QuestionsScreen(onBack = {})
                 }
             }
         }
-        composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("Confirm").fetchSemanticsNodes().isNotEmpty() }
-        composeRule.onAllNodesWithText("Confirm").filterToOne(hasClickAction()).performClick()
+        composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("Mine").fetchSemanticsNodes().isNotEmpty() }
+        composeRule.onAllNodesWithText("Mine").filterToOne(hasClickAction()).performClick()
         composeRule.waitUntil(5_000) {
-            runBlocking { container.transactionRepository.observeRecent(50).first() }
-                .any { it.kind == TxnKind.INCOME && it.amount == 1_500.0 }
+            runBlocking { container.captureInboxRepository.getById("cap-q-1")?.status } == CaptureStatus.QUEUED
         }
 
-        val txns = runBlocking { container.transactionRepository.observeRecent(50).first() }
-        assertTrue(txns.any { it.kind == TxnKind.INCOME && it.amount == 1_500.0 })
-        assertEquals(
-            CaptureStatus.CONFIRMED,
-            runBlocking { container.captureInboxRepository.getById("cap-confirm-1")?.status },
-        )
+        assertEquals("Mine", runBlocking { container.agentQuestionRepository.getById(questionId)?.answer })
     }
 
     @Test

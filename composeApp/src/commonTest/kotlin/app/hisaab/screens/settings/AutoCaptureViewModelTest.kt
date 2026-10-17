@@ -1,13 +1,9 @@
 package app.hisaab.screens.settings
 
-import app.hisaab.data.AccountRepository
 import app.hisaab.data.CaptureConfigRepository
-import app.hisaab.data.SenderRepository
 import app.hisaab.data.support.TestDatabase
-import app.hisaab.domain.BankType
 import app.hisaab.domain.CloudProvider
 import app.hisaab.domain.EngineMode
-import app.hisaab.domain.SenderMapping
 import app.hisaab.llm.ProviderId
 import app.hisaab.screens.capture.FakeCaptureGateway
 import app.hisaab.screens.capture.FakeLlmProvider
@@ -15,6 +11,7 @@ import app.hisaab.screens.capture.FakeLlmRouter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -48,14 +45,18 @@ class AutoCaptureViewModelTest {
         keys: FakeKeyStore = FakeKeyStore(),
         onImport: () -> Unit = {},
         notificationPermission: suspend () -> Boolean = { true },
+        memory: app.hisaab.data.AgentMemoryRepository = app.hisaab.data.AgentMemoryRepository(db),
+        requestContacts: suspend () -> Boolean = { false },
+        today: String = "2026-10-17",
     ): AutoCaptureViewModel {
         val config = CaptureConfigRepository(db, dispatcher)
-        val senders = SenderRepository(db)
-        val accounts = AccountRepository(db)
         return AutoCaptureViewModel(
             configRepo = config,
-            senderRepo = senders,
-            accountRepo = accounts,
+            memories = memory.observeAll(),
+            forgetMemoryById = memory::delete,
+            hasContactsPermission = { false },
+            requestContactsPermission = requestContacts,
+            today = { today },
             hasSmsPermission = { gateway.hasSmsPermission() },
             requestSmsPermission = { gateway.requestSmsPermission() },
             startHistoryImport = onImport,
@@ -166,30 +167,56 @@ class AutoCaptureViewModelTest {
     }
 
     @Test
-    fun `setRedaction setAlwaysReview setThreshold persist`() = runTest {
+    fun `setRedaction persists`() = runTest {
         val db = TestDatabase.create()
         val v = vm(db)
         v.setRedaction(false)
-        v.setAlwaysReview(true)
-        v.setAutoPostThreshold(0.7)
         advanceUntilIdle()
-        val cfg = CaptureConfigRepository(db, dispatcher).get()
-        assertEquals(false, cfg.redactionEnabled)
-        assertEquals(true, cfg.alwaysReview)
-        assertEquals(0.7, cfg.autoPostThreshold)
+        assertEquals(false, CaptureConfigRepository(db, dispatcher).get().redactionEnabled)
     }
 
     @Test
-    fun `resetThresholdToDefault restores 0_85`() = runTest {
+    fun `forgetting a memory deletes it`() = runTest {
         val db = TestDatabase.create()
-        val v = vm(db)
-        v.setAutoPostThreshold(0.55)
+        val memory = app.hisaab.data.AgentMemoryRepository(db)
+        db.transaction { memory.addBlocking("16216 is bKash") }
+        val v = vm(db, memory = memory)
+        val fact = memory.all().single()
+
+        v.forgetMemory(fact.id)
         advanceUntilIdle()
-        assertEquals(0.55, CaptureConfigRepository(db, dispatcher).get().autoPostThreshold)
-        v.resetThresholdToDefault()
+
+        assertTrue(memory.all().isEmpty())
+    }
+
+    @Test
+    fun `allowing contacts asks the system once and remembers the answer`() = runTest {
+        var asked = 0
+        val v = vm(requestContacts = { asked++; true })
+        assertEquals(false, v.contactsAllowed.value)
+
+        v.allowContacts()
         advanceUntilIdle()
-        assertEquals(DEFAULT_AUTO_POST_THRESHOLD, CaptureConfigRepository(db, dispatcher).get().autoPostThreshold)
-        assertEquals(0.85, DEFAULT_AUTO_POST_THRESHOLD)
+
+        assertEquals(1, asked)
+        assertEquals(true, v.contactsAllowed.value)
+    }
+
+    @Test
+    fun `AI calls today counts only today's calls`() = runTest {
+        val db = TestDatabase.create()
+        val config = CaptureConfigRepository(db, dispatcher)
+        config.recordAgentCall("2026-10-16")
+        val v = vm(db, today = "2026-10-17")
+        val collected = backgroundScope.launch(dispatcher) { v.aiCallsToday.collect {} }
+        advanceUntilIdle()
+        assertEquals(0, v.aiCallsToday.value)
+
+        config.recordAgentCall("2026-10-17")
+        config.recordAgentCall("2026-10-17")
+        advanceUntilIdle()
+        assertEquals(2, v.aiCallsToday.value)
+        collected.cancel()
     }
 
     @Test
@@ -214,70 +241,6 @@ class AutoCaptureViewModelTest {
         v.revokeConsent()
         advanceUntilIdle()
         assertNull(CaptureConfigRepository(db, dispatcher).get().cloudConsentAt)
-    }
-
-    @Test
-    fun `addSender and setSenderAccount persist`() = runTest {
-        val db = TestDatabase.create()
-        val accounts = AccountRepository(db)
-        val accountId = accounts.add("bKash", app.hisaab.domain.AccountKind.MFS, null)
-        val v = vm(db)
-        v.addSender(senderId = "MYBANK", displayName = "My Bank", bankType = BankType.BANK)
-        advanceUntilIdle()
-        v.setSenderAccount("MYBANK", accountId)
-        advanceUntilIdle()
-        val mapping = SenderRepository(db).findBySenderId("MYBANK")
-        assertEquals("My Bank", mapping?.displayName)
-        assertEquals(accountId, mapping?.accountId)
-    }
-
-    @Test
-    fun `setSenderEnabled toggles isFinancial via upsert`() = runTest {
-        val db = TestDatabase.create()
-        val senders = SenderRepository(db)
-        senders.upsert(
-            SenderMapping(
-                id = "s1", senderId = "PROMO", displayName = "Promo", bankType = BankType.OTHER,
-                isFinancial = true, templateKey = null, accountId = null, createdAt = 1L,
-            ),
-        )
-        val v = vm(db)
-        v.setSenderEnabled("PROMO", false)
-        advanceUntilIdle()
-        assertEquals(false, SenderRepository(db).findBySenderId("PROMO")?.isFinancial)
-    }
-
-    @Test
-    fun `unmappedSenders surfaces only financial senders without an account`() = runTest {
-        val db = TestDatabase.create()
-        val senders = SenderRepository(db)
-        val accounts = AccountRepository(db)
-        val mappedAccount = accounts.add("Mapped", app.hisaab.domain.AccountKind.MFS, null)
-        // financial + unmapped → should surface as a "new sender detected" prompt
-        senders.upsert(
-            SenderMapping(
-                id = "u1", senderId = "NEWBANK", displayName = "New Bank", bankType = BankType.BANK,
-                isFinancial = true, templateKey = null, accountId = null, createdAt = 1L,
-            ),
-        )
-        // financial + mapped → should NOT surface
-        senders.upsert(
-            SenderMapping(
-                id = "m1", senderId = "OLDBANK", displayName = "Old Bank", bankType = BankType.BANK,
-                isFinancial = true, templateKey = null, accountId = mappedAccount, createdAt = 1L,
-            ),
-        )
-        // non-financial + unmapped → should NOT surface
-        senders.upsert(
-            SenderMapping(
-                id = "p1", senderId = "PROMO", displayName = "Promo", bankType = BankType.OTHER,
-                isFinancial = false, templateKey = null, accountId = null, createdAt = 1L,
-            ),
-        )
-        val v = vm(db)
-        advanceUntilIdle()
-        val unmapped = v.unmappedSenders.first { it.isNotEmpty() }
-        assertEquals(listOf("NEWBANK"), unmapped.map { it.senderId })
     }
 
     @Test
@@ -309,53 +272,6 @@ class AutoCaptureViewModelTest {
         advanceUntilIdle()
         assertEquals(1, asks)
     }
-
-    @Test
-    fun `mapping a sender confirms its waiting items at or above the auto-post confidence`() = runTest {
-        val db = TestDatabase.create()
-        val config = CaptureConfigRepository(db, dispatcher)
-        config.setAutoPostThreshold(0.4)
-        val confirmed = mutableListOf<String>()
-        val v = AutoCaptureViewModel(
-            configRepo = config, senderRepo = SenderRepository(db), accountRepo = AccountRepository(db),
-            hasSmsPermission = { true }, requestSmsPermission = { true }, startHistoryImport = {},
-            loadApiKey = { null }, storeApiKey = { _, _ -> }, clearApiKey = {}, router = FakeLlmRouter(),
-            assignPendingAccount = { _, _ -> listOf(dupRow("sure").copy(confidence = 0.5), dupRow("unsure").copy(confidence = 0.3)) },
-            confirmCandidate = { confirmed += it; true },
-        )
-        v.setSenderAccount("alerts@bank.example", "acct-1")
-        advanceUntilIdle()
-        assertEquals(listOf("sure"), confirmed) // 0.3 stays in Review for the user
-    }
-
-    @Test
-    fun `duplicate cleanup reports Review dismissals and removes ledger copies only on confirm`() = runTest {
-        val pair = app.hisaab.capture.DuplicatePair(keep = dupRow("a"), duplicate = dupRow("b"))
-        var removedWith: List<app.hisaab.capture.DuplicatePair>? = null
-        val v = AutoCaptureViewModel(
-            configRepo = CaptureConfigRepository(TestDatabase.create(), dispatcher),
-            senderRepo = SenderRepository(TestDatabase.create()), accountRepo = AccountRepository(TestDatabase.create()),
-            hasSmsPermission = { true }, requestSmsPermission = { true }, startHistoryImport = {},
-            loadApiKey = { null }, storeApiKey = { _, _ -> }, clearApiKey = {}, router = FakeLlmRouter(),
-            scanDuplicates = { app.hisaab.capture.DuplicateReport(dismissedFromReview = 3, ledgerDuplicates = listOf(pair)) },
-            removeDuplicates = { removedWith = it; it.size },
-        )
-        v.findDuplicates()
-        advanceUntilIdle()
-        assertEquals(3, v.duplicateReport.value?.dismissedFromReview)
-        assertNull(removedWith) // ledger copies wait for the user's confirmation
-        v.removeLedgerDuplicates()
-        advanceUntilIdle()
-        assertEquals(listOf(pair), removedWith)
-        assertEquals(true, v.duplicateReport.value?.ledgerDuplicates?.isEmpty())
-    }
-
-    private fun dupRow(id: String) = app.hisaab.domain.CandidateTransaction(
-        id = id, receivedAt = 0L, channel = app.hisaab.domain.CaptureChannel.SMS, sender = id, rawBody = id,
-        dedupHash = id, status = app.hisaab.domain.CaptureStatus.AUTO_POSTED, confidence = null, parsedBy = null,
-        model = null, parseError = null, amount = 1.0, direction = null, currency = "BDT", balanceAfter = null,
-        refNo = null, proposedAccountId = null, proposedCategoryId = null, proposedMerchant = null, createdAt = 0L,
-    )
 
     @Test
     fun `granting SMS capture also asks for notification permission`() = runTest {
@@ -403,12 +319,8 @@ class AutoCaptureViewModelTest {
         val gateway = FakeCaptureGateway(permissionGranted = true)
         val config = CaptureConfigRepository(db, dispatcher)
         config.setCaptureEnabled(true) // already enabled
-        val senders = SenderRepository(db)
-        val accounts = AccountRepository(db)
         val v = AutoCaptureViewModel(
             configRepo = config,
-            senderRepo = senders,
-            accountRepo = accounts,
             hasSmsPermission = { gateway.hasSmsPermission() },
             requestSmsPermission = { gateway.requestSmsPermission() },
             startHistoryImport = {},
@@ -433,8 +345,6 @@ class AutoCaptureViewModelTest {
         val gateway = FakeCaptureGateway(permissionGranted = true)
         val v = AutoCaptureViewModel(
             configRepo = CaptureConfigRepository(db, dispatcher),
-            senderRepo = SenderRepository(db),
-            accountRepo = AccountRepository(db),
             hasSmsPermission = { gateway.hasSmsPermission() },
             requestSmsPermission = { gateway.requestSmsPermission() },
             startHistoryImport = {},
@@ -458,8 +368,6 @@ class AutoCaptureViewModelTest {
         var startCount = 0
         val v = AutoCaptureViewModel(
             configRepo = CaptureConfigRepository(db, dispatcher),
-            senderRepo = SenderRepository(db),
-            accountRepo = AccountRepository(db),
             hasSmsPermission = { false },
             requestSmsPermission = { false },
             startHistoryImport = {},

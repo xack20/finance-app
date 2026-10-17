@@ -51,6 +51,21 @@ actual class CaptureService(
             notificationResult.tryEmit(granted)
         }
 
+    private val contactsResult = MutableSharedFlow<Boolean>(replay = 0, extraBufferCapacity = 1)
+    private val contactsLauncher: ActivityResultLauncher<String> =
+        activity.registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            contactsResult.tryEmit(granted)
+        }
+
+    actual fun hasContactsPermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+
+    actual suspend fun requestContactsPermission(): Boolean = permissionMutex.withLock {
+        if (hasContactsPermission()) return@withLock true
+        contactsLauncher.launch(Manifest.permission.READ_CONTACTS)
+        contactsResult.first()
+    }
+
     actual override fun capabilities(): Set<CaptureChannel> = sms.capabilities()
 
     actual suspend fun hasSmsPermission(): Boolean = sms.hasSmsPermission()

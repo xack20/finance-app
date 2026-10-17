@@ -54,7 +54,6 @@ import app.hisaab.design.components.HisaabIcon
 import app.hisaab.design.components.MidnightSlider
 import app.hisaab.design.components.NeoTopBar
 import app.hisaab.design.components.SurfaceCard
-import app.hisaab.domain.BankType
 import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.CloudProvider
 import app.hisaab.domain.EngineMode
@@ -72,8 +71,6 @@ fun AutoCaptureScreen(
         val service = container.captureService
         AutoCaptureViewModel(
             configRepo = container.captureConfigRepository,
-            senderRepo = container.senderRepository,
-            accountRepo = container.accountRepository,
             hasSmsPermission = { service.hasSmsPermission() },
             requestSmsPermission = { service.requestSmsPermission() },
             startHistoryImport = { container.startHistoryImport() },
@@ -91,36 +88,22 @@ fun AutoCaptureScreen(
             requestNotificationPermission = { service.requestNotificationPermission() },
             isBackgroundRunningAllowed = { service.isBackgroundRunningAllowed() },
             openBackgroundRunningSettings = { service.openBackgroundRunningSettings() },
-            assignPendingAccount = { sender, account ->
-                container.captureInboxRepository.assignAccountToPending(sender, account)
-            },
-            confirmCandidate = { id -> container.confirmCandidate(id) },
-            registerWaitingSenders = {
-                app.hisaab.data.registerWaitingSenders(container.captureInboxRepository, container.senderRepository)
-            },
-            scanDuplicates = {
-                container.databaseOrNull()
-                    ?.let { app.hisaab.capture.DuplicateCleanup(it, container.captureInboxRepository).scan() }
-                    ?: app.hisaab.capture.DuplicateReport(0, emptyList())
-            },
-            removeDuplicates = { pairs ->
-                container.databaseOrNull()
-                    ?.let { app.hisaab.capture.DuplicateCleanup(it, container.captureInboxRepository).removeLedgerDuplicates(pairs) }
-                    ?: 0
-            },
+            memories = container.agentMemoryRepository.observeAll(),
+            forgetMemoryById = { container.agentMemoryRepository.delete(it) },
+            hasContactsPermission = { service.hasContactsPermission() },
+            requestContactsPermission = { service.requestContactsPermission() },
         )
     }
     DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val cfg by viewModel.config.collectAsState()
-    val senders by viewModel.senders.collectAsState()
-    val unmapped by viewModel.unmappedSenders.collectAsState()
-    val accounts by viewModel.accounts.collectAsState()
+    val memories by viewModel.memories.collectAsState(emptyList())
+    val aiCallsToday by viewModel.aiCallsToday.collectAsState()
+    val contactsAllowed by viewModel.contactsAllowed.collectAsState()
     val keyValidation by viewModel.keyValidation.collectAsState()
     val savedKeys by viewModel.savedKeys.collectAsState()
     val sync by viewModel.syncStatuses.collectAsState()
     val notificationsDenied by viewModel.notificationsDenied.collectAsState()
     val backgroundAllowed by viewModel.backgroundAllowed.collectAsState()
-    val duplicates by viewModel.duplicateReport.collectAsState()
     // The exemption is granted in a system dialog that doesn't recompose us; re-check while the screen is shown.
     LaunchedEffect(viewModel) {
         while (true) {
@@ -309,113 +292,56 @@ fun AutoCaptureScreen(
                 )
             }
 
-            // ── Trust ────────────────────────────────────────────────────────
+            // ── Hisaab's agent ───────────────────────────────────────────────
             Spacer(Modifier.height(24.dp))
-            Label("Trust", palette)
+            Label("Hisaab's agent", palette)
             SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-                ToggleRow("Always review before posting", c.alwaysReview, palette) { viewModel.setAlwaysReview(it) }
-                if (!c.alwaysReview) {
+                Text(
+                    "Reads every captured message, adds payments to your books by itself and asks you only " +
+                        "what it can't work out. Delete anything it added from the transaction screen.",
+                    color = palette.muted,
+                    fontSize = 13.sp,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "AI calls today: $aiCallsToday of ${app.hisaab.capture.agent.CaptureAgentWorker.DAILY_CALL_CAP}",
+                    color = palette.onBackground,
+                    fontSize = 13.5.sp,
+                )
+                if (smsSupported) {
                     Spacer(Modifier.height(8.dp))
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if (contactsAllowed) {
+                        Text("Contacts: on — names people in transfers", color = palette.muted, fontSize = 12.5.sp)
+                    } else {
                         Text(
-                            "Auto-post confidence",
-                            color = palette.muted,
-                            fontSize = 12.sp,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(
-                            "${thresholdPercent(c.autoPostThreshold)}%",
+                            "Allow contacts so it can name who you sent money to",
                             color = palette.accent,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                    MidnightSlider(
-                        value = c.autoPostThreshold.toFloat(),
-                        onValueChange = { viewModel.setAutoPostThreshold(it.toDouble()) },
-                        valueRange = AUTO_POST_THRESHOLD_RANGE,
-                    )
-                    if (c.autoPostThreshold < 0.5) {
-                        Text(
-                            "Below 50%, more wrong entries get posted without review — check Review and history often.",
-                            color = palette.accent,
-                            fontSize = 12.sp,
-                        )
-                    }
-                    if (c.autoPostThreshold != DEFAULT_AUTO_POST_THRESHOLD) {
-                        Text(
-                            "Reset to default",
-                            color = palette.accent,
-                            fontSize = 12.sp,
-                            modifier = Modifier
-                                .clickable { viewModel.resetThresholdToDefault() }
-                                .padding(vertical = 4.dp),
+                            fontSize = 12.5.sp,
+                            modifier = Modifier.clickable { viewModel.allowContacts() }.padding(vertical = 4.dp),
                         )
                     }
                 }
             }
-
-            // ── Senders ──────────────────────────────────────────────────────
-            Spacer(Modifier.height(24.dp))
-            Label("Senders", palette)
-            if (unmapped.isNotEmpty()) {
-                NewSenderPrompt(
-                    count = unmapped.size,
-                    firstName = unmapped.first().displayName,
-                    palette = palette,
-                )
-            }
-            if (senders.isNotEmpty()) {
+            if (memories.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Label("What Hisaab has learned", palette)
                 SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-                    senders.forEachIndexed { index, sender ->
+                    memories.forEachIndexed { index, memory ->
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(sender.displayName, color = palette.onBackground)
-                                val mappedName = sender.accountId?.let { id -> accounts.firstOrNull { it.id == id }?.name }
-                                if (mappedName != null) {
-                                    Text(mappedName, color = palette.muted, fontSize = 12.5.sp)
-                                } else {
-                                    // "new sender detected" → inline "map this sender" affordance.
-                                    Row {
-                                        accounts.take(3).forEach { acct ->
-                                            Text(
-                                                "Map → ${acct.name}",
-                                                color = palette.accent, fontSize = 11.sp,
-                                                modifier = Modifier
-                                                    .padding(end = 10.dp)
-                                                    .clickable { viewModel.setSenderAccount(sender.senderId, acct.id) },
-                                            )
-                                        }
-                                        if (accounts.isEmpty()) {
-                                            Text("No account", color = palette.muted, fontSize = 12.5.sp)
-                                        }
-                                    }
-                                }
-                            }
-                            HToggle(
-                                checked = sender.isFinancial,
-                                onCheckedChange = { viewModel.setSenderEnabled(sender.senderId, it) },
+                            Text(memory.fact, color = palette.onBackground, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            Text(
+                                "Forget",
+                                color = palette.accent,
+                                fontSize = 12.sp,
+                                modifier = Modifier.clickable { viewModel.forgetMemory(memory.id) }.padding(start = 12.dp),
                             )
                         }
-                        if (index < senders.size - 1) {
-                            HorizontalDivider(color = palette.hair)
-                        }
+                        if (index < memories.size - 1) HorizontalDivider(color = palette.hair)
                     }
                 }
-            }
-
-            Spacer(Modifier.height(8.dp))
-            var showAddSender by remember { mutableStateOf(false) }
-            TextButton(onClick = { showAddSender = true }) { Text("Add a sender", color = palette.accent) }
-            if (showAddSender) {
-                AddSenderInline(
-                    palette = palette,
-                    onAdd = { id, name -> viewModel.addSender(id, name, BankType.BANK); showAddSender = false },
-                    onCancel = { showAddSender = false },
-                )
             }
 
             // ── Sync status ──────────────────────────────────────────────────
@@ -425,7 +351,7 @@ fun AutoCaptureScreen(
                 SyncStatusLine("SMS", sync.sms, palette)
                 SyncStatusLine("Email", sync.email, palette)
                 if (!smsSupported) SyncStatusLine("Mac relay", sync.relay, palette)
-                if (c.engineMode == EngineMode.CLOUD) SyncStatusLine("Cloud AI", sync.ai, palette)
+                SyncStatusLine("AI reading", sync.ai, palette)
             }
             if (!backgroundAllowed) {
                 Spacer(Modifier.height(8.dp))
@@ -461,47 +387,12 @@ fun AutoCaptureScreen(
                 color = palette.muted,
                 fontSize = 12.sp,
             )
-            Spacer(Modifier.height(12.dp))
-            GlassButton(text = "Find duplicate payments", onClick = { viewModel.findDuplicates() })
-            duplicates?.let { report -> DuplicateReportView(report, palette) { viewModel.removeLedgerDuplicates() } }
             Spacer(Modifier.height(40.dp))
         }
     }
 }
 
 private const val BACKGROUND_RECHECK_MS = 2_000L
-
-/** Cleanup result: Review copies are already dismissed; ledger copies are listed and removed only on tap. */
-@Composable
-private fun DuplicateReportView(
-    report: app.hisaab.capture.DuplicateReport,
-    palette: HisaabColors.Palette,
-    onRemove: () -> Unit,
-) {
-    Spacer(Modifier.height(8.dp))
-    val pairs = report.ledgerDuplicates
-    Text(
-        if (report.dismissedFromReview == 0 && pairs.isEmpty()) "No duplicates found."
-        else "Dismissed ${report.dismissedFromReview} duplicate(s) from Review.",
-        color = palette.onBackground,
-        fontSize = 13.sp,
-    )
-    if (pairs.isEmpty()) return
-    Spacer(Modifier.height(6.dp))
-    Text("${pairs.size} payment(s) are in your ledger twice:", color = palette.onBackground, fontSize = 13.sp)
-    pairs.take(10).forEach { p ->
-        val day = kotlinx.datetime.Instant.fromEpochMilliseconds(p.duplicate.receivedAt)
-            .toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault()).date
-        Text(
-            "Tk ${p.duplicate.amount ?: 0.0} · $day · ${p.keep.channel.name.lowercase()} + ${p.duplicate.channel.name.lowercase()}",
-            color = palette.muted,
-            fontSize = 12.sp,
-        )
-    }
-    if (pairs.size > 10) Text("…and ${pairs.size - 10} more", color = palette.muted, fontSize = 12.sp)
-    Spacer(Modifier.height(6.dp))
-    GlassButton(text = "Remove the ${pairs.size} extra copies", onClick = onRemove)
-}
 
 @Composable
 private fun SyncStatusLine(channel: String, status: ChannelStatus, palette: HisaabColors.Palette) {
@@ -594,24 +485,6 @@ private fun IosUnavailableExplainer(palette: HisaabColors.Palette) {
             Text("Paste a bank SMS (coming soon)", color = palette.muted, fontSize = 13.sp)
         }
     }
-}
-
-@Composable
-private fun NewSenderPrompt(count: Int, firstName: String, palette: HisaabColors.Palette) {
-    SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            if (count == 1) "New sender detected: $firstName" else "$count new senders detected",
-            color = palette.onBackground,
-            fontSize = 13.sp,
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            "Map them to an account below so Hisaab can auto-log them.",
-            color = palette.muted,
-            fontSize = 11.sp,
-        )
-    }
-    Spacer(Modifier.height(8.dp))
 }
 
 @Composable
@@ -797,45 +670,5 @@ private fun ApiKeyField(
     Spacer(Modifier.height(8.dp))
     TextButton(onClick = { if (text.isNotBlank()) { onSet(text); text = "" } }) {
         Text("Save key", color = palette.accent)
-    }
-}
-
-@Composable
-private fun AddSenderInline(
-    palette: HisaabColors.Palette,
-    onAdd: (senderId: String, displayName: String) -> Unit,
-    onCancel: () -> Unit,
-) {
-    var senderId by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
-    SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-        BasicTextField(
-            value = senderId, onValueChange = { senderId = it },
-            textStyle = TextStyle(color = palette.onBackground, fontSize = 15.sp),
-            modifier = Modifier.fillMaxWidth()
-                .clip(HisaabShapes.field)
-                .background(palette.surfaceRaised)
-                .border(1.dp, palette.hair, HisaabShapes.field)
-                .padding(12.dp),
-        )
-        Text("Sender ID (e.g. BRAC BANK)", color = palette.muted, fontSize = 11.sp)
-        Spacer(Modifier.height(6.dp))
-        BasicTextField(
-            value = name, onValueChange = { name = it },
-            textStyle = TextStyle(color = palette.onBackground, fontSize = 15.sp),
-            modifier = Modifier.fillMaxWidth()
-                .clip(HisaabShapes.field)
-                .background(palette.surfaceRaised)
-                .border(1.dp, palette.hair, HisaabShapes.field)
-                .padding(12.dp),
-        )
-        Text("Display name", color = palette.muted, fontSize = 11.sp)
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { if (senderId.isNotBlank()) onAdd(senderId.trim(), name.ifBlank { senderId }.trim()) }) {
-                Text("Add", color = palette.accent)
-            }
-            TextButton(onClick = onCancel) { Text("Cancel", color = palette.muted) }
-        }
     }
 }

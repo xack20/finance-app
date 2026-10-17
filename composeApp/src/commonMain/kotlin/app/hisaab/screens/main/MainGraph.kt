@@ -31,7 +31,7 @@ import app.hisaab.domain.CloudProvider
 import app.hisaab.screens.agent.AgentScreen
 import app.hisaab.screens.agent.AgentViewModel
 import app.hisaab.screens.capture.AutoPostSnackbarHost
-import app.hisaab.screens.capture.ReviewInboxScreen
+import app.hisaab.screens.capture.QuestionsScreen
 import app.hisaab.screens.entry.EntryScreen
 import app.hisaab.screens.month.MonthScreen
 import app.hisaab.screens.people.PeopleListScreen
@@ -119,8 +119,6 @@ fun MainGraph() {
                         val service = container.captureService
                         AutoCaptureViewModel(
                             configRepo = container.captureConfigRepository,
-                            senderRepo = container.senderRepository,
-                            accountRepo = container.accountRepository,
                             hasSmsPermission = { service.hasSmsPermission() },
                             requestSmsPermission = { service.requestSmsPermission() },
                             startHistoryImport = { container.startHistoryImport() },
@@ -148,12 +146,7 @@ fun MainGraph() {
                     )
                 }
                 composable("review") {
-                    ReviewInboxScreen(
-                        onBack = { navController.popBackStack() },
-                        onEdit = { candidateId ->
-                            navController.navigate("entry?candidateId=$candidateId")
-                        },
-                    )
+                    QuestionsScreen(onBack = { navController.popBackStack() })
                 }
                 // Single composable handles both "entry" (no candidateId) and
                 // "entry?candidateId={candidateId}" via a nullable argument with a default of null.

@@ -15,7 +15,6 @@ import app.hisaab.data.InsightRepository
 import app.hisaab.data.LendBorrowRepository
 import app.hisaab.data.MerchantRepository
 import app.hisaab.data.PersonRepository
-import app.hisaab.data.SenderRepository
 import app.hisaab.data.TagRepository
 import app.hisaab.data.TransactionRepository
 import app.hisaab.db.DatabaseDriverFactory
@@ -68,7 +67,9 @@ expect class AppContainer {
     val attachmentRepository: AttachmentRepository
     val insightRepository: InsightRepository
     val captureInboxRepository: CaptureInboxRepository
-    val senderRepository: SenderRepository
+    /** Capture agent: what it asked the user, and what it learned. */
+    val agentQuestionRepository: app.hisaab.data.AgentQuestionRepository
+    val agentMemoryRepository: app.hisaab.data.AgentMemoryRepository
     val captureConfigRepository: CaptureConfigRepository
     val captureService: CaptureService
     val captureCoordinator: CaptureCoordinator
@@ -81,9 +82,8 @@ expect class AppContainer {
     val cloudTranscriber: CloudTranscriber
     fun agentRuntime(): app.hisaab.agent.AgentRuntime
 
-    // M3-3: tiered parsing pipeline + LLM router contract + auto-post event stream.
+    // LLM router contract + auto-post event stream (the capture agent posts; the snackbar listens).
     val llmRouter: app.hisaab.llm.LlmRouter
-    val capturePipeline: app.hisaab.capture.CapturePipeline
     val captureEvents: kotlinx.coroutines.flow.SharedFlow<app.hisaab.capture.CaptureEvent>
 
     /** Null until the DB is open; started by openDatabase, cancelled by closeDatabase. */
@@ -94,6 +94,9 @@ expect class AppContainer {
      * when the DB locks (re-running resumes: done messages dedup). No-op while capture isn't running.
      */
     fun startHistoryImport()
+
+    /** Wakes the capture agent (e.g. after the user answered one of its questions). No-op while capture is off. */
+    fun kickCaptureAgent()
 
     /** Stack trace saved by the last uncaught crash (Android), shown once on the next launch; null if none. */
     fun lastCrashReport(): String?

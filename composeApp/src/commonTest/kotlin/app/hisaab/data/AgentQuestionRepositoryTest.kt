@@ -44,6 +44,7 @@ class AgentQuestionRepositoryTest {
         assertEquals(listOf("m1", "m2"), s.inbox.messagesFor(open.id).map { it.id })
         assertEquals(CaptureStatus.PENDING, s.inbox.getById("m1")?.status)
         assertEquals(1L, s.questions.observeOpenCount().first())
+        assertEquals(1L, s.inbox.observeOpenQuestionCount().first()) // the Today banner
     }
 
     @Test
