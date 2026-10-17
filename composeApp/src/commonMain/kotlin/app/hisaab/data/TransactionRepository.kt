@@ -98,9 +98,12 @@ class TransactionRepository(
         ts: Long,
         notes: String?,
         currency: String = "BDT",
+        source: TxnSource = TxnSource.CHAT,
+        /** The captured message this transfer came from; linked on the outgoing leg. */
+        captureId: String? = null,
     ): String {
         val groupId = randomId()
-        fun leg(accountId: String) = db.transactionQueriesQueries.insertTxn(
+        fun leg(accountId: String, linkedCapture: String?) = db.transactionQueriesQueries.insertTxn(
             id = randomId(),
             account_id = accountId,
             amount = amount,
@@ -108,15 +111,15 @@ class TransactionRepository(
             ts = ts,
             merchant_id = null,
             category_id = "transfer",
-            source = TxnSource.CHAT.name,
+            source = source.name,
             notes = notes,
             kind = TxnKind.TRANSFER.name,
             parent_txn_id = null,
-            capture_id = null,
+            capture_id = linkedCapture,
             transfer_group_id = groupId,
         )
-        leg(fromAccountId)
-        leg(toAccountId)
+        leg(fromAccountId, captureId)
+        leg(toAccountId, null)
         return groupId
     }
 
