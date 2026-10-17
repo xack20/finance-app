@@ -19,7 +19,11 @@ enum class Direction { DEBIT, CREDIT }
 enum class EngineMode { ON_DEVICE, CLOUD }
 
 /** Selected cloud LLM vendor (when EngineMode.CLOUD). */
-enum class CloudProvider { CLAUDE, GEMINI, OPENAI }
+enum class CloudProvider {
+    CLAUDE, GEMINI, OPENAI,
+    /** Claude Code on the user's Mac, on their Claude subscription, through the Hisaab Companion (no API key). */
+    CLAUDE_MAC,
+}
 
 /**
  * A parsed capture candidate: the raw message plus extracted fields, status,

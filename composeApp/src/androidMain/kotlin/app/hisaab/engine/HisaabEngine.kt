@@ -148,6 +148,7 @@ class HisaabEngine private constructor(
                     CloudProvider.CLAUDE -> claudeProvider
                     CloudProvider.GEMINI -> geminiProvider
                     CloudProvider.OPENAI -> openAiProvider
+                    CloudProvider.CLAUDE_MAC -> macBridgeProvider
                     null -> null
                 }
                 if (adapter != null && adapter.isAvailable()) adapter as? AgentProvider else null
@@ -177,6 +178,22 @@ class HisaabEngine private constructor(
         httpClient = llmHttpClient,
         apiKey = { secureStorage.loadString("llm_api_key_CLAUDE") },
         redact = { captureConfigRepository.get().redactionEnabled },
+    )
+    // "Claude via my Mac": Claude Code on the user's subscription, through the Hisaab Companion (no API key).
+    private val macBridgeProvider = app.hisaab.llm.cloud.MacBridgeProvider(
+        httpClient = llmHttpClient,
+        address = { secureStorage.loadString(app.hisaab.llm.secureKeyFor(CloudProvider.CLAUDE_MAC)) },
+        codec = {
+            secureStorage.loadMasterSecret()?.let { master ->
+                try {
+                    val bridgeKey = app.hisaab.bridge.AgentBridgeCrypto()
+                        .bridgeKey(app.hisaab.capture.RelayCaptureCrypto().relayKey(master))
+                    app.hisaab.llm.cloud.CryptoBridgeCodec(bridgeKey)
+                } finally {
+                    master.fill(0)
+                }
+            }
+        },
     )
     private val geminiProvider: GeminiProvider = GeminiProvider(
         httpClient = llmHttpClient,
@@ -216,6 +233,7 @@ class HisaabEngine private constructor(
             claude = claudeProvider,
             gemini = geminiProvider,
             openai = openAiProvider,
+            claudeMac = macBridgeProvider,
         )
 
     // M3-3: backing flow the pipeline emits AutoPosted into; M3-5 collects captureEvents.

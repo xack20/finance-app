@@ -218,6 +218,9 @@ class AutoCaptureViewModel(
         onAiSettingsChanged()
     }
 
+    /** The saved value for [provider] — only shown for the Mac address, never for API keys. */
+    fun savedValue(provider: CloudProvider): String? = loadApiKey(keyName(provider))
+
     fun clearApiKeyFor(provider: CloudProvider) {
         clearApiKey(keyName(provider))
         _savedKeys.update { it - provider }

@@ -321,14 +321,20 @@ class CompanionController(
 
         private val bridgeOnlyFile = appSupport("bridge_only")
 
-        /** This Mac's IPv4 addresses the phone can reach (Wi-Fi/Ethernet, and Tailscale's 100.x if present). */
-        private fun lanAddresses(): List<String> = runCatching {
-            java.net.NetworkInterface.getNetworkInterfaces().toList()
-                .filter { it.isUp && !it.isLoopback }
-                .flatMap { it.inetAddresses.toList() }
-                .filterIsInstance<java.net.Inet4Address>()
-                .map { it.hostAddress }
-        }.getOrDefault(emptyList())
+        /**
+         * Names the phone can use for this Mac. The phone allows plain HTTP only to *.local (Bonjour) and *.ts.net
+         * (Tailscale) names — never to raw IPs — so those are what the user should type.
+         */
+        private fun lanAddresses(): List<String> {
+            fun run(vararg cmd: String): String? = runCatching {
+                val p = ProcessBuilder(*cmd).redirectErrorStream(true).start()
+                p.inputStream.bufferedReader().readText().trim().takeIf { p.waitFor() == 0 && it.isNotBlank() }
+            }.getOrNull()
+            val bonjour = run("/usr/sbin/scutil", "--get", "LocalHostName")?.let { "$it.local" }
+            val tailscale = run("/Applications/Tailscale.app/Contents/MacOS/Tailscale", "status", "--json")
+                ?.let { Regex("\"DNSName\"\\s*:\\s*\"([^\"]+?)\\.?\"").find(it)?.groupValues?.get(1) }
+            return listOfNotNull(bonjour, tailscale)
+        }
 
         private fun appSupport(name: String): java.io.File =
             java.io.File(System.getProperty("user.home"), "Library/Application Support/HisaabCompanion/$name")

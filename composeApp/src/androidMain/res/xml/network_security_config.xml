@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  "Claude via my Mac" reaches the Hisaab Companion over plain HTTP, but only by the Mac's local-network name
+  (Bonjour, e.g. "Zakarias-MacBook-Air.local") or its Tailscale name ("…ts.net"). Every request and reply is
+  sealed end-to-end (XChaCha20-Poly1305 under a key from the recovery phrase), so the transport adds no TLS.
+  Everything else stays HTTPS-only (the platform default).
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">local</domain>
+        <domain includeSubdomains="true">ts.net</domain>
+    </domain-config>
+</network-security-config>

@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
@@ -210,11 +211,14 @@ fun AutoCaptureScreen(
                 Spacer(Modifier.height(16.dp))
                 Label("Provider", palette)
                 SurfaceCard(modifier = Modifier.fillMaxWidth()) {
-                    // Design order: Claude, OpenAI, Gemini (neo-settings.jsx:151).
-                    val providerOrder = listOf(CloudProvider.CLAUDE, CloudProvider.OPENAI, CloudProvider.GEMINI)
+                    // Design order: Claude, OpenAI, Gemini (neo-settings.jsx:151); the subscription route first.
+                    val providerOrder = listOf(
+                        CloudProvider.CLAUDE_MAC, CloudProvider.CLAUDE, CloudProvider.OPENAI, CloudProvider.GEMINI,
+                    )
                     providerOrder.forEachIndexed { index, provider ->
                         val label = when (provider) {
-                            CloudProvider.CLAUDE -> "Claude"
+                            CloudProvider.CLAUDE_MAC -> "Claude via my Mac (subscription)"
+                            CloudProvider.CLAUDE -> "Claude (API key)"
                             CloudProvider.OPENAI -> "OpenAI"
                             CloudProvider.GEMINI -> "Gemini"
                         }
@@ -235,7 +239,9 @@ fun AutoCaptureScreen(
                     SurfaceCard(modifier = Modifier.fillMaxWidth()) {
                         ApiKeyField(
                             provider = selected,
-                            currentMasked = if (hasKey) "••••••••" else null,
+                            // A Mac address isn't a secret; show it so the user can check it.
+                            currentMasked = if (!hasKey) null
+                            else if (selected == CloudProvider.CLAUDE_MAC) viewModel.savedValue(selected) else "••••••••",
                             onSet = { viewModel.setApiKey(selected, it) },
                             palette = palette,
                         )
@@ -647,8 +653,10 @@ private fun ApiKeyField(
     palette: HisaabColors.Palette,
 ) {
     var text by remember { mutableStateOf("") }
+    val isMac = provider == CloudProvider.CLAUDE_MAC
     Text(
-        "${provider.name.lowercase().replaceFirstChar { it.uppercase() }} API key",
+        if (isMac) "Mac name — shown in Hisaab Companion (e.g. Your-Mac.local, or its Tailscale …ts.net name)"
+        else "${provider.name.lowercase().replaceFirstChar { it.uppercase() }} API key",
         color = palette.muted,
         fontSize = 12.sp,
     )
@@ -657,7 +665,7 @@ private fun ApiKeyField(
         value = text,
         onValueChange = { text = it },
         textStyle = TextStyle(color = palette.onBackground, fontSize = 15.sp),
-        visualTransformation = PasswordVisualTransformation(),
+        visualTransformation = if (isMac) VisualTransformation.None else PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth()
             .clip(HisaabShapes.field)
             .background(palette.surfaceRaised)
@@ -670,6 +678,6 @@ private fun ApiKeyField(
     }
     Spacer(Modifier.height(8.dp))
     TextButton(onClick = { if (text.isNotBlank()) { onSet(text); text = "" } }) {
-        Text("Save key", color = palette.accent)
+        Text(if (isMac) "Save address" else "Save key", color = palette.accent)
     }
 }

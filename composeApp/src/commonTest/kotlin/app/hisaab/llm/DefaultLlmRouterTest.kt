@@ -95,4 +95,31 @@ class DefaultLlmRouterTest {
         val r = router(config(EngineMode.CLOUD, cloudProvider = null, cloudConsentAt = 1L))
         assertNull(r.active())
     }
+
+    @Test
+    fun `Claude via the Mac is used once its address is saved and consent given`() = runTest {
+        val mac = FakeProvider(ProviderId.CLOUD_CLAUDE, available = true)
+        val withAddress = DefaultLlmRouter(
+            configSource = { config(EngineMode.CLOUD, CloudProvider.CLAUDE_MAC, cloudConsentAt = 1L) },
+            keyLoader = { provider -> if (provider == CloudProvider.CLAUDE_MAC) "192.168.1.5" else null },
+            onDeviceProvider = null,
+            claude = FakeProvider(ProviderId.CLOUD_CLAUDE, available = true),
+            gemini = FakeProvider(ProviderId.CLOUD_GEMINI, available = false),
+            openai = FakeProvider(ProviderId.CLOUD_OPENAI, available = false),
+            claudeMac = mac,
+        )
+        kotlin.test.assertSame(mac, withAddress.active())
+
+        val noAddress = DefaultLlmRouter(
+            configSource = { config(EngineMode.CLOUD, CloudProvider.CLAUDE_MAC, cloudConsentAt = 1L) },
+            keyLoader = { null },
+            onDeviceProvider = null,
+            claude = FakeProvider(ProviderId.CLOUD_CLAUDE, available = true),
+            gemini = FakeProvider(ProviderId.CLOUD_GEMINI, available = false),
+            openai = FakeProvider(ProviderId.CLOUD_OPENAI, available = false),
+            claudeMac = mac,
+        )
+        assertNull(noAddress.active()) // never falls back to the API-key Claude
+    }
 }
+

@@ -142,6 +142,7 @@ actual class AppContainer {
             CloudProvider.CLAUDE -> claudeProvider
             CloudProvider.GEMINI -> geminiProvider
             CloudProvider.OPENAI -> openAiProvider
+            CloudProvider.CLAUDE_MAC -> macBridgeProvider
             null -> null
         }
         return if (adapter != null && adapter.isAvailable()) adapter as? AgentProvider else null
@@ -214,6 +215,22 @@ actual class AppContainer {
         apiKey = { secureStorage.loadString("llm_api_key_OPENAI") },
         redact = { captureConfigRepository.get().redactionEnabled },
     )
+    // "Claude via my Mac": Claude Code on the user's subscription, through the Hisaab Companion (no API key).
+    private val macBridgeProvider = app.hisaab.llm.cloud.MacBridgeProvider(
+        httpClient = llmHttpClient,
+        address = { secureStorage.loadString(app.hisaab.llm.secureKeyFor(CloudProvider.CLAUDE_MAC)) },
+        codec = {
+            secureStorage.loadMasterSecret()?.let { master ->
+                try {
+                    app.hisaab.llm.cloud.CryptoBridgeCodec(
+                        app.hisaab.bridge.AgentBridgeCrypto().bridgeKey(RelayCaptureCrypto().relayKey(master)),
+                    )
+                } finally {
+                    master.fill(0)
+                }
+            }
+        },
+    )
     // iOS/wasm: createOnDeviceProvider() returns null; no on-device engine on these platforms.
 
     // M3-4: DefaultLlmRouter built fresh each access (fresh-DB pattern). Providers are
@@ -226,6 +243,7 @@ actual class AppContainer {
             claude = claudeProvider,
             gemini = geminiProvider,
             openai = openAiProvider,
+            claudeMac = macBridgeProvider,
         )
 
     // M3-3: backing flow the pipeline emits AutoPosted into; M3-5 collects captureEvents.
