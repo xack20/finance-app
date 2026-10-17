@@ -126,14 +126,16 @@ fun AutoCaptureScreen(
         ) {
             Spacer(Modifier.height(8.dp))
 
-            // Mac companion — shown on EVERY platform (it's the only automatic SMS path on iOS,
-            // which can't read SMS natively; the iOS native-SMS explainer below still applies).
-            MacCompanionSection(
-                enabled = c.relayCaptureEnabled,
-                ready = relayReady,
-                palette = palette,
-                onToggle = viewModel::setRelayCaptureEnabled,
-            )
+            // Mac companion — only where the phone can't read SMS itself (iOS); there it's the only automatic
+            // SMS path. An Android phone reads its own SMS, so the relay would just duplicate it.
+            if (!smsSupported) {
+                MacCompanionSection(
+                    enabled = c.relayCaptureEnabled,
+                    ready = relayReady,
+                    palette = palette,
+                    onToggle = viewModel::setRelayCaptureEnabled,
+                )
+            }
 
             if (!smsSupported) {
                 IosUnavailableExplainer(palette)
@@ -396,7 +398,7 @@ fun AutoCaptureScreen(
             SurfaceCard(modifier = Modifier.fillMaxWidth()) {
                 SyncStatusLine("SMS", sync.sms, palette)
                 SyncStatusLine("Email", sync.email, palette)
-                SyncStatusLine("Mac relay", sync.relay, palette)
+                if (!smsSupported) SyncStatusLine("Mac relay", sync.relay, palette)
             }
             if (!backgroundAllowed) {
                 Spacer(Modifier.height(8.dp))
@@ -646,7 +648,7 @@ private fun NotificationSection(
     }
 }
 
-/** P2: toggle + status for the Mac→phone SMS relay. Visible on all platforms (iOS-primary). */
+/** P2: toggle + status for the Mac→phone SMS relay. Shown only where the phone can't read SMS (iOS). */
 @Composable
 private fun MacCompanionSection(
     enabled: Boolean,
