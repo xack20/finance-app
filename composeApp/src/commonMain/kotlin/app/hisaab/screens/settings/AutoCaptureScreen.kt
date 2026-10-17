@@ -305,7 +305,7 @@ fun AutoCaptureScreen(
                             modifier = Modifier.weight(1f),
                         )
                         Text(
-                            "${(c.autoPostThreshold * 100).toInt()}%",
+                            "${thresholdPercent(c.autoPostThreshold)}%",
                             color = palette.accent,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,

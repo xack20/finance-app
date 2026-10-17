@@ -1,6 +1,7 @@
 package app.hisaab.screens.settings
 
 import app.hisaab.capture.SyncStatuses
+import kotlin.math.roundToInt
 import app.hisaab.data.AccountRepository
 import app.hisaab.data.CaptureConfigRepository
 import app.hisaab.data.SenderRepository
@@ -37,6 +38,9 @@ sealed interface KeyValidation {
 
 /** Default auto-post confidence threshold (CaptureConfig schema default). */
 const val DEFAULT_AUTO_POST_THRESHOLD: Double = 0.85
+
+/** A threshold as the whole percent the user picked (slider floats arrive as 0.28999… for 29%). */
+fun thresholdPercent(threshold: Double): Int = (threshold * 100).roundToInt()
 
 /** Slider bounds. Not 0: a near-zero bar would auto-post messages that barely parsed. */
 val AUTO_POST_THRESHOLD_RANGE: ClosedFloatingPointRange<Float> = 0.10f..0.99f

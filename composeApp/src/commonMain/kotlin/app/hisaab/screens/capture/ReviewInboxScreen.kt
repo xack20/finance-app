@@ -1,5 +1,7 @@
 package app.hisaab.screens.capture
 
+import app.hisaab.screens.settings.DEFAULT_AUTO_POST_THRESHOLD
+import app.hisaab.screens.settings.thresholdPercent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -47,9 +49,6 @@ import app.hisaab.design.components.PrimaryButton
 import app.hisaab.design.components.categoryHue
 import app.hisaab.domain.Direction
 
-/** Default auto-post threshold (matches CaptureConfig default 0.85) for the bulk action. */
-private const val HIGH_CONFIDENCE_THRESHOLD = 0.85
-
 @Composable
 fun ReviewInboxScreen(
     onBack: () -> Unit,
@@ -66,11 +65,15 @@ fun ReviewInboxScreen(
     }
     DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val pending by viewModel.pending.collectAsState()
+    // The bulk button and the "confident" pill follow the user's Auto-post confidence, not a fixed 85%.
+    val config by remember { container.captureConfigRepository.observe() }.collectAsState(initial = null)
+    val threshold = config?.autoPostThreshold ?: DEFAULT_AUTO_POST_THRESHOLD
     ReviewInboxContent(
         pending = pending,
+        threshold = threshold,
         onBack = onBack,
         onConfirm = viewModel::confirm,
-        onConfirmAllHighConfidence = { viewModel.confirmAllHighConfidence(HIGH_CONFIDENCE_THRESHOLD) },
+        onConfirmAllHighConfidence = { viewModel.confirmAllHighConfidence(threshold) },
         onDismiss = viewModel::dismiss,
         onEdit = onEdit,
     )
@@ -90,6 +93,7 @@ fun ReviewInboxContent(
     onConfirmAllHighConfidence: () -> Unit,
     onDismiss: (candidateId: String) -> Unit,
     onEdit: (candidateId: String) -> Unit,
+    threshold: Double = DEFAULT_AUTO_POST_THRESHOLD,
 ) {
     val palette = LocalHisaabPalette.current
     Column(modifier = Modifier.fillMaxSize().background(palette.background)) {
@@ -120,11 +124,11 @@ fun ReviewInboxContent(
                 return@Column
             }
 
-            val anyHigh = pending.any { (it.candidate.confidence ?: 0.0) >= HIGH_CONFIDENCE_THRESHOLD }
+            val anyHigh = pending.any { (it.candidate.confidence ?: 0.0) >= threshold }
             if (anyHigh) {
                 Spacer(Modifier.height(8.dp))
                 PrimaryButton(
-                    text = "Confirm all high-confidence",
+                    text = "Confirm all ≥ ${thresholdPercent(threshold)}%",
                     onClick = onConfirmAllHighConfidence,
                 )
             }
@@ -159,6 +163,7 @@ fun ReviewInboxContent(
                     ) {
                         CandidateCard(
                             rc = rc,
+                            threshold = threshold,
                             palette = palette,
                             onConfirm = { onConfirm(rc.candidate.id) },
                             onEdit = { onEdit(rc.candidate.id) },
@@ -175,6 +180,7 @@ fun ReviewInboxContent(
 @Composable
 private fun CandidateCard(
     rc: ReviewCandidate,
+    threshold: Double,
     palette: HisaabColors.Palette,
     onConfirm: () -> Unit,
     onEdit: () -> Unit,
@@ -225,9 +231,9 @@ private fun CandidateCard(
                 color = palette.muted,
                 fontSize = 13.sp,
             )
-            // Confidence pill — pos when ≥85%, amber otherwise.
+            // Confidence pill — pos when at/above the user's auto-post threshold, amber otherwise.
             c.confidence?.let { conf ->
-                val high = conf >= HIGH_CONFIDENCE_THRESHOLD
+                val high = conf >= threshold
                 val amber = HisaabColors.categoryHues.getValue("amber")
                 Box(
                     modifier = Modifier
@@ -236,7 +242,7 @@ private fun CandidateCard(
                         .padding(horizontal = 8.dp, vertical = 3.dp),
                 ) {
                     Text(
-                        "${(conf * 100).toInt()}% sure",
+                        "${thresholdPercent(conf)}% sure",
                         color = if (high) palette.positive else amber,
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
