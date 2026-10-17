@@ -205,17 +205,17 @@ fun AutoCaptureScreen(
 
                 val selected = c.cloudProvider
                 if (selected != null) {
+                    val hasKey = selected in savedKeys
                     // ── API key field ────────────────────────────────────────
                     Spacer(Modifier.height(12.dp))
                     SurfaceCard(modifier = Modifier.fillMaxWidth()) {
                         ApiKeyField(
                             provider = selected,
-                            currentMasked = viewModel.apiKeyFor(selected)?.let { if (it.isBlank()) null else "••••••••" },
+                            currentMasked = if (hasKey) "••••••••" else null,
                             onSet = { viewModel.setApiKey(selected, it) },
                             palette = palette,
                         )
                         Spacer(Modifier.height(8.dp))
-                        val hasKey = (viewModel.apiKeyFor(selected)?.isNotBlank() == true)
                         GlassButton(
                             text = "Validate",
                             onClick = { viewModel.validateApiKey() },
@@ -223,18 +223,19 @@ fun AutoCaptureScreen(
                             modifier = Modifier,
                         )
                         Spacer(Modifier.height(4.dp))
-                        if (keyValidation != KeyValidation.IDLE) {
+                        val validation = keyValidation
+                        if (validation != KeyValidation.Idle) {
                             Text(
-                                when (keyValidation) {
-                                    KeyValidation.IDLE -> ""
-                                    KeyValidation.CHECKING -> "Checking…"
-                                    KeyValidation.VALID -> "Valid key"
-                                    KeyValidation.INVALID -> "Invalid key"
+                                when (validation) {
+                                    KeyValidation.Idle -> ""
+                                    KeyValidation.Checking -> "Checking with the provider…"
+                                    KeyValidation.Valid -> "Valid key"
+                                    is KeyValidation.Invalid -> validation.reason
                                 },
-                                color = when (keyValidation) {
-                                    KeyValidation.VALID -> palette.positive
-                                    KeyValidation.INVALID -> palette.negative
-                                    else -> palette.muted
+                                color = when (validation) {
+                                    KeyValidation.Valid -> palette.positive
+                                    is KeyValidation.Invalid -> palette.negative
+                                    KeyValidation.Idle, KeyValidation.Checking -> palette.muted
                                 },
                                 fontSize = 12.sp,
                             )

@@ -8,7 +8,10 @@ import app.hisaab.domain.CaptureConfig
 import app.hisaab.domain.CloudProvider
 import app.hisaab.domain.EngineMode
 import app.hisaab.domain.SenderMapping
+import app.hisaab.llm.LlmError
+import app.hisaab.llm.LlmException
 import app.hisaab.llm.LlmRouter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,11 +22,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
-/** Result of a "Validate" tap on the cloud key field. */
-enum class KeyValidation { IDLE, CHECKING, VALID, INVALID }
+/** Result of a "Validate" tap on the cloud key field; [Invalid] says why, in user-facing words. */
+sealed interface KeyValidation {
+    data object Idle : KeyValidation
+    data object Checking : KeyValidation
+    data object Valid : KeyValidation
+    data class Invalid(val reason: String) : KeyValidation
+}
 
 /** Default auto-post confidence threshold (CaptureConfig schema default). */
 const val DEFAULT_AUTO_POST_THRESHOLD: Double = 0.85
@@ -67,8 +76,14 @@ class AutoCaptureViewModel(
     val accounts = accountRepo.observeActive()
         .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val _keyValidation = MutableStateFlow(KeyValidation.IDLE)
+    private val _keyValidation = MutableStateFlow<KeyValidation>(KeyValidation.Idle)
     val keyValidation: StateFlow<KeyValidation> = _keyValidation.asStateFlow()
+
+    /** Providers with a stored API key — observable so the Validate button enables right after Save. */
+    private val _savedKeys = MutableStateFlow(
+        CloudProvider.entries.filter { !loadApiKey(keyName(it)).isNullOrBlank() }.toSet(),
+    )
+    val savedKeys: StateFlow<Set<CloudProvider>> = _savedKeys.asStateFlow()
 
     private val _permissionDenied = MutableStateFlow(false)
     val permissionDenied: StateFlow<Boolean> = _permissionDenied.asStateFlow()
@@ -152,28 +167,52 @@ class AutoCaptureViewModel(
         scope.launch { configRepo.setCloudProvider(provider, model) }
     }
 
-    fun apiKeyFor(provider: CloudProvider): String? = loadApiKey(keyName(provider))
-
     fun setApiKey(provider: CloudProvider, value: String) {
-        storeApiKey(keyName(provider), value)
-        _keyValidation.value = KeyValidation.IDLE
+        val key = value.trim() // pasted keys often carry a trailing newline, which is illegal in an HTTP header
+        storeApiKey(keyName(provider), key)
+        _savedKeys.update { if (key.isBlank()) it - provider else it + provider }
+        _keyValidation.value = KeyValidation.Idle
     }
 
     fun clearApiKeyFor(provider: CloudProvider) {
         clearApiKey(keyName(provider))
-        _keyValidation.value = KeyValidation.IDLE
+        _savedKeys.update { it - provider }
+        _keyValidation.value = KeyValidation.Idle
     }
 
+    /** Checks consent and key presence locally, then asks the provider itself whether it accepts the key. */
     fun validateApiKey() {
         scope.launch {
-            _keyValidation.value = KeyValidation.CHECKING
-            val provider = router.active()
-            _keyValidation.value = when {
-                provider == null -> KeyValidation.INVALID
-                provider.isAvailable() -> KeyValidation.VALID
-                else -> KeyValidation.INVALID
+            _keyValidation.value = KeyValidation.Checking
+            if (configRepo.get().cloudConsentAt == null) {
+                _keyValidation.value = KeyValidation.Invalid("Agree to cloud processing first (Cloud consent).")
+                return@launch
+            }
+            val provider = router.active() ?: run {
+                _keyValidation.value = KeyValidation.Invalid("Save a key for this provider first.")
+                return@launch
+            }
+            _keyValidation.value = try {
+                provider.verifyKey()
+                KeyValidation.Valid
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: LlmException) {
+                KeyValidation.Invalid(reasonFor(e.error))
+            } catch (e: Exception) {
+                KeyValidation.Invalid("Couldn't reach the provider — check your connection.")
             }
         }
+    }
+
+    private fun reasonFor(error: LlmError): String = when (error) {
+        LlmError.InvalidKey -> "Key rejected — check it was copied in full."
+        LlmError.RateLimited -> "Rate-limited — try again in a moment."
+        LlmError.Unavailable -> "Provider unavailable — try again later."
+        is LlmError.Network -> "Couldn't reach the provider — check your connection."
+        is LlmError.ProviderError -> error.detail
+        is LlmError.Decode -> error.message
+        is LlmError.Refused -> error.message
     }
 
     // ---- Safety ----

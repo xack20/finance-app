@@ -101,6 +101,20 @@ class AutoCaptureViewModelTest {
     }
 
     @Test
+    fun `savedKeys reflects stored keys and updates on save and clear`() = runTest {
+        val keys = FakeKeyStore().apply { store("llm_api_key_GEMINI", "g-key") }
+        val v = vm(keys = keys)
+        assertEquals(setOf(CloudProvider.GEMINI), v.savedKeys.value)
+
+        // The Validate button reads this — it must flip the moment a key is saved, not on screen reopen.
+        v.setApiKey(CloudProvider.CLAUDE, "sk-ant-test")
+        assertEquals(setOf(CloudProvider.GEMINI, CloudProvider.CLAUDE), v.savedKeys.value)
+
+        v.clearApiKeyFor(CloudProvider.GEMINI)
+        assertEquals(setOf(CloudProvider.CLAUDE), v.savedKeys.value)
+    }
+
+    @Test
     fun `setApiKey stores under provider-scoped key`() = runTest {
         val keys = FakeKeyStore()
         val v = vm(keys = keys)
@@ -110,21 +124,47 @@ class AutoCaptureViewModelTest {
     }
 
     @Test
-    fun `validateApiKey reports valid when provider is available`() = runTest {
+    fun `validateApiKey reports valid when the provider accepts the key`() = runTest {
+        val router = FakeLlmRouter(provider = FakeLlmProvider(ProviderId.CLOUD_CLAUDE, available = true))
+        val v = vm(router = router)
+        v.recordConsent(1L)
+        advanceUntilIdle()
+        v.validateApiKey()
+        advanceUntilIdle()
+        assertEquals(KeyValidation.Valid, v.keyValidation.value)
+    }
+
+    @Test
+    fun `validateApiKey asks for consent before checking the key`() = runTest {
         val router = FakeLlmRouter(provider = FakeLlmProvider(ProviderId.CLOUD_CLAUDE, available = true))
         val v = vm(router = router)
         v.validateApiKey()
         advanceUntilIdle()
-        assertEquals(KeyValidation.VALID, v.keyValidation.value)
+        val state = v.keyValidation.value
+        assertTrue(state is KeyValidation.Invalid && state.reason.contains("consent", ignoreCase = true), "$state")
     }
 
     @Test
-    fun `validateApiKey reports invalid when provider unavailable`() = runTest {
-        val router = FakeLlmRouter(provider = FakeLlmProvider(ProviderId.CLOUD_CLAUDE, available = false))
-        val v = vm(router = router)
+    fun `validateApiKey asks for a key when none is saved`() = runTest {
+        val v = vm(router = FakeLlmRouter(provider = null))
+        v.recordConsent(1L)
+        advanceUntilIdle()
         v.validateApiKey()
         advanceUntilIdle()
-        assertEquals(KeyValidation.INVALID, v.keyValidation.value)
+        val state = v.keyValidation.value
+        assertTrue(state is KeyValidation.Invalid && state.reason.contains("key", ignoreCase = true), "$state")
+    }
+
+    @Test
+    fun `validateApiKey shows the provider's own rejection reason`() = runTest {
+        val rejection = app.hisaab.llm.LlmError.ProviderError(400, "This API key is not scoped to a workspace")
+        val router = FakeLlmRouter(FakeLlmProvider(ProviderId.CLOUD_CLAUDE, available = true, verifyError = rejection))
+        val v = vm(router = router)
+        v.recordConsent(1L)
+        advanceUntilIdle()
+        v.validateApiKey()
+        advanceUntilIdle()
+        assertEquals(KeyValidation.Invalid("This API key is not scoped to a workspace"), v.keyValidation.value)
     }
 
     @Test

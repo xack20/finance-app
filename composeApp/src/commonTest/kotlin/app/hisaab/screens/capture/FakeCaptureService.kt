@@ -3,6 +3,8 @@ package app.hisaab.screens.capture
 import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.Category
 import app.hisaab.domain.RawCapture
+import app.hisaab.llm.LlmError
+import app.hisaab.llm.LlmException
 import app.hisaab.llm.LlmParseResult
 import app.hisaab.llm.LlmProvider
 import app.hisaab.llm.LlmRouter
@@ -44,8 +46,10 @@ class FakeCaptureGateway(
 class FakeLlmProvider(
     override val id: ProviderId,
     private val available: Boolean,
+    private val verifyError: LlmError? = null,
 ) : LlmProvider {
     override suspend fun isAvailable(): Boolean = available
+    override suspend fun verifyKey() { verifyError?.let { throw LlmException(it) } }
     override suspend fun parse(req: ParseRequest): LlmParseResult =
         LlmParseResult(null, null, null, null, null, null, 0.0, false)
     override suspend fun categorize(merchant: String, categories: List<Category>): String? = null

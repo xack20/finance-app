@@ -18,6 +18,7 @@ import app.hisaab.llm.mapHttpError
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -65,6 +66,25 @@ class ClaudeProvider(
     override val id = ProviderId.CLOUD_CLAUDE
 
     override suspend fun isAvailable(): Boolean = !apiKey().isNullOrBlank()
+
+    /** Free credential check: GET /v1/models. A rejection carries Anthropic's own message for the UI. */
+    override suspend fun verifyKey() {
+        val key = apiKey() ?: throw LlmException(LlmError.InvalidKey)
+        val response = client.get("https://api.anthropic.com/v1/models") {
+            header("x-api-key", key)
+            header("anthropic-version", anthropicVersion)
+        }
+        if (response.status.isSuccess()) return
+        val body = response.bodyAsText()
+        val message = runCatching {
+            LlmJson.json.parseToJsonElement(body).jsonObject["error"]?.jsonObject
+                ?.get("message")?.jsonPrimitive?.contentOrNull
+        }.getOrNull()
+        val error = mapHttpError(response.status, body)
+        throw LlmException(
+            if (error is LlmError.ProviderError && message != null) error.copy(detail = message) else error,
+        )
+    }
 
     override suspend fun parse(req: ParseRequest): LlmParseResult {
         val key = apiKey() ?: throw LlmException(LlmError.InvalidKey)

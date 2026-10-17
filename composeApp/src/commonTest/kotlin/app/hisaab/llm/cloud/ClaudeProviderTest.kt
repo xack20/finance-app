@@ -128,6 +128,48 @@ class ClaudeProviderTest {
     }
 
     @Test
+    fun `verifyKey lists models with the key and passes on 200`() = runTest {
+        var path = ""
+        var method = ""
+        var key: String? = null
+        val engine = MockEngine { request ->
+            path = request.url.encodedPath
+            method = request.method.value
+            key = request.headers["x-api-key"]
+            respond("""{"data":[]}""", HttpStatusCode.OK, jsonHeaders())
+        }
+        ClaudeProvider(HttpClient(engine), apiKey = { "sk-ant-test" }).verifyKey()
+        assertEquals("/v1/models", path)
+        assertEquals("GET", method)
+        assertEquals("sk-ant-test", key)
+    }
+
+    @Test
+    fun `verifyKey surfaces Anthropic's error message`() = runTest {
+        val engine = MockEngine {
+            respond(
+                """{"type":"error","error":{"type":"invalid_request_error",""" +
+                    """"message":"This API key is not scoped to a workspace"}}""",
+                HttpStatusCode.BadRequest,
+                jsonHeaders(),
+            )
+        }
+        val ex = assertFailsWith<LlmException> {
+            ClaudeProvider(HttpClient(engine), apiKey = { "k" }).verifyKey()
+        }
+        assertEquals(LlmError.ProviderError(400, "This API key is not scoped to a workspace"), ex.error)
+    }
+
+    @Test
+    fun `verifyKey maps 401 to invalid key`() = runTest {
+        val engine = MockEngine { respond("""{"type":"error"}""", HttpStatusCode.Unauthorized, jsonHeaders()) }
+        val ex = assertFailsWith<LlmException> {
+            ClaudeProvider(HttpClient(engine), apiKey = { "bad" }).verifyKey()
+        }
+        assertEquals(LlmError.InvalidKey, ex.error)
+    }
+
+    @Test
     fun `401 maps to invalid key`() = runTest {
         val engine = MockEngine { respond("unauthorized", HttpStatusCode.Unauthorized) }
         val provider = ClaudeProvider(HttpClient(engine), apiKey = { "bad" })
