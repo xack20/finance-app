@@ -1,32 +1,34 @@
 package app.hisaab.platform
 
-import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.provider.Settings
-import android.provider.Telephony
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import app.hisaab.capture.HisaabNotificationListenerService
-import app.hisaab.capture.CaptureBus
+import app.hisaab.capture.SmsCaptureSource
+import app.hisaab.capture.SmsCaptureSource.Companion.REQUIRED_SMS_PERMISSIONS
 import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.RawCapture
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 
+/**
+ * Activity-bound side of Android capture: the SMS permission request (needs registerForActivityResult) and
+ * notification-access settings. Reading SMS is delegated to [SmsCaptureSource], which the process-scoped
+ * engine also uses for background capture.
+ */
 actual class CaptureService(
     private val context: Context,
     private val activity: FragmentActivity,
 ) : app.hisaab.capture.CaptureSource {
+
+    private val sms = SmsCaptureSource(context)
 
     private val permissionResult = MutableSharedFlow<Boolean>(replay = 0, extraBufferCapacity = 1)
     private val permissionMutex = Mutex()
@@ -37,12 +39,9 @@ actual class CaptureService(
             permissionResult.tryEmit(allGranted)
         }
 
-    actual override fun capabilities(): Set<CaptureChannel> =
-        setOf(CaptureChannel.SMS, CaptureChannel.NOTIFICATION)
+    actual override fun capabilities(): Set<CaptureChannel> = sms.capabilities()
 
-    actual suspend fun hasSmsPermission(): Boolean = REQUIRED_SMS_PERMISSIONS.all {
-        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-    }
+    actual suspend fun hasSmsPermission(): Boolean = sms.hasSmsPermission()
 
     actual suspend fun requestSmsPermission(): Boolean = permissionMutex.withLock {
         if (hasSmsPermission()) return@withLock true
@@ -50,50 +49,9 @@ actual class CaptureService(
         permissionResult.first()
     }
 
-    /** Live stream is the process-global [CaptureBus] populated by the receiver/service. */
-    actual override fun observeIncoming(): Flow<RawCapture> = CaptureBus.captures
+    actual override fun observeIncoming(): Flow<RawCapture> = sms.observeIncoming()
 
-    /**
-     * Catch-up / one-time backfill: every inbox SMS with `date > cursorMs`, oldest-first.
-     * Reads only the inbox; bounded projection; never logs bodies. The coordinator's
-     * `CaptureCoordinator.importAllHistory()` calls this with 0 to import every SMS on the phone.
-     */
-    actual override suspend fun backfillSince(cursorMs: Long): List<RawCapture> =
-        withContext(Dispatchers.Default) {
-            if (!hasSmsPermission()) return@withContext emptyList()
-            val results = mutableListOf<RawCapture>()
-            val projection = arrayOf(
-                Telephony.Sms.ADDRESS,
-                Telephony.Sms.BODY,
-                Telephony.Sms.DATE,
-            )
-            context.contentResolver.query(
-                Telephony.Sms.Inbox.CONTENT_URI,
-                projection,
-                "${Telephony.Sms.DATE} > ?",
-                arrayOf(cursorMs.toString()),
-                "${Telephony.Sms.DATE} ASC",
-            )?.use { cursor ->
-                val addressIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
-                val bodyIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.BODY)
-                val dateIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.DATE)
-                while (cursor.moveToNext()) {
-                    val address = cursor.getString(addressIdx) ?: continue
-                    val body = cursor.getString(bodyIdx) ?: continue
-                    if (body.isBlank()) continue
-                    val date = cursor.getLong(dateIdx)
-                    results.add(
-                        RawCapture(
-                            sender = address,
-                            body = body,
-                            receivedAt = date,
-                            channel = CaptureChannel.SMS,
-                        ),
-                    )
-                }
-            }
-            results
-        }
+    actual override suspend fun backfillSince(cursorMs: Long): List<RawCapture> = sms.backfillSince(cursorMs)
 
     /** Deep-links to the OS notification-access screen so the user can grant the fallback path. */
     actual fun openNotificationAccessSettings() {
@@ -118,12 +76,5 @@ actual class CaptureService(
     /** Mirrors the persisted notification flag to the OS-bound listener's process-global gate. */
     actual fun setNotificationListenerEnabled(enabled: Boolean) {
         app.hisaab.capture.NotificationCaptureGate.enabled = enabled
-    }
-
-    private companion object {
-        val REQUIRED_SMS_PERMISSIONS = arrayOf(
-            Manifest.permission.RECEIVE_SMS,
-            Manifest.permission.READ_SMS,
-        )
     }
 }

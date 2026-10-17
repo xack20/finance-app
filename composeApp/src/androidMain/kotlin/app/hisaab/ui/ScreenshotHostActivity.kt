@@ -23,6 +23,9 @@ class ScreenshotHostActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Each test launch used to get its own container + DB; the engine is process-wide now, so reset it
+        // to keep tests isolated and let a new authOverride take effect.
+        app.hisaab.engine.HisaabEngine.resetForTests()
         val override = authOverride
         container = if (override != null) {
             AppContainer(applicationContext, this, override)
