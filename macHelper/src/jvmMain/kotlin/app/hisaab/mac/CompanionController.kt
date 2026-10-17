@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.hisaab.capture.ImapConfig
 import app.hisaab.capture.ImapHosts
+import app.hisaab.bridge.AgentBridgeCrypto
+import app.hisaab.bridge.BridgeResponse
 import app.hisaab.capture.RelayCaptureCrypto
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -66,8 +68,24 @@ class CompanionController(
     var connectedEmail by mutableStateOf<String?>(null)
         private set
 
+    /** Paired only to lend Claude to the phone (an Android phone reads its own SMS, so no sign-in is needed). */
+    var bridgeOnly by mutableStateOf(bridgeOnlyFile.exists())
+        private set
+
+    /** Claude-bridge status for the UI: where the phone should connect, and how many requests were answered. */
+    var bridgeAddresses by mutableStateOf<List<String>>(emptyList())
+        private set
+    var bridgeServed by mutableStateOf(0)
+        private set
+    var claudeInstalled by mutableStateOf(false)
+        private set
+
     private val relay: SupabaseRelay? = config?.let { SupabaseRelay(it.supabaseUrl, it.supabaseAnonKey) }
     private val crypto = RelayCaptureCrypto()
+    private val bridgeCrypto = AgentBridgeCrypto()
+    private val claude = ClaudeCli()
+    private var bridge: BridgeServer? = null
+    @Volatile
     private var relayKey: ByteArray? = null
     private var loopJob: Job? = null
     private var imapConfig: ImapConfig? = null
@@ -79,6 +97,19 @@ class CompanionController(
      * No-op (stays on the sign-in step) when nothing is stored or the session can't be restored.
      */
     fun resume() {
+        if (bridgeOnly) {
+            scope.launch(Dispatchers.IO) {
+                val key = MacKeychain.loadItem(ACCOUNT_RELAY_KEY)?.let { runCatching { Base64.decode(it) }.getOrNull() }
+                if (key != null) {
+                    relayKey = key
+                    stage = Stage.Running
+                    startBridge()
+                } else {
+                    stage = Stage.NeedsPairing
+                }
+            }
+            return
+        }
         val r = relay ?: return
         scope.launch(Dispatchers.IO) {
             val sessionJson = MacKeychain.loadItem(ACCOUNT_SESSION) ?: return@launch
@@ -90,6 +121,7 @@ class CompanionController(
                 restoreEmail()
                 stage = Stage.Running
                 startLoop()
+                startBridge()
             } else {
                 stage = Stage.NeedsPairing
             }
@@ -118,14 +150,52 @@ class CompanionController(
         val key = Pairing.relayKeyFromPhrase(phrase) // throws on bad words/checksum → surfaced
         relayKey = key
         MacKeychain.saveItem(ACCOUNT_RELAY_KEY, Base64.encode(key)) // survive relaunch (no re-pair)
-        restoreEmail() // resume a previously-connected mailbox (password from Keychain)
         stage = Stage.Running
-        startLoop()
+        if (!bridgeOnly) {
+            restoreEmail() // resume a previously-connected mailbox (password from Keychain)
+            startLoop()
+        }
+        startBridge()
+    }
+
+    /** Skip sign-in: this Mac only answers the phone's Claude requests (pairing still needed for the key). */
+    fun useAsBridgeOnly() {
+        bridgeOnlyFile.parentFile?.mkdirs()
+        bridgeOnlyFile.writeText("1")
+        bridgeOnly = true
+        error = null
+        stage = Stage.NeedsPairing
+    }
+
+    /** Starts the phone's Claude endpoint once paired. Idempotent. */
+    private fun startBridge() {
+        if (bridge != null) return
+        claudeInstalled = claude.isInstalled()
+        bridgeAddresses = lanAddresses()
+        val server = BridgeServer(
+            bridgeKey = { relayKey?.let(bridgeCrypto::bridgeKey) },
+            answer = { req ->
+                val reply = claude.complete(req.system, req.turns)
+                CompanionLog.log("bridge: answered ${req.turns.size} turn(s), error=${reply.error != null}")
+                BridgeResponse(req.id, reply.text, reply.error, reply.limitReached)
+            },
+            ping = { req ->
+                if (claude.isInstalled()) BridgeResponse(req.id, text = "ready")
+                else BridgeResponse(req.id, error = "Claude Code isn't installed on this Mac")
+            },
+            onServed = { bridgeServed++ },
+        )
+        runCatching { server.start() }
+            .onSuccess { bridge = server }
+            .onFailure { error = "Claude bridge couldn't start (port ${AgentBridgeCrypto.DEFAULT_PORT} busy?): ${it.message}" }
     }
 
     /** Forget the saved session + pairing (e.g. to switch accounts); returns to the sign-in step. */
     fun signOut() {
         loopJob?.cancel(); loopJob = null
+        bridge?.stop(); bridge = null
+        bridgeOnlyFile.delete()
+        bridgeOnly = false
         relayKey = null
         imapConfig = null
         emailConnected = false
@@ -228,7 +298,7 @@ class CompanionController(
     }
 
     private fun launchAction(errorPrefix: String, action: suspend () -> Unit) {
-        if (relay == null) { stage = Stage.NeedsConfig; return }
+        if (relay == null && !bridgeOnly) { stage = Stage.NeedsConfig; return }
         busy = true
         error = null
         scope.launch(Dispatchers.IO) {
@@ -248,6 +318,17 @@ class CompanionController(
         private fun defaultDeviceId(): String =
             runCatching { "mac-" + InetAddress.getLocalHost().hostName }
                 .getOrElse { "mac-" + UUID.randomUUID().toString().take(8) }
+
+        private val bridgeOnlyFile = appSupport("bridge_only")
+
+        /** This Mac's IPv4 addresses the phone can reach (Wi-Fi/Ethernet, and Tailscale's 100.x if present). */
+        private fun lanAddresses(): List<String> = runCatching {
+            java.net.NetworkInterface.getNetworkInterfaces().toList()
+                .filter { it.isUp && !it.isLoopback }
+                .flatMap { it.inetAddresses.toList() }
+                .filterIsInstance<java.net.Inet4Address>()
+                .map { it.hostAddress }
+        }.getOrDefault(emptyList())
 
         private fun appSupport(name: String): java.io.File =
             java.io.File(System.getProperty("user.home"), "Library/Application Support/HisaabCompanion/$name")

@@ -58,6 +58,9 @@ private fun SignInStep(controller: CompanionController) {
     Text("Sign in with the same phone number as your Hisaab app.")
     OutlinedTextField(phone, { phone = it }, label = { Text("Phone (e.g. +8801…)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
     Button(onClick = { controller.sendOtp(phone) }, enabled = !controller.busy && phone.isNotBlank()) { Text("Send code") }
+    Divider()
+    Text("Android phone? It reads its own SMS — this Mac only needs to lend it Claude (your subscription).")
+    OutlinedButton(onClick = { controller.useAsBridgeOnly() }) { Text("Only use this Mac as Hisaab's Claude bridge") }
 }
 
 @Composable
@@ -78,10 +81,14 @@ private fun PairStep(controller: CompanionController) {
 
 @Composable
 private fun RunningStep(controller: CompanionController) {
-    Text("✓ Running — forwarding bank SMS to your phone.", style = MaterialTheme.typography.titleMedium)
-    controller.lastSyncNote?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-    Text("Total items synced this session: ${controller.totalPushed}", style = MaterialTheme.typography.bodySmall)
-    EmailSection(controller)
+    if (!controller.bridgeOnly) {
+        Text("✓ Running — forwarding bank SMS to your phone.", style = MaterialTheme.typography.titleMedium)
+        controller.lastSyncNote?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        Text("Total items synced this session: ${controller.totalPushed}", style = MaterialTheme.typography.bodySmall)
+        EmailSection(controller)
+        Divider()
+    }
+    BridgeSection(controller)
     Divider()
     OutlinedButton(onClick = { controller.signOut() }, enabled = !controller.busy) {
         Text("Sign out / switch account")
@@ -109,6 +116,29 @@ private fun EmailSection(controller: CompanionController) {
         onClick = { controller.configureEmail(email, appPassword) },
         enabled = !controller.busy && email.isNotBlank() && appPassword.isNotBlank(),
     ) { Text(if (controller.emailConnected) "Update email login" else "Connect email") }
+}
+
+/** The phone's "Claude via my Mac" endpoint: what to type on the phone, and whether it works. */
+@Composable
+private fun BridgeSection(controller: CompanionController) {
+    Text("Claude for your phone", style = MaterialTheme.typography.titleMedium)
+    if (!controller.claudeInstalled) {
+        Text("Claude Code isn't installed — install it and log in with your Claude subscription (`claude`).")
+    } else {
+        Text("✓ Using Claude Code on this Mac with your subscription — no API key.")
+    }
+    val addresses = controller.bridgeAddresses
+    if (addresses.isEmpty()) {
+        Text("No network address found — connect this Mac to Wi-Fi.", style = MaterialTheme.typography.bodySmall)
+    } else {
+        Text(
+            "In Hisaab on your phone: Settings → Auto-capture → Provider \"Claude via my Mac\", then enter " +
+                "this Mac's address: " + addresses.joinToString(" or "),
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+    Text("Requests answered: ${controller.bridgeServed}", style = MaterialTheme.typography.bodySmall)
+    Text("Keep this Mac awake and this app open while the phone is reading messages.", style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable
