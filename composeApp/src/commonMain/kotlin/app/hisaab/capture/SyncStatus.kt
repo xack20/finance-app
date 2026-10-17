@@ -78,8 +78,12 @@ fun notificationText(statuses: SyncStatuses): String {
     }
     channels.firstOrNull { it.second is ChannelStatus.Importing }?.let { (name, status) ->
         val importing = status as ChannelStatus.Importing
-        val lowered = if (name == "Email") "email" else name
-        return if (importing.total == 0) "Importing $lowered…" else "Importing $lowered: ${importing.done} of ${importing.total}"
+        val action = when (name) {
+            "Cloud AI" -> "Reading messages" // the capture agent working through the queue
+            "Email" -> "Importing email"
+            else -> "Importing $name"
+        }
+        return if (importing.total == 0) "$action…" else "$action: ${importing.done} of ${importing.total}"
     }
     return "Watching SMS & email for transactions"
 }

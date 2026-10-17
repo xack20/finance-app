@@ -9,6 +9,7 @@ import app.hisaab.capture.CaptureEvent
 import app.hisaab.data.AgentQuestionRepository
 import app.hisaab.data.CaptureInboxRepository
 import app.hisaab.domain.CandidateTransaction
+import kotlinx.coroutines.CancellationException
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -35,10 +36,10 @@ class CaptureAgent(
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
     private val today: () -> String = { Clock.System.now().toLocalDateTime(timeZone).date.toString() },
     private val maxIterations: Int = 6,
-) {
+) : BatchProcessor {
     private val registry = ToolRegistry(readTools, captureDecisionDescriptors())
 
-    suspend fun process(batch: List<CandidateTransaction>): BatchOutcome {
+    override suspend fun process(batch: List<CandidateTransaction>): BatchOutcome {
         if (batch.isEmpty()) return BatchOutcome(emptyList(), 0, 0)
         // The model sees short numbers, never database ids.
         val byNumber = batch.mapIndexed { i, m -> (i + 1).toString() to m }.toMap()
@@ -57,10 +58,13 @@ class CaptureAgent(
         }
 
         val decisions = result.decisions.map { d -> d.withMessageIds(d.messageIds.mapNotNull { byNumber[it]?.id }) }
-        val events = committer.commit(batch, decisions)
-        val undecided = result.undecided.mapNotNull { byNumber[it] }
+        // A batch that can't be written (an account vanished since the prompt) is retried whole, not half-written.
+        val events = runCatching { committer.commit(batch, decisions) }
+            .onFailure { if (it is CancellationException) throw it }
+            .getOrNull()
+        val undecided = if (events == null) batch else result.undecided.mapNotNull { byNumber[it] }
         settleUndecided(undecided)
-        return BatchOutcome(events, decided = batch.size - undecided.size, undecided = undecided.size)
+        return BatchOutcome(events.orEmpty(), decided = batch.size - undecided.size, undecided = undecided.size)
     }
 
     private fun parse(turn: AgentTurnResult, numbers: Set<String>, accounts: Set<String>): DecisionResult =

@@ -72,4 +72,11 @@ class SyncStatusTest {
             notificationText(SyncStatuses(sms = UpToDate(t), email = Off, relay = UpToDate(t))),
         )
     }
+
+    @Test
+    fun `the agent reading the queue reads naturally in the notification`() {
+        assertEquals("Reading messages: 5 of 9", notificationText(SyncStatuses(ai = Importing(5, 9))))
+        assertEquals("Importing SMS: 1 of 9", notificationText(SyncStatuses(sms = Importing(1, 9), ai = Importing(0, 3))))
+    }
 }
+

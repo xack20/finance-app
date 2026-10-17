@@ -47,12 +47,16 @@ class CaptureAgentTest {
         private val committer =
             CaptureCommitter(db, accounts, categories, txns, people, LendBorrowRepository(db, txns), questions, memory)
 
-        fun agent(provider: FakeAgentProvider, maxIterations: Int = 6) = CaptureAgent(
+        fun agent(
+            provider: FakeAgentProvider,
+            maxIterations: Int = 6,
+            extraAccounts: List<app.hisaab.domain.Account> = emptyList(),
+        ) = CaptureAgent(
             provider = provider,
             readTools = emptyList(),
             context = {
                 AgentContext(
-                    accounts.observeActive().first(), categories.observeAll().first(), emptyList(),
+                    accounts.observeActive().first() + extraAccounts, categories.observeAll().first(), emptyList(),
                     memory.all().map { it.fact },
                 )
             },
@@ -160,5 +164,25 @@ class CaptureAgentTest {
 
         assertEquals(CaptureStatus.PENDING, s.status("a"))
         assertTrue("couldn't work out" in s.questions.observeOpen().first().single().question)
+    }
+
+    @Test
+    fun `a batch that can't be written is left for another try`() = runTest {
+        val s = Store()
+        val batch = s.queue(msg("a", "Paid Tk 60", 1_000))
+        // The agent was told about an account that is gone by the time the batch is written.
+        val phantom = app.hisaab.domain.Account(
+            id = "x", name = "Phantom", kind = app.hisaab.domain.AccountKind.BANK, institution = null, currency = "BDT",
+            balanceTracking = true, createdAt = 0, archivedAt = null,
+        )
+        val provider = FakeAgentProvider(
+            listOf(final("""{"tool":"post_transaction","args":{"messages":["1"],"account":"Phantom","amount":60,"kind":"EXPENSE"}}""")),
+        )
+
+        val outcome = s.agent(provider, extraAccounts = listOf(phantom)).process(batch)
+
+        assertEquals(0, outcome.decided)
+        assertEquals(CaptureStatus.QUEUED, s.status("a"))
+        assertEquals(1, s.inbox.getById("a")?.attempts)
     }
 }

@@ -157,6 +157,8 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
 
     fun observeQueuedCount(): Flow<Long> = queries.observeQueuedCount().asFlow().mapToOne(Dispatchers.Default)
 
+    suspend fun queuedCount(): Int = queries.observeQueuedCount().executeAsOne().toInt()
+
     suspend fun messagesFor(questionId: String): List<CandidateTransaction> =
         queries.forQuestion(questionId).executeAsList().map { it.toDomain() }
 
