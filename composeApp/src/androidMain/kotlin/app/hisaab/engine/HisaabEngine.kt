@@ -286,11 +286,18 @@ class HisaabEngine private constructor(
         // coordinator (single Mutex). The relay stays inert until relayCaptureEnabled + a master
         // secret + a session exist, so this composite is safe to always install.
         val source = CompositeCaptureSource(listOf(smsCaptureSource, relayCaptureSource, emailCaptureSource))
-        CaptureCoordinator(source, handler, cursorStore) { raw, e ->
+        CaptureCoordinator(source, handler, cursorStore, importState = importState) { raw, e ->
             // Per-item failures stay isolated (cursor doesn't advance), but log them so a
             // persistently-failing capture is visible instead of retried silently forever.
             android.util.Log.w("HisaabCapture", "Dropped capture item (ts=${raw.receivedAt}); will retry: ${e.message}")
         }
+    }
+
+    // Survives process death so an interrupted all-history import resumes on the next background start.
+    private val importState = object : app.hisaab.capture.ImportStateStore {
+        override suspend fun isImportPending() = secureStorage.loadString(IMPORT_PENDING_KEY) == "1"
+        override suspend fun setImportPending(pending: Boolean) =
+            secureStorage.storeString(IMPORT_PENDING_KEY, if (pending) "1" else "")
     }
 
     // P2: Mac→phone capture relay source. Inert (no fetch) until enabled() is true; decode derives
@@ -387,8 +394,14 @@ class HisaabEngine private constructor(
         return true
     }
 
+    @Synchronized // the service (background thread) and the UI (main) both drive the DB lifecycle
     fun openDatabase(masterSecret: ByteArray): HisaabDatabase {
-        cachedDatabase?.let { return it }
+        cachedDatabase?.let { open ->
+            // Still open because background capture kept it across the UI lock: just restore the UI's copy.
+            cachedMasterSecret?.fill(0)
+            cachedMasterSecret = masterSecret.copyOf()
+            return open
+        }
         cachedMasterSecret = masterSecret.copyOf()
         val keyCopy = cryptoService.deriveDbKey(masterSecret)
         val driver = databaseDriverFactory.createDriver(keyCopy)
@@ -411,6 +424,7 @@ class HisaabEngine private constructor(
 
     fun databaseOrNull(): HisaabDatabase? = cachedDatabase
 
+    @Synchronized
     fun startCapture() {
         if (captureScope != null) return
         if (cachedDatabase == null) return
@@ -424,6 +438,7 @@ class HisaabEngine private constructor(
             cfg.captureEnabled || cfg.relayCaptureEnabled || cfg.emailCaptureEnabled || cfg.notificationCaptureEnabled
         }
         if (!enabled) return
+        CaptureServiceStarter.start(context) // keeps capture running once the app is minimized or locked
         val scope = kotlinx.coroutines.CoroutineScope(
             kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
         )
@@ -451,6 +466,7 @@ class HisaabEngine private constructor(
         }
     }
 
+    @Synchronized
     fun stopCapture() {
         val scope = captureScope ?: return
         captureScope = null
@@ -459,9 +475,11 @@ class HisaabEngine private constructor(
         }
     }
 
+    @Synchronized
     fun closeDatabase() {
         // M3-5: drain in-flight process() coroutines before closing the driver to prevent
         // queries on a closed connection.
+        stopBackground()
         stopCapture()
         cachedDriver?.close()
         cachedDriver = null
@@ -484,7 +502,72 @@ class HisaabEngine private constructor(
         return txnId
     }
 
+    private val _backgroundActive = kotlinx.coroutines.flow.MutableStateFlow(false)
+
+    /** True while the foreground service is running capture; the service stops itself when this turns false. */
+    val backgroundActive: kotlinx.coroutines.flow.StateFlow<Boolean> = _backgroundActive
+    private var backgroundJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Called by [CaptureForegroundService]: opens the DB with the stored master secret (no fingerprint needed —
+     * the key was never auth-bound; the UI lock still guards viewing), starts capture, resumes an interrupted
+     * import and re-runs SMS catch-up every 15 min. Idempotent. False = nothing to do (service stops).
+     */
+    suspend fun startBackground(): Boolean {
+        val secret = secureStorage.loadMasterSecret() ?: return false
+        try {
+            if (cachedDatabase == null) openDatabase(secret)
+        } finally {
+            secret.fill(0)
+        }
+        if (!app.hisaab.capture.backgroundCaptureWanted(captureConfigRepository.get(), hasMasterSecret = true)) {
+            return false
+        }
+        startCapture()
+        if (_backgroundActive.value) return true
+        _backgroundActive.value = true
+        backgroundJob = engineScope.launch {
+            captureCoordinator.resumePendingImport()
+            while (true) {
+                kotlinx.coroutines.delay(CATCH_UP_INTERVAL_MS)
+                captureCoordinator.catchUp()
+            }
+        }
+        return true
+    }
+
+    fun stopBackground() {
+        backgroundJob?.cancel()
+        backgroundJob = null
+        _backgroundActive.value = false
+    }
+
+    /** UI lock: keep the DB open while background capture runs (only drop the UI's secret copy); else close it. */
+    @Synchronized
+    fun lockUi() {
+        if (_backgroundActive.value) {
+            cachedMasterSecret?.fill(0)
+            cachedMasterSecret = null
+        } else {
+            closeDatabase()
+        }
+    }
+
+    /**
+     * Re-applies the capture toggles: stops capture, restarts it if any channel is still on, and ends background
+     * work when none is. (Previously turning SMS off stopped email/relay capture too.)
+     */
+    @Synchronized
+    fun restartCapture() {
+        stopCapture()
+        startCapture()
+        if (captureScope == null) stopBackground()
+    }
+
     companion object {
+        private const val IMPORT_PENDING_KEY = "sms_history_import_pending"
+        private const val CATCH_UP_INTERVAL_MS = 15L * 60 * 1000
+
         @Volatile private var instance: HisaabEngine? = null
 
         /** The process's engine. [authRepository] only applies on the first call (tests inject a fake there). */

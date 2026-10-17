@@ -27,6 +27,8 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         for (raw in reduceToCaptures(messages)) {
             CaptureBus.publish(raw)
         }
+        // If the app was killed, bring background capture back; its catch-up re-reads this SMS from the inbox.
+        app.hisaab.engine.CaptureServiceStarter.start(context)
     }
 
     private fun reduceToCaptures(messages: Array<SmsMessage>) = buildList {

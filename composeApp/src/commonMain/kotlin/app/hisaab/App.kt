@@ -27,7 +27,7 @@ fun App() {
             AppViewModel(
                 authRepository = container.authRepository,
                 hasMasterSecret = { container.secureStorage.loadMasterSecret() != null },
-                onLock = { container.closeDatabase() },
+                onLock = { container.lockUi() },
             ).also { it.init() }
         }
         val onboardingViewModel = remember { OnboardingViewModel(container) }

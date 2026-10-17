@@ -144,6 +144,12 @@ expect class AppContainer {
 
     /** Closes the driver and zeroes the in-memory master_secret. */
     fun closeDatabase()
+
+    /**
+     * App lock after the background timeout. Android keeps the DB open while background capture runs (only the
+     * UI's secret copy is dropped; viewing still needs unlock); otherwise this is [closeDatabase].
+     */
+    fun lockUi()
 }
 
 val LocalAppContainer = staticCompositionLocalOf<AppContainer> {

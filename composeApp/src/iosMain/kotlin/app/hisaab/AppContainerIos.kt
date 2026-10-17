@@ -392,6 +392,9 @@ actual class AppContainer {
         }
     }
 
+    // iOS has no background capture service, so locking always closes the DB.
+    actual fun lockUi() = closeDatabase()
+
     actual fun closeDatabase() {
         // Drain in-flight coroutines before closing the driver.
         stopCapture()
