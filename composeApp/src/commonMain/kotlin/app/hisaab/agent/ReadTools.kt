@@ -10,6 +10,12 @@ import app.hisaab.domain.YearMonth
 import app.hisaab.llm.LlmJson
 import kotlinx.coroutines.flow.first
 import kotlinx.datetime.Clock
+import kotlinx.datetime.plus
+import kotlinx.datetime.minus
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.Instant
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.JsonArray
@@ -124,3 +130,38 @@ class PersonBalanceTool(private val repo: PersonRepository) : ReadTool {
         })
     }
 }
+
+/** Capture agent's duplicate check: same amount within two days of a date, so a payment isn't posted twice. */
+class FindSimilarTransactionsTool(
+    private val repo: TransactionRepository,
+    private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
+) : ReadTool {
+    override val name = "find_similar_transactions"
+    override val description = "Ledger entries with exactly this amount within 2 days of the date"
+    override val paramsDoc = "{ \"amount\": number, \"date\": \"YYYY-MM-DD\" }"
+    override suspend fun execute(args: JsonObject): String {
+        val amount = argStr(args, "amount")?.toDoubleOrNull() ?: return "ERROR: amount is required"
+        val date = argStr(args, "date")?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            ?: return "ERROR: date must be YYYY-MM-DD"
+        val from = date.minus(WINDOW_DAYS, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toEpochMilliseconds()
+        val to = date.plus(WINDOW_DAYS + 1, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toEpochMilliseconds()
+        val matches = repo.findSimilar(amount, from, to)
+        return jsonArray {
+            matches.forEach { t ->
+                addJsonObject {
+                    put("amount", t.amount)
+                    put("kind", t.kind.name)
+                    put("when", Instant.fromEpochMilliseconds(t.ts).toLocalDateTime(timeZone).toString().take(16))
+                    put("account", t.account)
+                    t.merchant?.let { put("merchant", it) }
+                    put("fromMessage", t.fromMessage)
+                }
+            }
+        }
+    }
+
+    private companion object {
+        const val WINDOW_DAYS = 2
+    }
+}
+

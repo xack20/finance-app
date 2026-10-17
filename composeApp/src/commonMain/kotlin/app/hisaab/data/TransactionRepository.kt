@@ -46,6 +46,13 @@ class TransactionRepository(
             .mapToOneOrNull(Dispatchers.Default)
             .map { row -> row?.toFullDomain() }
 
+    /** Top-level transactions of exactly [amount] in [fromMs, toMs) — the capture agent's duplicate check. */
+    suspend fun findSimilar(amount: Double, fromMs: Long, toMs: Long): List<SimilarTransaction> =
+        db.transactionQueriesQueries.findSimilar(amount, fromMs, toMs).executeAsList().map {
+            SimilarTransaction(it.id, it.amount, TxnKind.valueOf(it.kind), it.ts, it.account_name, it.merchant_name,
+                fromMessage = it.capture_id != null)
+        }
+
     fun observeForDay(epochDayMs: Long): Flow<List<TransactionRow>> {
         val (start, end) = dayRangeMs(epochDayMs)
         return db.transactionQueriesQueries.observeTxnsForDayRange(start, end).asFlow()
@@ -302,3 +309,15 @@ class TransactionRepository(
         return bytes.joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
     }
 }
+
+/** A ledger entry shown to the capture agent when it checks for duplicates. */
+data class SimilarTransaction(
+    val id: String,
+    val amount: Double,
+    val kind: TxnKind,
+    val ts: Long,
+    val account: String,
+    val merchant: String?,
+    /** Added from a captured message (vs. typed by the user). */
+    val fromMessage: Boolean,
+)

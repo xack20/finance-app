@@ -235,6 +235,6 @@ class ClaudeProvider(
     private companion object {
         /** Opus 5.5 always thinks and thinking counts toward max_tokens, so small caps truncate the reply. */
         const val MIN_MAX_TOKENS = 8192
-        const val AGENT_TIMEOUT_MS = 60_000L
+        const val AGENT_TIMEOUT_MS = 120_000L // a 25-message capture batch thinks longer than a chat turn
     }
 }
