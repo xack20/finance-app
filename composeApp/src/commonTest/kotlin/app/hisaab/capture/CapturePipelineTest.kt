@@ -27,6 +27,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CapturePipelineTest {
@@ -140,6 +141,17 @@ class CapturePipelineTest {
 
     private suspend fun duplicatesRecorded(f: Fixture) =
         f.inboxRepo.observeRecent(20).first().count { it.status == CaptureStatus.DISMISSED && it.parseError == "duplicate" }
+
+    @Test
+    fun `an unknown financial sender is registered so the user can map it`() = runTest {
+        val f = fixture()
+        ingest(f, capture(CaptureChannel.EMAIL, "alerts@bank.example", "Debited BDT 750.00", 1_000L), 750.0, null)
+        val sender = f.senderRepo.findBySenderId("alerts@bank.example")
+        assertNotNull(sender)
+        assertTrue(sender.isFinancial)
+        assertNull(sender.accountId) // shows under "New senders detected"
+        assertNull(f.inboxRepo.getPending().single().proposedAccountId)
+    }
 
     @Test
     fun `the same TrxID arriving by email after the SMS is skipped`() = runTest {

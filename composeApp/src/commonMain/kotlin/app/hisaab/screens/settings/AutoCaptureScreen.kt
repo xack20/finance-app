@@ -91,6 +91,13 @@ fun AutoCaptureScreen(
             requestNotificationPermission = { service.requestNotificationPermission() },
             isBackgroundRunningAllowed = { service.isBackgroundRunningAllowed() },
             openBackgroundRunningSettings = { service.openBackgroundRunningSettings() },
+            assignPendingAccount = { sender, account ->
+                container.captureInboxRepository.assignAccountToPending(sender, account)
+            },
+            confirmCandidate = { id -> container.confirmCandidate(id) },
+            registerWaitingSenders = {
+                app.hisaab.data.registerWaitingSenders(container.captureInboxRepository, container.senderRepository)
+            },
             scanDuplicates = {
                 container.databaseOrNull()
                     ?.let { app.hisaab.capture.DuplicateCleanup(it, container.captureInboxRepository).scan() }

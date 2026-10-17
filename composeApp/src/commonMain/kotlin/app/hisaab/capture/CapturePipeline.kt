@@ -66,7 +66,12 @@ class CapturePipeline(
         when (val verdict = preFilter.classify(raw, mapping)) {
             is PreFilterResult.NotFinancial -> return
             is PreFilterResult.KnownTemplate -> extractKnown(raw, dedupHash, verdict.mapping, verdict.templateKey)
-            is PreFilterResult.UnknownFinancial -> extractUnknown(raw, dedupHash, verdict.mapping)
+            is PreFilterResult.UnknownFinancial -> {
+                // A new money sender (e.g. a bank's email address): register it so it shows under "New senders
+                // detected" and the user can map it to an account once — then its items can post.
+                if (verdict.mapping == null) registerUnknownSender(raw)
+                extractUnknown(raw, dedupHash, verdict.mapping)
+            }
         }
     }
 
@@ -330,6 +335,16 @@ class CapturePipeline(
                 categoryId = null,
                 merchant = merchant,
                 now = now,
+            ),
+        )
+    }
+
+    private suspend fun registerUnknownSender(raw: RawCapture) {
+        senderRepo.upsert(
+            SenderMapping(
+                id = randomId(), senderId = raw.sender, displayName = raw.sender, bankType = BankType.OTHER,
+                isFinancial = true, templateKey = null, accountId = null,
+                createdAt = Clock.System.now().toEpochMilliseconds(),
             ),
         )
     }

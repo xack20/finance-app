@@ -65,6 +65,7 @@ fun ReviewInboxScreen(
     }
     DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val pending by viewModel.pending.collectAsState()
+    val bulkResult by viewModel.bulkResult.collectAsState()
     // The bulk button and the "confident" pill follow the user's Auto-post confidence, not a fixed 85%.
     val config by remember { container.captureConfigRepository.observe() }.collectAsState(initial = null)
     val threshold = config?.autoPostThreshold ?: DEFAULT_AUTO_POST_THRESHOLD
@@ -76,6 +77,7 @@ fun ReviewInboxScreen(
         onConfirmAllHighConfidence = { viewModel.confirmAllHighConfidence(threshold) },
         onDismiss = viewModel::dismiss,
         onEdit = onEdit,
+        bulkResult = bulkResult,
     )
 }
 
@@ -94,6 +96,8 @@ fun ReviewInboxContent(
     onDismiss: (candidateId: String) -> Unit,
     onEdit: (candidateId: String) -> Unit,
     threshold: Double = DEFAULT_AUTO_POST_THRESHOLD,
+    /** What the last bulk confirm did, e.g. "Confirmed 3, 2 need an account" — without it the tap looks dead. */
+    bulkResult: String? = null,
 ) {
     val palette = LocalHisaabPalette.current
     Column(modifier = Modifier.fillMaxSize().background(palette.background)) {
@@ -130,6 +134,14 @@ fun ReviewInboxContent(
                 PrimaryButton(
                     text = "Confirm all ≥ ${thresholdPercent(threshold)}%",
                     onClick = onConfirmAllHighConfidence,
+                )
+            }
+            bulkResult?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "$it — map senders under Settings → Auto-capture to post the rest.".takeIf { _ -> it.contains("need") } ?: it,
+                    color = palette.muted,
+                    fontSize = 12.sp,
                 )
             }
             Spacer(Modifier.height(12.dp))

@@ -101,4 +101,16 @@ class AccountMatcherTest {
         // Exactly one account must exist — no duplicate.
         assertEquals(1, accountRepo.observeActive().first().size)
     }
+
+    @Test
+    fun `an auto-registered sender with no type gets no account created`() = runTest {
+        val db = app.hisaab.data.support.TestDatabase.create()
+        val matcher = AccountMatcher(app.hisaab.data.AccountRepository(db), app.hisaab.data.SenderRepository(db), db)
+        val unknown = app.hisaab.domain.SenderMapping(
+            id = "m1", senderId = "alerts@bank.example", displayName = "alerts@bank.example", bankType = BankType.OTHER,
+            isFinancial = true, templateKey = null, accountId = null, createdAt = 0L,
+        )
+        // The user maps it to the right account; auto-creating "alerts@bank.example" would be a junk account.
+        assertNull(matcher.resolve(unknown, BankType.OTHER))
+    }
 }

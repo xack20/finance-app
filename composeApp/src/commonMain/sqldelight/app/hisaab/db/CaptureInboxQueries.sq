@@ -15,6 +15,15 @@ SELECT * FROM capture_inbox WHERE id = ? LIMIT 1;
 findLiveByRefNo:
 SELECT * FROM capture_inbox WHERE lower(trim(ref_no)) = ? AND status != 'DISMISSED' LIMIT 1;
 
+waitingSendersWithoutAccount:
+SELECT DISTINCT sender FROM capture_inbox WHERE status = 'PENDING' AND proposed_account_id IS NULL;
+
+findPendingWithoutAccount:
+SELECT * FROM capture_inbox WHERE sender = ? AND status = 'PENDING' AND proposed_account_id IS NULL;
+
+setProposedAccount:
+UPDATE capture_inbox SET proposed_account_id = ? WHERE id = ?;
+
 getLive:
 SELECT * FROM capture_inbox WHERE status != 'DISMISSED' ORDER BY received_at ASC;
 

@@ -311,6 +311,24 @@ class AutoCaptureViewModelTest {
     }
 
     @Test
+    fun `mapping a sender confirms its waiting items at or above the auto-post confidence`() = runTest {
+        val db = TestDatabase.create()
+        val config = CaptureConfigRepository(db, dispatcher)
+        config.setAutoPostThreshold(0.4)
+        val confirmed = mutableListOf<String>()
+        val v = AutoCaptureViewModel(
+            configRepo = config, senderRepo = SenderRepository(db), accountRepo = AccountRepository(db),
+            hasSmsPermission = { true }, requestSmsPermission = { true }, startHistoryImport = {},
+            loadApiKey = { null }, storeApiKey = { _, _ -> }, clearApiKey = {}, router = FakeLlmRouter(),
+            assignPendingAccount = { _, _ -> listOf(dupRow("sure").copy(confidence = 0.5), dupRow("unsure").copy(confidence = 0.3)) },
+            confirmCandidate = { confirmed += it; true },
+        )
+        v.setSenderAccount("alerts@bank.example", "acct-1")
+        advanceUntilIdle()
+        assertEquals(listOf("sure"), confirmed) // 0.3 stays in Review for the user
+    }
+
+    @Test
     fun `duplicate cleanup reports Review dismissals and removes ledger copies only on confirm`() = runTest {
         val pair = app.hisaab.capture.DuplicatePair(keep = dupRow("a"), duplicate = dupRow("b"))
         var removedWith: List<app.hisaab.capture.DuplicatePair>? = null

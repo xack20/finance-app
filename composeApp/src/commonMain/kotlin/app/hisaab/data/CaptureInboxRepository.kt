@@ -95,6 +95,15 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
     suspend fun getById(id: String): CandidateTransaction? =
         queries.getById(id).executeAsOneOrNull()?.toDomain()
 
+    suspend fun waitingSendersWithoutAccount(): List<String> = queries.waitingSendersWithoutAccount().executeAsList()
+
+    /** After the user maps [senderId]: its waiting items without an account get [accountId]; returns them. */
+    suspend fun assignAccountToPending(senderId: String, accountId: String): List<CandidateTransaction> {
+        val waiting = queries.findPendingWithoutAccount(senderId).executeAsList().map { it.toDomain() }
+        queries.transaction { waiting.forEach { queries.setProposedAccount(accountId, it.id) } }
+        return waiting.map { it.copy(proposedAccountId = accountId) }
+    }
+
     /** Every capture not yet dismissed, oldest first (duplicate cleanup scans these). */
     suspend fun getLive(): List<CandidateTransaction> = queries.getLive().executeAsList().map { it.toDomain() }
 

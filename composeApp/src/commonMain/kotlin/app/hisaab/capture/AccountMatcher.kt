@@ -27,6 +27,9 @@ class AccountMatcher(
     suspend fun resolve(mapping: SenderMapping?, bankType: BankType): String? {
         if (mapping == null) return null
         mapping.accountId?.takeIf { it.isNotBlank() }?.let { return it }
+        // Auto-registered senders (an email address, an unknown shortcode) have no known type: the user maps them
+        // to the right account; auto-creating one named after the sender would only make junk accounts.
+        if (mapping.bankType == BankType.OTHER) return null
 
         val kind = accountKindFor(bankType)
         var accountId = ""

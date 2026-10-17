@@ -81,6 +81,12 @@ class AutoCaptureViewModel(
         app.hisaab.capture.DuplicateReport(0, emptyList())
     },
     private val removeDuplicates: suspend (List<app.hisaab.capture.DuplicatePair>) -> Int = { 0 },
+    /** Gives a newly mapped sender's waiting Review items its account (returns them). */
+    private val assignPendingAccount: suspend (senderId: String, accountId: String) -> List<app.hisaab.domain.CandidateTransaction> =
+        { _, _ -> emptyList() },
+    private val confirmCandidate: suspend (candidateId: String) -> Boolean = { false },
+    /** Registers senders of already-waiting items so they can be mapped (runs when the screen opens). */
+    private val registerWaitingSenders: suspend () -> Unit = {},
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
     val config: StateFlow<CaptureConfig?> = configRepo.observe()
@@ -96,6 +102,10 @@ class AutoCaptureViewModel(
 
     val accounts = accountRepo.observeActive()
         .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    init {
+        scope.launch { registerWaitingSenders() }
+    }
 
     private val _keyValidation = MutableStateFlow<KeyValidation>(KeyValidation.Idle)
     val keyValidation: StateFlow<KeyValidation> = _keyValidation.asStateFlow()
@@ -314,7 +324,14 @@ class AutoCaptureViewModel(
     }
 
     fun setSenderAccount(senderId: String, accountId: String) {
-        scope.launch { senderRepo.setAccount(senderId, accountId) }
+        scope.launch {
+            senderRepo.setAccount(senderId, accountId)
+            // Its waiting items can post now: confirm those at or above the user's auto-post confidence.
+            val threshold = configRepo.get().autoPostThreshold
+            assignPendingAccount(senderId, accountId)
+                .filter { (it.confidence ?: 0.0) >= threshold }
+                .forEach { confirmCandidate(it.id) }
+        }
     }
 
     fun setSenderEnabled(senderId: String, enabled: Boolean) {
