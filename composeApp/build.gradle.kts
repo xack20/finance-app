@@ -79,6 +79,7 @@ kotlin {
             implementation(libs.mediapipe.genai)
             // play-services-aicore:16.0.0-alpha05 not available in Google Maven;
             // AICore availability is a runtime class-probe only (no compile dep needed).
+            implementation(libs.androidx.fragment) // see libs.versions.toml: fixes the permission-launch crash
         }
         iosMain.dependencies {
             implementation(libs.sqldelight.native.driver)

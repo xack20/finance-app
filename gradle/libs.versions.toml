@@ -61,6 +61,9 @@ android-activation        = { module = "com.sun.mail:android-activation", versio
 # AndroidX
 androidx-security-crypto  = { module = "androidx.security:security-crypto", version = "1.1.0-alpha06" }
 androidx-biometric        = { module = "androidx.biometric:biometric", version = "1.2.0-alpha05" }
+# Biometric drags in fragment 1.2.5, whose FragmentActivity rejects the >16-bit request codes activity 1.10
+# generates — every permission/picker launch crashed. Pin a fragment that matches the activity version.
+androidx-fragment         = { module = "androidx.fragment:fragment", version = "1.8.5" }
 androidx-test-junit       = { module = "androidx.test.ext:junit", version = "1.2.1" }
 androidx-test-runner      = { module = "androidx.test:runner", version = "1.6.2" }
 espresso-core             = { module = "androidx.test.espresso:espresso-core", version.ref = "espresso" }
