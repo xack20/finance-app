@@ -39,6 +39,14 @@ import app.hisaab.design.components.PrimaryButton
 /** Bangladesh numbers are 10 local digits, but the design enables Continue at ≥9 (neo-onboarding.jsx:25). */
 private const val MIN_PHONE_DIGITS = 9
 
+/**
+ * The local part sent after the fixed "+880" prefix: digits only, without a pasted 880 country code or
+ * the trunk 0 people habitually type ("017…" would otherwise become the invalid "+880017…").
+ * A BD local mobile number never starts with 880, so stripping that prefix is safe.
+ */
+internal fun bdLocalDigits(input: String): String =
+    input.filter(Char::isDigit).removePrefix("880").trimStart('0')
+
 @Composable
 fun WelcomeScreen(
     onSendOtp: (phone: String) -> Unit,
@@ -125,7 +133,7 @@ fun WelcomeScreen(
             }
             MidnightTextField(
                 value = phone,
-                onValueChange = { phone = it.filter(Char::isDigit) },
+                onValueChange = { phone = bdLocalDigits(it) },
                 label = "Phone number",
                 placeholder = "1X XXXX XXXX",
                 prefix = "+880",
