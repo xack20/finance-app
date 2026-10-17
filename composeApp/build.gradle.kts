@@ -15,6 +15,9 @@ plugins {
 // in any version, a hard upstream blocker. Re-enable with -Phisaab.enableWasm=true.
 val enableWasm = (findProperty("hisaab.enableWasm") as String?)?.toBoolean() ?: false
 
+// Set by composeApp/publish-apk.sh: every uploaded APK gets a higher versionCode so it installs as an update.
+val buildNumber = (findProperty("hisaab.buildNumber") as String?)?.toIntOrNull()
+
 // Pin kotlinx-datetime to 0.6.1 on ALL targets. iOS otherwise floats to 0.7.1 (where Clock/Instant
 // moved out of package kotlinx.datetime into kotlin.time), breaking the 27 commonMain files that call
 // kotlinx.datetime.Clock.System. Android already resolves 0.6.1 (Supabase pins it); a non-strict
@@ -76,10 +79,10 @@ kotlin {
             implementation(libs.android.activation)
             implementation(libs.androidx.security.crypto)
             implementation(libs.androidx.biometric)
+            implementation(libs.androidx.fragment) // see libs.versions.toml: fixes the permission-launch crash
             implementation(libs.mediapipe.genai)
             // play-services-aicore:16.0.0-alpha05 not available in Google Maven;
             // AICore availability is a runtime class-probe only (no compile dep needed).
-            implementation(libs.androidx.fragment) // see libs.versions.toml: fixes the permission-launch crash
         }
         iosMain.dependencies {
             implementation(libs.sqldelight.native.driver)
@@ -149,8 +152,8 @@ android {
         applicationId = "app.hisaab"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-p0a"
+        versionCode = buildNumber ?: 1
+        versionName = "0.1.0-p0a" + (buildNumber?.let { "-b$it" } ?: "")
         val localProps = Properties().apply {
             val f = rootProject.file("local.properties")
             if (f.exists()) load(f.inputStream())
