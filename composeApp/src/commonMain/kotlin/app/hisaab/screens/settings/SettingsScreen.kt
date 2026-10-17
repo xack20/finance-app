@@ -23,6 +23,17 @@ import app.hisaab.design.components.MidnightDialog
 import app.hisaab.design.components.MidnightSheet
 import app.hisaab.design.components.SectionHeader
 import app.hisaab.design.components.SurfaceCard
+import app.hisaab.domain.CaptureConfig
+import app.hisaab.domain.EngineMode
+
+/** Settings → Auto-capture subtitle: what actually parses captures, or "Off" when every channel is off. */
+internal fun captureSubtitle(cfg: CaptureConfig?): String = when {
+    cfg == null -> ""
+    !(cfg.captureEnabled || cfg.emailCaptureEnabled || cfg.relayCaptureEnabled || cfg.notificationCaptureEnabled) -> "Off"
+    cfg.engineMode == EngineMode.ON_DEVICE -> "On-device · private"
+    else -> cfg.cloudProvider?.let { "Cloud · ${it.name.lowercase().replaceFirstChar(Char::uppercase)}" }
+        ?: "Cloud · no provider chosen"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +51,7 @@ fun SettingsScreen(
     DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val lockMs by viewModel.lockTimeoutMs.collectAsState()
     val biometricOn by viewModel.biometricEnabled.collectAsState()
+    val captureConfig by remember { container.captureConfigRepository.observe() }.collectAsState(initial = null)
     var showLockSheet by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
 
@@ -109,7 +121,7 @@ fun SettingsScreen(
                 value = "",
                 palette = palette,
                 onClick = onAutoCapture,
-                sub = "On-device · private",
+                sub = captureSubtitle(captureConfig),
                 chevron = true,
                 divider = false,
             )
