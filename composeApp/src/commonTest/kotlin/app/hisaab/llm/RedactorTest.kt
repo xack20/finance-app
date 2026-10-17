@@ -68,4 +68,16 @@ class RedactorTest {
         // 13500000 has 8 digits — matches the account-number pattern; masked as [ACCT *0000].
         assertTrue(out.contains("[ACCT"), "8+ digit unformatted amount is expected to be masked as [ACCT: $out")
     }
+
+    @Test
+    fun `one-time codes are masked but amounts stay`() {
+        val otp = Redactor.maskSecrets("Your bKash verification code is 482913. Do not share it.")
+        assertFalse("482913" in otp, otp)
+        assertTrue("[CODE]" in otp, otp)
+        assertFalse("5566" in Redactor.maskSecrets("আপনার ওটিপি কোড 5566"))
+        assertFalse("৫৫৬৬" in Redactor.maskSecrets("আপনার পিন কোড ৫৫৬৬"))
+        val payment = "Cash In Tk 4829.00 from 01712345678 successful. TrxID 9JK2. Balance Tk 120.50"
+        assertEquals(payment, Redactor.maskSecrets(payment)) // no code word: nothing to hide
+        assertTrue("Tk 1500" in Redactor.maskSecrets("Paid Tk 1500 at Shop. OTP 7788"))
+    }
 }
