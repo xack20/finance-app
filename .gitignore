@@ -76,3 +76,4 @@ iosApp/Podfile.lock
 /Hisaab/
 docs/design/screenshots/
 docs/design/*.zip
+**/claude_creds*
