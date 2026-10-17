@@ -3,8 +3,11 @@ package app.hisaab.domain
 // RawCapture + CaptureChannel moved to :sharedCore (app.hisaab.domain.RawCapture) so the macOS
 // relay helper reuses the exact serializable type. Still referenced here via the same package.
 
-/** Lifecycle of a capture candidate. */
-enum class CaptureStatus { PENDING, AUTO_POSTED, CONFIRMED, DISMISSED }
+/**
+ * Lifecycle of a capture: QUEUED (waiting for the capture agent) → AUTO_POSTED (agent added it) / DISMISSED
+ * (not a payment, or another copy of one) / PENDING (parked on an agent question). CONFIRMED = added by the user.
+ */
+enum class CaptureStatus { QUEUED, PENDING, AUTO_POSTED, CONFIRMED, DISMISSED }
 
 /** Which engine produced the parse. */
 enum class ParsedBy { TEMPLATE, ON_DEVICE, CLOUD_CLAUDE, CLOUD_GEMINI, CLOUD_OPENAI }
@@ -46,6 +49,10 @@ data class CandidateTransaction(
     val proposedCategoryId: String?,
     val proposedMerchant: String?,
     val createdAt: Long,
+    /** The agent question this message is parked on (or was, once answered). */
+    val questionId: String? = null,
+    /** Agent runs that left this message undecided. */
+    val attempts: Int = 0,
 )
 
 /** A known/learned sender → account mapping + pre-filter allowlist entry. */

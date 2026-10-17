@@ -1,0 +1,14 @@
+insertQuestion:
+INSERT INTO agent_question(id, question, options, status, created_at) VALUES (?, ?, ?, 'OPEN', ?);
+
+observeOpen:
+SELECT * FROM agent_question WHERE status = 'OPEN' ORDER BY created_at ASC;
+
+observeOpenCount:
+SELECT COUNT(*) FROM agent_question WHERE status = 'OPEN';
+
+getById:
+SELECT * FROM agent_question WHERE id = ? LIMIT 1;
+
+markAnswered:
+UPDATE agent_question SET status = 'ANSWERED', answer = ?, answered_at = ? WHERE id = ?;

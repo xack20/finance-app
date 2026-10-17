@@ -49,3 +49,34 @@ UPDATE capture_inbox SET status = ? WHERE id = ?;
 -- Blanks only the SMS body content; sender (bank shortcode) is retained for provenance.
 purgeRaw:
 UPDATE capture_inbox SET raw_body = '' WHERE id = ?;
+
+-- ---- capture agent ----
+nextQueued:
+SELECT * FROM capture_inbox WHERE status = 'QUEUED' ORDER BY received_at ASC LIMIT ?;
+
+observeQueuedCount:
+SELECT COUNT(*) FROM capture_inbox WHERE status = 'QUEUED';
+
+markDecided:
+UPDATE capture_inbox SET status = ?, parse_error = ? WHERE id = ?;
+
+parkOnQuestion:
+UPDATE capture_inbox SET status = 'PENDING', question_id = ? WHERE id = ?;
+
+bumpAttempts:
+UPDATE capture_inbox SET attempts = attempts + 1 WHERE id = ?;
+
+forQuestion:
+SELECT * FROM capture_inbox WHERE question_id = ? ORDER BY received_at ASC;
+
+requeueQuestion:
+UPDATE capture_inbox SET status = 'QUEUED', attempts = 0 WHERE question_id = ? AND status = 'PENDING';
+
+dismissQuestion:
+UPDATE capture_inbox SET status = 'DISMISSED', parse_error = 'user: not a payment'
+WHERE question_id = ? AND status = 'PENDING';
+
+linkPosted:
+UPDATE capture_inbox SET status = 'AUTO_POSTED', parse_error = NULL, amount = ?, direction = ?,
+    proposed_account_id = ?, proposed_category_id = ?, proposed_merchant = ?, model = ?
+WHERE id = ?;

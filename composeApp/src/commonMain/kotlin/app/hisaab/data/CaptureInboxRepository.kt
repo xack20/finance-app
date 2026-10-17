@@ -171,5 +171,7 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
         proposedCategoryId = proposed_category_id,
         proposedMerchant = proposed_merchant,
         createdAt = created_at,
+        questionId = question_id,
+        attempts = attempts.toInt(),
     )
 }

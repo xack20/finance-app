@@ -42,3 +42,6 @@ UPDATE capture_config SET email_capture_enabled = ?, updated_at = ? WHERE id = '
 
 setNotificationCaptureEnabled:
 UPDATE capture_config SET notification_capture_enabled = ?, updated_at = ? WHERE id = 'singleton';
+
+setAgentCalls:
+UPDATE capture_config SET agent_calls_day = ?, agent_calls_count = ?, updated_at = ? WHERE id = 'singleton';
