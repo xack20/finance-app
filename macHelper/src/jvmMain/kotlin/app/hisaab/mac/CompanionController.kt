@@ -46,7 +46,8 @@ class CompanionController(
     private val scope: CoroutineScope,
     private val reader: ChatDbReader = ChatDbReader(),
     private val cursorStore: FileCursorStore = FileCursorStore(),
-    private val deviceId: String = defaultDeviceId(),
+    /** Labels relay rows. Resolved lazily off the UI thread: the macOS host lookup can stall for 30+ s. */
+    deviceIdOverride: String? = null,
     private val pollIntervalMs: Long = 20_000L,
 ) {
     var stage by mutableStateOf<Stage>(if (config == null) Stage.NeedsConfig else Stage.SignedOut)
@@ -79,6 +80,8 @@ class CompanionController(
         private set
     var claudeInstalled by mutableStateOf(false)
         private set
+
+    private val deviceId: String by lazy { deviceIdOverride ?: defaultDeviceId() }
 
     private val relay: SupabaseRelay? = config?.let { SupabaseRelay(it.supabaseUrl, it.supabaseAnonKey) }
     private val crypto = RelayCaptureCrypto()
