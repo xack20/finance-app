@@ -317,6 +317,17 @@ actual class AppContainer(
     actual fun captureCoordinatorOrNull(): CaptureCoordinator? =
         if (cachedDatabase != null) captureCoordinator else null
 
+    actual fun startHistoryImport() {
+        captureScope?.launch(kotlinx.coroutines.Dispatchers.Default) { captureCoordinator.importAllHistory() }
+    }
+
+    actual val emailImportProgress: kotlinx.coroutines.flow.StateFlow<app.hisaab.capture.ImportProgress?>
+        get() = emailCaptureSource.progress
+
+    actual fun lastCrashReport(): String? = app.hisaab.platform.CrashLog.read(context)
+
+    actual fun clearCrashReport() = app.hisaab.platform.CrashLog.clear(context)
+
     /**
      * Atomically posts a pending candidate to the ledger and marks it CONFIRMED in one db.transaction.
      * Links the txn at insert time via NewTransaction.captureId (R1: no link method).

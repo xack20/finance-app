@@ -294,6 +294,19 @@ actual class AppContainer {
     actual fun captureCoordinatorOrNull(): CaptureCoordinator? =
         if (cachedDatabase != null) captureCoordinator else null
 
+    actual fun startHistoryImport() {
+        captureScope?.launch(kotlinx.coroutines.Dispatchers.Default) { captureCoordinator.importAllHistory() }
+    }
+
+    // shortcut: no crash capture on iOS yet (Xcode's device logs cover it); add one if iPhone testers need it.
+    actual fun lastCrashReport(): String? = null
+
+    actual fun clearCrashReport() {}
+
+    // iOS has no in-app IMAP (email arrives via the Mac relay), so there is never an email import to report.
+    actual val emailImportProgress: kotlinx.coroutines.flow.StateFlow<app.hisaab.capture.ImportProgress?> =
+        kotlinx.coroutines.flow.MutableStateFlow(null)
+
     actual suspend fun confirmCandidate(candidateId: String): Boolean {
         val db = cachedDatabase ?: return false
         val inbox = CaptureInboxRepository(db)

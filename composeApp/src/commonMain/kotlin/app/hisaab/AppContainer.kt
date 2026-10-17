@@ -90,6 +90,20 @@ expect class AppContainer {
     fun captureCoordinatorOrNull(): CaptureCoordinator?
 
     /**
+     * Starts an all-time SMS history import in the capture scope — it survives leaving a screen and stops
+     * when the DB locks (re-running resumes: done messages dedup). No-op while capture isn't running.
+     */
+    fun startHistoryImport()
+
+    /** Stack trace saved by the last uncaught crash (Android), shown once on the next launch; null if none. */
+    fun lastCrashReport(): String?
+
+    fun clearCrashReport()
+
+    /** Progress of the in-app email history import (Android IMAP); always null on iOS. */
+    val emailImportProgress: kotlinx.coroutines.flow.StateFlow<app.hisaab.capture.ImportProgress?>
+
+    /**
      * Posts a pending candidate to the ledger and marks it CONFIRMED in ONE db transaction
      * (mirrors the auto-post atomicity). Returns false (and leaves the candidate PENDING) if it
      * can't be posted yet — e.g. no resolved account/amount/direction — so the user can Edit.
