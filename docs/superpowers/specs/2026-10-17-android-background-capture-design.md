@@ -1,6 +1,6 @@
 # Android Background Capture — Design
 
-**Date:** 2026-10-17 · **Status:** draft for approval · **Platform:** Android only (iOS unchanged)
+**Date:** 2026-10-17 · **Status:** implemented 2026-10-17 (plan `docs/superpowers/plans/2026-10-17-android-background-capture.md`) · **Platform:** Android only (iOS unchanged)
 
 ## Intent
 

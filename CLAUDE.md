@@ -60,10 +60,16 @@ the latter the app crashes on missing font resources). Device setup/signing: `do
 
 - **DI:** `AppContainer` is an `expect class` (hand-wired, no DI framework) with actuals in
   `androidMain/.../AppContainerAndroid.kt` and `iosMain/.../AppContainerIos.kt`; Compose reads it via
-  `LocalAppContainer`. New services get wired in **both** actuals.
+  `LocalAppContainer`. New services get wired in **both** actuals. On Android the container only holds
+  Activity-bound pieces; the DB, repositories, LLM providers and capture engine live in the process singleton
+  `engine/HisaabEngine` (one DB driver shared by UI and background work).
+- **Background capture (Android):** `engine/CaptureForegroundService` (`specialUse`, always on while any capture
+  channel is enabled) opens the DB with the stored master secret and runs capture with the app minimized/locked;
+  started on unlock, capture toggles, boot/app update and incoming SMS. Per-channel status: `SyncStatuses`.
 - **Encrypted DB lifecycle:** the SQLCipher DB is keyed by a master secret derived from the recovery mnemonic.
-  `databaseOrNull()` is null until unlock (`openDatabase`); `closeDatabase()` on background-lock/sign-out zeroes the
-  in-memory key. Code touching repositories must tolerate the locked state. On iOS, `linkSqlite=false` +
+  `databaseOrNull()` is null until unlock (`openDatabase`). The app lock calls `lockUi()`: on Android it keeps the DB
+  open while background capture runs (dropping only the UI's secret copy), otherwise — and on iOS, and on
+  sign-out via `closeDatabase()` — it closes the DB and zeroes the in-memory key. Code touching repositories must tolerate the locked state. On iOS, `linkSqlite=false` +
   the `SQLCipher` CocoaPod supply the `sqlite3_*` symbols so `PRAGMA key` actually encrypts.
 - **SQLDelight:** `deriveSchemaFromMigrations` + `verifyMigrations` are on. Schema lives in
   `commonMain/sqldelight/migrations/N.sqm`; the `.sq` files under `sqldelight/app/hisaab/db/` hold queries only.
