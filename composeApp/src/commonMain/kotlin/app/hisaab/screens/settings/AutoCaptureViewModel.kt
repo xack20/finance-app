@@ -226,7 +226,13 @@ class AutoCaptureViewModel(
 
     // ---- Consent ----
 
-    fun recordConsent(nowMs: Long = currentMillis()) { scope.launch { configRepo.recordConsent(nowMs) } }
+    /**
+     * Persists consent, then runs [then] (e.g. navigate up). Callers must leave the screen in [then], not
+     * right after this call: leaving disposes the VM and cancels [scope], dropping a not-yet-run write.
+     */
+    fun recordConsent(nowMs: Long = currentMillis(), then: () -> Unit = {}) {
+        scope.launch { configRepo.recordConsent(nowMs); then() }
+    }
     fun revokeConsent() { scope.launch { configRepo.clearConsent() } }
 
     // ---- Senders ----

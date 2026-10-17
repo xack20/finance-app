@@ -143,7 +143,7 @@ fun MainGraph() {
                     CloudConsentScreen(
                         providerName = providerName,
                         consentGranted = consentGranted,
-                        onGrant = { consentVm.recordConsent() },
+                        onGrant = { consentVm.recordConsent { navController.popBackStack() } },
                         onRevoke = { consentVm.revokeConsent() },
                         onBack = { navController.popBackStack() },
                     )

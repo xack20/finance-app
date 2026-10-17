@@ -195,6 +195,18 @@ class AutoCaptureViewModelTest {
     }
 
     @Test
+    fun `consent survives leaving the screen because navigation waits for the save`() = runTest {
+        val db = TestDatabase.create()
+        val v = vm(db)
+        var navigated = false
+        // Leaving the consent screen disposes its VM (cancelling its scope) — it must happen after the write.
+        v.recordConsent(nowMs = 42L) { navigated = true; v.dispose() }
+        advanceUntilIdle()
+        assertTrue(navigated)
+        assertEquals(42L, CaptureConfigRepository(db, dispatcher).get().cloudConsentAt)
+    }
+
+    @Test
     fun `recordConsent and revokeConsent toggle cloudConsentAt`() = runTest {
         val db = TestDatabase.create()
         val v = vm(db)

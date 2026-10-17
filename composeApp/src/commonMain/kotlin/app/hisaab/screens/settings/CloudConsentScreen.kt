@@ -34,7 +34,8 @@ import app.hisaab.design.components.PrimaryButton
  *
  * @param providerName  Display name of the selected cloud provider (e.g. "Claude").
  * @param consentGranted Whether consent has already been granted (cloudConsentAt != null).
- * @param onGrant  Called when the user taps "I agree". Caller forwards to AutoCaptureViewModel.recordConsent().
+ * @param onGrant  Called when the user taps "I agree". Caller records consent and navigates up once it's
+ *                 saved (AutoCaptureViewModel.recordConsent's `then`) — navigating first cancels the write.
  * @param onRevoke Called when the user taps "Revoke consent". Caller forwards to AutoCaptureViewModel.revokeConsent().
  * @param onBack   Navigate up.
  */
@@ -95,7 +96,7 @@ fun CloudConsentScreen(
             } else {
                 PrimaryButton(
                     text = "I agree — use cloud parsing",
-                    onClick = { onGrant(); onBack() },
+                    onClick = onGrant,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
