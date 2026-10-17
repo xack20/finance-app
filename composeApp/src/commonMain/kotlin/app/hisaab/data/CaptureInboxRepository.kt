@@ -95,6 +95,20 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
     suspend fun getById(id: String): CandidateTransaction? =
         queries.getById(id).executeAsOneOrNull()?.toDomain()
 
+    /** A live (not dismissed) capture with this transaction ID; [normalizedRefNo] is trimmed + lowercased. */
+    suspend fun findLiveByRefNo(normalizedRefNo: String): CandidateTransaction? =
+        queries.findLiveByRefNo(normalizedRefNo).executeAsOneOrNull()?.toDomain()
+
+    /** Live captures of the same amount + direction from a channel other than [channel], received in the window. */
+    suspend fun findLiveNear(
+        amount: Double,
+        direction: app.hisaab.domain.Direction,
+        channel: app.hisaab.domain.CaptureChannel,
+        fromMs: Long,
+        toMs: Long,
+    ): List<CandidateTransaction> =
+        queries.findLiveNear(amount, direction.name, channel.name, fromMs, toMs).executeAsList().map { it.toDomain() }
+
     suspend fun markAutoPosted(id: String) {
         queries.updateStatus(CaptureStatus.AUTO_POSTED.name, id)
     }

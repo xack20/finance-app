@@ -199,6 +199,7 @@ class CapturePipeline(
         parseError: String?,
         llmCategoryId: String? = null,
     ) {
+        if (skipIfCrossChannelDuplicate(raw, dedupHash, amount, direction, refNo)) return
         // Sanity: amount must be positive and direction known to even consider posting.
         val sane = amount != null && amount > 0.0 && direction != null
         val accountId = accountMatcher.resolve(mapping, mapping?.bankType ?: BankType.OTHER)
@@ -309,6 +310,7 @@ class CapturePipeline(
         model: String?,
         parseError: String,
     ) {
+        if (skipIfCrossChannelDuplicate(raw, dedupHash, amount, direction, refNo)) return
         val now = Clock.System.now().toEpochMilliseconds()
         inboxRepo.insertCandidate(
             candidate(
@@ -330,6 +332,42 @@ class CapturePipeline(
                 now = now,
             ),
         )
+    }
+
+    // ---- cross-channel duplicates ----
+
+    /**
+     * One payment often arrives several ways (bank SMS + email + app notification) with different sender and
+     * wording, so [dedupHash] can't catch it. Same transaction ID = same payment; without one, the same amount and
+     * direction from ANOTHER channel within [DUPLICATE_WINDOW_MS] counts too — unless both carry different IDs.
+     * A duplicate is recorded DISMISSED ("duplicate") so its dedup hash stops catch-up from re-parsing it.
+     */
+    private suspend fun skipIfCrossChannelDuplicate(
+        raw: RawCapture,
+        dedupHash: String,
+        amount: Double?,
+        direction: Direction?,
+        refNo: String?,
+    ): Boolean {
+        val ref = refNo?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        val duplicate = (ref != null && inboxRepo.findLiveByRefNo(ref) != null) ||
+            (
+                amount != null && direction != null &&
+                    inboxRepo.findLiveNear(
+                        amount, direction, raw.channel,
+                        raw.receivedAt - DUPLICATE_WINDOW_MS, raw.receivedAt + DUPLICATE_WINDOW_MS,
+                    ).any { other -> ref == null || other.refNo.isNullOrBlank() } // two different IDs = two payments
+                )
+        if (!duplicate) return false
+        inboxRepo.insertCandidate(
+            candidate(
+                id = randomId(), raw = raw, dedupHash = dedupHash, status = CaptureStatus.DISMISSED,
+                confidence = null, parsedBy = null, model = null, parseError = DUPLICATE, amount = amount,
+                direction = direction, balanceAfter = null, refNo = refNo, accountId = null, categoryId = null,
+                merchant = null, now = Clock.System.now().toEpochMilliseconds(),
+            ),
+        )
+        return true
     }
 
     // ---- helpers ----
@@ -410,6 +448,8 @@ class CapturePipeline(
     }
 
     private companion object {
+        const val DUPLICATE = "duplicate"
+        const val DUPLICATE_WINDOW_MS = 10L * 60 * 1000
         const val CURRENCY_BDT = "BDT"
 
         val DEFAULT_CATEGORY_IDS = listOf(

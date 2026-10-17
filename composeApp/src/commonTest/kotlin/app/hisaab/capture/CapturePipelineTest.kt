@@ -118,6 +118,71 @@ class CapturePipelineTest {
         assertEquals(1, successes)
     }
 
+    // ---- cross-channel duplicates (same payment by SMS + email + notification) ----
+
+    private val minute = 60_000L
+
+    private fun capture(channel: CaptureChannel, sender: String, body: String, ts: Long) =
+        RawCapture(sender = sender, body = body, receivedAt = ts, channel = channel)
+
+    private suspend fun ingest(f: Fixture, raw: RawCapture, amount: Double, ref: String?) =
+        pipeline(
+            f,
+            FakeLlmRouter(
+                FakeLlmProvider(
+                    result = LlmParseResult(
+                        amount = amount, direction = Direction.DEBIT, merchant = "M", categoryId = null,
+                        balanceAfter = null, refNo = ref, confidence = 0.9, isFinancial = true,
+                    ),
+                ),
+            ),
+        ).process(raw)
+
+    private suspend fun duplicatesRecorded(f: Fixture) =
+        f.inboxRepo.observeRecent(20).first().count { it.status == CaptureStatus.DISMISSED && it.parseError == "duplicate" }
+
+    @Test
+    fun `the same TrxID arriving by email after the SMS is skipped`() = runTest {
+        val f = fixture()
+        ingest(f, capture(CaptureChannel.SMS, "NEWBANK", "debited BDT 999.00 TxnID Z123", 1_000L), 999.0, "Z123")
+        // Hours later, different sender and wording — the transaction ID alone proves it's the same payment.
+        ingest(f, capture(CaptureChannel.EMAIL, "alerts@newbank.com", "Debited BDT 999.00, TrxID z123", 1_000L + 120 * minute), 999.0, " z123 ")
+        assertEquals(1, f.inboxRepo.getPending().size)
+        assertEquals(1, duplicatesRecorded(f)) // recorded so a catch-up re-read doesn't parse it again
+    }
+
+    @Test
+    fun `the same amount from another channel within 10 minutes is skipped`() = runTest {
+        val f = fixture()
+        ingest(f, capture(CaptureChannel.SMS, "NEWBANK", "debited BDT 500.00", 1_000L), 500.0, null)
+        ingest(f, capture(CaptureChannel.NOTIFICATION, "Bank app", "Payment of BDT 500.00 made", 1_000L + 5 * minute), 500.0, null)
+        assertEquals(1, f.inboxRepo.getPending().size)
+    }
+
+    @Test
+    fun `two same-amount payments on the same channel are both kept`() = runTest {
+        val f = fixture()
+        ingest(f, capture(CaptureChannel.SMS, "NEWBANK", "debited BDT 500.00 at shop A", 1_000L), 500.0, null)
+        ingest(f, capture(CaptureChannel.SMS, "NEWBANK", "debited BDT 500.00 at shop B", 1_000L + 3 * minute), 500.0, null)
+        assertEquals(2, f.inboxRepo.getPending().size)
+    }
+
+    @Test
+    fun `different TrxIDs are kept even with the same amount and time`() = runTest {
+        val f = fixture()
+        ingest(f, capture(CaptureChannel.SMS, "NEWBANK", "debited BDT 500.00 TxnID A1", 1_000L), 500.0, "A1")
+        ingest(f, capture(CaptureChannel.EMAIL, "alerts@newbank.com", "Debited BDT 500.00 TrxID B2", 1_000L + minute), 500.0, "B2")
+        assertEquals(2, f.inboxRepo.getPending().size)
+    }
+
+    @Test
+    fun `the same amount more than 10 minutes apart is kept`() = runTest {
+        val f = fixture()
+        ingest(f, capture(CaptureChannel.SMS, "NEWBANK", "debited BDT 500.00", 1_000L), 500.0, null)
+        ingest(f, capture(CaptureChannel.EMAIL, "alerts@newbank.com", "Debited BDT 500.00", 1_000L + 20 * minute), 500.0, null)
+        assertEquals(2, f.inboxRepo.getPending().size)
+    }
+
     private fun raw(sender: String, body: String, ts: Long = 1000L) =
         RawCapture(sender = sender, body = body, receivedAt = ts, channel = CaptureChannel.SMS)
 

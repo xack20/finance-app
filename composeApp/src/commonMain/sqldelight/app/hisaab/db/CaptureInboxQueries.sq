@@ -11,6 +11,14 @@ SELECT * FROM capture_inbox WHERE dedup_hash = ? LIMIT 1;
 getById:
 SELECT * FROM capture_inbox WHERE id = ? LIMIT 1;
 
+-- Cross-channel duplicates (one payment arriving by SMS + email + notification). Dismissed rows don't count.
+findLiveByRefNo:
+SELECT * FROM capture_inbox WHERE lower(trim(ref_no)) = ? AND status != 'DISMISSED' LIMIT 1;
+
+findLiveNear:
+SELECT * FROM capture_inbox
+WHERE amount = ? AND direction = ? AND channel != ? AND received_at BETWEEN ? AND ? AND status != 'DISMISSED';
+
 observePending:
 SELECT * FROM capture_inbox WHERE status = 'PENDING' ORDER BY received_at DESC;
 
