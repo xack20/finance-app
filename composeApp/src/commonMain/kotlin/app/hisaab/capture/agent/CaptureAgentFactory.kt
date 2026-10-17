@@ -50,13 +50,15 @@ suspend fun buildCaptureAgent(
                 accounts = accounts.observeActive().first(),
                 categories = categories.observeAll().first(),
                 people = persons.observeAll().first().map { it.person.name },
-                memories = memory.all().map { it.fact },
+                // Facts can carry sender ids and names; they leave the phone like the messages do.
+                memories = memory.all().map { if (redact()) Redactor.redact(it.fact) else it.fact },
             )
         },
         committer = CaptureCommitter(db, accounts, categories, txns, persons, LendBorrowRepository(db, txns), questions, memory),
         inbox = CaptureInboxRepository(db),
         questions = questions,
         prepare = { m -> prepareForCloud(m.rawBody, contactName, redact()) },
+        prepareSender = { sender -> prepareForCloud(sender, contactName, redact()) },
     )
 }
 

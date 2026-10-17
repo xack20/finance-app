@@ -14,6 +14,9 @@ data class AgentContext(
 
 object CaptureAgentPrompt {
 
+    /** Newest facts win; every memory is sent with every batch, so the list can't grow without bound. */
+    private const val MAX_MEMORIES = 100
+
     fun system(registry: ToolRegistry, context: AgentContext, today: String): String = buildString {
         appendLine("You are Hisaab's bookkeeper for a person in Bangladesh. Today is $today.")
         appendLine("Amounts are BDT (Tk / ৳ / টাকা) unless stated. Messages may be English, Bangla or Banglish.")
@@ -27,7 +30,8 @@ object CaptureAgentPrompt {
         appendLine("- Several messages about one payment (SMS + app notification + email: same amount and time, or same")
         appendLine("  TrxID) are ONE decision listing all their numbers.")
         appendLine("- If a payment may already be in the ledger from an earlier batch (same amount within a day or two),")
-        appendLine("  check with find_similar_transactions and skip it as \"duplicate\" if it is there.")
+        appendLine("  check with find_similar_transactions and skip it as \"duplicate\" if it is there. Check every")
+        appendLine("  candidate in ONE lookup (it takes a list of items); you have only a few turns before you must reply.")
         appendLine("- Not a payment → skip with a short reason: promo, offer, OTP, balance alert, due reminder, failed or")
         appendLine("  declined, personal chat… A failed, reversed or declined transaction is not a payment.")
         appendLine("- Use the user's accounts below. When messages show an account they don't have yet (a bank, card or")
@@ -37,7 +41,8 @@ object CaptureAgentPrompt {
         appendLine("- ask only when you truly can't tell (whose card, which account); one short question per topic with")
         appendLine("  quick-answer options; put every message that depends on the same answer in the same question.")
         appendLine("- When a message carries the user's answer to an earlier question, follow it, and remember it if it")
-        appendLine("  will matter again. Remember stable facts that help with future messages.")
+        appendLine("  will matter again. Remember stable facts that help with future messages; facts already listed below")
+        appendLine("  are known — don't remember them again.")
         appendLine("- Every message in the batch gets exactly one decision.")
         appendLine()
         appendLine("Reply with EXACTLY ONE JSON object, no prose, no markdown fences. Either:")
@@ -56,7 +61,7 @@ object CaptureAgentPrompt {
         if (context.people.isNotEmpty()) appendLine("People: " + context.people.joinToString(", "))
         if (context.memories.isNotEmpty()) {
             appendLine("What you've learned about this user:")
-            context.memories.forEach { appendLine("- $it") }
+            context.memories.takeLast(MAX_MEMORIES).forEach { appendLine("- $it") }
         }
     }
 }

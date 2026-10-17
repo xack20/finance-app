@@ -18,8 +18,9 @@ class AgentMemoryRepository(private val db: HisaabDatabase) {
 
     suspend fun all(): List<AgentMemory> = queries.observeAll().executeAsList().map { it.toDomain() }
 
-    /** Blocking: call inside a db.transaction (the capture committer). */
+    /** Blocking: call inside a db.transaction (the capture committer). A fact already known is not added again. */
     fun addBlocking(fact: String) {
+        if (queries.findMemory(fact).executeAsOneOrNull() != null) return // already known
         val bytes = kotlin.random.Random.Default.nextBytes(16)
         val id = bytes.joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
         queries.insertMemory(id, fact, Clock.System.now().toEpochMilliseconds())

@@ -34,3 +34,6 @@ UPDATE capture_inbox SET status = 'QUEUED' WHERE status = 'PENDING';
 INSERT INTO agent_memory(id, fact, created_at)
 SELECT 'sender-' || s.id, 'Messages from ' || s.sender_id || ' are for the account "' || a.name || '"', s.created_at
 FROM sender_registry s JOIN account a ON a.id = s.account_id;
+
+-- Every captured message now goes to the cloud AI (not only bank SMS): ask for consent again.
+UPDATE capture_config SET cloud_consent_at = NULL;

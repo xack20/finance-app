@@ -81,6 +81,7 @@ fun AutoCaptureScreen(
             // M3-int Fix 3: master toggle gates the coordinator.
             onStartCapture = { container.startCapture() },
             onStopCapture = { container.stopCapture() },
+            onAiSettingsChanged = { container.kickCaptureAgent() },
             // Notification fallback: mirror the flag to the OS-bound listener's gate (Android only).
             onSetNotificationGate = { service.setNotificationListenerEnabled(it) },
             syncStatuses = container.syncStatuses,

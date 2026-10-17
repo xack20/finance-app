@@ -45,7 +45,8 @@ class CaptureCommitter(
 
         db.transaction {
             decisions.filterIsInstance<CaptureDecision.CreateAccount>().forEach { d ->
-                accountIds[d.name.lowercase()] = accounts.addBlocking(d.name, d.kind, d.institution)
+                // An account that already exists (any case) is reused: the model often re-creates "bKash".
+                accountIds.getOrPut(d.name.lowercase()) { accounts.addBlocking(d.name, d.kind, d.institution) }
             }
             fun account(name: String) = accountIds[name.lowercase()] ?: throw IllegalArgumentException("unknown account '$name'")
             fun category(name: String?) = name?.let { categoryIds[it.trim().lowercase()] }

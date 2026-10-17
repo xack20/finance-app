@@ -48,9 +48,10 @@ class CaptureAgentTest {
             CaptureCommitter(db, accounts, categories, txns, people, LendBorrowRepository(db, txns), questions, memory)
 
         fun agent(
-            provider: FakeAgentProvider,
+            provider: app.hisaab.agent.AgentProvider,
             maxIterations: Int = 6,
             extraAccounts: List<app.hisaab.domain.Account> = emptyList(),
+            prepareSender: suspend (String) -> String = { it },
         ) = CaptureAgent(
             provider = provider,
             readTools = emptyList(),
@@ -63,6 +64,7 @@ class CaptureAgentTest {
             committer = committer,
             inbox = inbox,
             questions = questions,
+            prepareSender = prepareSender,
             timeZone = TimeZone.UTC,
             today = { "2026-10-17" },
             maxIterations = maxIterations,
@@ -185,4 +187,57 @@ class CaptureAgentTest {
         assertEquals(CaptureStatus.QUEUED, s.status("a"))
         assertEquals(1, s.inbox.getById("a")?.attempts)
     }
+
+    private fun failing(error: app.hisaab.llm.LlmError) = object : app.hisaab.agent.AgentProvider {
+        override suspend fun complete(messages: List<app.hisaab.agent.ChatMessage>, maxTokens: Int): String =
+            throw app.hisaab.llm.LlmException(error)
+    }
+
+    @Test
+    fun `a reply the model can't finish counts as an attempt`() = runTest {
+        val s = Store()
+        val batch = s.queue(msg("a", "Paid Tk 60", 1_000))
+
+        val outcome = s.agent(failing(app.hisaab.llm.LlmError.Decode("reply truncated at max_tokens"))).process(batch)
+
+        assertEquals(0, outcome.decided)
+        assertEquals(1, s.inbox.getById("a")?.attempts) // three of these and it becomes a question
+    }
+
+    @Test
+    fun `a lost connection leaves the batch untouched for a retry`() = runTest {
+        val s = Store()
+        val batch = s.queue(msg("a", "Paid Tk 60", 1_000))
+
+        kotlin.test.assertFailsWith<app.hisaab.llm.LlmException> {
+            s.agent(failing(app.hisaab.llm.LlmError.Network("offline"))).process(batch)
+        }
+
+        assertEquals(0, s.inbox.getById("a")?.attempts)
+    }
+
+    @Test
+    fun `the sender is prepared like the message before it leaves the phone`() = runTest {
+        val s = Store()
+        val batch = s.queue(msg("a", "Sent Tk 60", 1_000).copy(sender = "01712345678"))
+        val provider = FakeAgentProvider(listOf(final("""{"tool":"skip","args":{"messages":["1"],"reason":"x"}}""")))
+
+        s.agent(provider, prepareSender = { "[PHONE *5678]" }).process(batch)
+
+        val prompt = provider.calls.single().joinToString("\n") { it.content }
+        assertTrue("from [PHONE *5678]" in prompt)
+        assertFalse("01712345678" in prompt)
+    }
+
+    @Test
+    fun `only the most recent memories go into the prompt`() {
+        val ctx = AgentContext(emptyList(), emptyList(), emptyList(), (0 until 150).map { "fact $it" })
+        val prompt = CaptureAgentPrompt.system(
+            app.hisaab.agent.ToolRegistry(emptyList(), captureDecisionDescriptors()), ctx, "2026-10-17",
+        )
+        assertTrue("fact 149" in prompt)
+        assertFalse("- fact 0\n" in prompt)
+        assertTrue("already listed" in prompt)
+    }
 }
+

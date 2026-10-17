@@ -69,6 +69,8 @@ class AutoCaptureViewModel(
     /** Contacts let the agent name who money went to (Android). */
     private val hasContactsPermission: () -> Boolean = { false },
     private val requestContactsPermission: suspend () -> Boolean = { false },
+    /** Wakes the capture agent: a blocked drain ("add a key…") must resume once the user fixed it. */
+    private val onAiSettingsChanged: () -> Unit = {},
     /** Local date (YYYY-MM-DD) the daily AI-call count is kept for. */
     private val today: () -> String = {
         kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault()).date.toString()
@@ -200,10 +202,12 @@ class AutoCaptureViewModel(
 
     // ---- Engine ----
 
-    fun setEngineMode(mode: EngineMode) { scope.launch { configRepo.setEngineMode(mode) } }
+    fun setEngineMode(mode: EngineMode) {
+        scope.launch { configRepo.setEngineMode(mode); onAiSettingsChanged() }
+    }
 
     fun setCloudProvider(provider: CloudProvider?, model: String?) {
-        scope.launch { configRepo.setCloudProvider(provider, model) }
+        scope.launch { configRepo.setCloudProvider(provider, model); onAiSettingsChanged() }
     }
 
     fun setApiKey(provider: CloudProvider, value: String) {
@@ -211,6 +215,7 @@ class AutoCaptureViewModel(
         storeApiKey(keyName(provider), key)
         _savedKeys.update { if (key.isBlank()) it - provider else it + provider }
         _keyValidation.value = KeyValidation.Idle
+        onAiSettingsChanged()
     }
 
     fun clearApiKeyFor(provider: CloudProvider) {
@@ -264,7 +269,7 @@ class AutoCaptureViewModel(
      * right after this call: leaving disposes the VM and cancels [scope], dropping a not-yet-run write.
      */
     fun recordConsent(nowMs: Long = currentMillis(), then: () -> Unit = {}) {
-        scope.launch { configRepo.recordConsent(nowMs); then() }
+        scope.launch { configRepo.recordConsent(nowMs); onAiSettingsChanged(); then() }
     }
     fun revokeConsent() { scope.launch { configRepo.clearConsent() } }
 

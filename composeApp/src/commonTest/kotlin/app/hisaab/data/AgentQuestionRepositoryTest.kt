@@ -94,4 +94,41 @@ class AgentQuestionRepositoryTest {
         config.recordAgentCall("2026-10-18")
         assertEquals(1, config.agentCallsToday("2026-10-18"))
     }
+
+    @Test
+    fun `the same fact is remembered once`() = runTest {
+        val db = TestDatabase.create()
+        val memory = AgentMemoryRepository(db)
+        db.transaction {
+            memory.addBlocking("16216 is the user's bKash")
+            memory.addBlocking("  16216 IS the user's bKash ")
+        }
+        assertEquals(1, memory.all().size)
+    }
+
+    @Test
+    fun `marking a skipped message as a payment hands it back to the agent with that answer`() = runTest {
+        val s = Store()
+        s.inbox.insertCandidate(row("m1"))
+        s.db.captureInboxQueriesQueries.markDecided("DISMISSED", "promo", "m1")
+        assertEquals(listOf("m1"), s.inbox.observeRecentlySkipped(10).first().map { it.id })
+
+        s.questions.markAsPayment("m1")
+
+        val back = s.inbox.getById("m1")
+        assertEquals(CaptureStatus.QUEUED, back?.status)
+        assertTrue(s.questions.getById(back?.questionId.orEmpty())?.answer.orEmpty().contains("payment"))
+        assertTrue(s.inbox.observeRecentlySkipped(10).first().isEmpty())
+        assertTrue(s.questions.observeOpen().first().isEmpty()) // nothing new for the user to answer
+    }
+
+    @Test
+    fun `today's messages are read before the history backlog`() = runTest {
+        val s = Store()
+        s.inbox.insertCandidate(row("old").copy(receivedAt = 1_000))
+        s.inbox.insertCandidate(row("today").copy(receivedAt = 9_000))
+
+        assertEquals(listOf("today", "old"), s.inbox.nextQueued(10, recentSinceMs = 5_000).map { it.id })
+    }
 }
+

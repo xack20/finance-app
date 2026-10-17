@@ -48,6 +48,7 @@ class AutoCaptureViewModelTest {
         memory: app.hisaab.data.AgentMemoryRepository = app.hisaab.data.AgentMemoryRepository(db),
         requestContacts: suspend () -> Boolean = { false },
         today: String = "2026-10-17",
+        onAiSettingsChanged: () -> Unit = {},
     ): AutoCaptureViewModel {
         val config = CaptureConfigRepository(db, dispatcher)
         return AutoCaptureViewModel(
@@ -57,6 +58,7 @@ class AutoCaptureViewModelTest {
             hasContactsPermission = { false },
             requestContactsPermission = requestContacts,
             today = { today },
+            onAiSettingsChanged = onAiSettingsChanged,
             hasSmsPermission = { gateway.hasSmsPermission() },
             requestSmsPermission = { gateway.requestSmsPermission() },
             startHistoryImport = onImport,
@@ -390,4 +392,19 @@ class AutoCaptureViewModelTest {
         assertEquals(false, gate, "gate must disarm when disabling")
         assertEquals(1, startCount, "disabling must NOT start capture again")
     }
+
+    @Test
+    fun `fixing the AI settings wakes the agent`() = runTest {
+        var kicks = 0
+        val v = vm(onAiSettingsChanged = { kicks++ })
+
+        v.setApiKey(CloudProvider.CLAUDE, "sk-ant-x")
+        v.setCloudProvider(CloudProvider.CLAUDE, null)
+        v.setEngineMode(EngineMode.CLOUD)
+        v.recordConsent()
+        advanceUntilIdle()
+
+        assertEquals(4, kicks)
+    }
 }
+

@@ -116,4 +116,48 @@ class CaptureAgentWorkerTest {
         assertEquals(ChannelStatus.Importing(0, 3), seen.first())
         assertEquals(ChannelStatus.Importing(2, 3), seen.last())
     }
+
+    @Test
+    fun `a failure outside a batch doesn't crash the worker`() = runTest {
+        val s = Store()
+        s.queue("a")
+        val worker = CaptureAgentWorker(s.inbox, { error("keystore unavailable") }, FakeBudget(), s.status)
+
+        assertEquals(CaptureAgentWorker.Drain.RETRY, worker.runUntilIdle())
+        assertEquals(CaptureStatus.QUEUED, s.status("a"))
+    }
+
+    @Test
+    fun `connection failures back off instead of hammering the AI`() = runTest {
+        val s = Store()
+        s.queue("a")
+        var calls = 0
+        val offline = BatchProcessor { calls++; throw LlmException(LlmError.Network("offline")) }
+        s.worker(offline).start(backgroundScope)
+
+        advanceTimeBy(5_001); runCurrent()
+        assertEquals(1, calls)
+        advanceTimeBy(125_000); runCurrent() // retried after 2 min
+        assertEquals(2, calls)
+        advanceTimeBy(125_000); runCurrent() // the next wait is 4 min
+        assertEquals(2, calls)
+        advanceTimeBy(120_000); runCurrent()
+        assertEquals(3, calls)
+    }
+
+    @Test
+    fun `after the daily cap it resumes once the day changes`() = runTest {
+        val s = Store()
+        s.queue("a")
+        val budget = FakeBudget(calls = 600)
+        CaptureAgentWorker(s.inbox, { s.settleAll }, budget, s.status, millisUntilMidnight = { 60_000L })
+            .start(backgroundScope)
+
+        advanceTimeBy(5_001); runCurrent()
+        assertTrue(s.batches.isEmpty())
+        budget.calls = 0 // a new day
+        advanceTimeBy(65_000); runCurrent()
+        assertEquals(1, s.batches.size)
+    }
 }
+

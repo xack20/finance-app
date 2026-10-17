@@ -52,6 +52,8 @@ class QuestionsViewModelTest {
             answerQuestion = questions::answer,
             dismissQuestion = questions::dismiss,
             onAnswered = { kicks++ },
+            recentlySkipped = inbox.observeRecentlySkipped(50),
+            markMessageAsPayment = questions::markAsPayment,
         )
     }
 
@@ -103,4 +105,20 @@ class QuestionsViewModelTest {
         assertEquals(CaptureStatus.DISMISSED, s.inbox.getById("m1")?.status)
         assertTrue(s.questions.observeOpen().first().isEmpty())
     }
+
+    @Test
+    fun `skipped messages are listed and one can be handed back as a payment`() = runTest {
+        val s = Store()
+        s.inbox.insertCandidate(message("m2"))
+        s.db.captureInboxQueriesQueries.markDecided("DISMISSED", "promo", "m2")
+        val vm = s.vm()
+
+        assertEquals(listOf("m2"), vm.skipped.first { it.isNotEmpty() }.map { it.id })
+        vm.markAsPayment("m2")
+        advanceUntilIdle()
+
+        assertEquals(CaptureStatus.QUEUED, s.inbox.getById("m2")?.status)
+        assertEquals(1, s.kicks)
+    }
 }
+

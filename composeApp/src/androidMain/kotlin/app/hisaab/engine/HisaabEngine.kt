@@ -502,7 +502,11 @@ class HisaabEngine private constructor(
         if (!enabled) return
         CaptureServiceStarter.start(context) // keeps capture running once the app is minimized or locked
         val scope = kotlinx.coroutines.CoroutineScope(
-            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default +
+                // A crash here would restart the sticky service straight into the same crash.
+                kotlinx.coroutines.CoroutineExceptionHandler { _, e ->
+                    android.util.Log.w("HisaabCapture", "capture work failed: ${e.message}")
+                },
         )
         captureScope = scope
         captureCoordinator.start(scope)

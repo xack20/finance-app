@@ -38,6 +38,7 @@ import app.hisaab.design.components.MidnightTextField
 import app.hisaab.design.components.NeoTopBar
 import app.hisaab.design.components.PrimaryButton
 import app.hisaab.design.components.SurfaceCard
+import app.hisaab.domain.CandidateTransaction
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -53,11 +54,14 @@ fun QuestionsScreen(onBack: () -> Unit) {
             answerQuestion = questions::answer,
             dismissQuestion = questions::dismiss,
             onAnswered = { container.kickCaptureAgent() },
+            recentlySkipped = container.captureInboxRepository.observeRecentlySkipped(SKIPPED_SHOWN),
+            markMessageAsPayment = questions::markAsPayment,
         )
     }
     DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val cards by viewModel.cards.collectAsState()
-    QuestionsContent(cards, onBack, viewModel::answer, viewModel::notAPayment)
+    val skipped by viewModel.skipped.collectAsState()
+    QuestionsContent(cards, onBack, viewModel::answer, viewModel::notAPayment, skipped, viewModel::markAsPayment)
 }
 
 /** The testable body: plain data + callbacks, no container. */
@@ -67,11 +71,14 @@ fun QuestionsContent(
     onBack: () -> Unit,
     onAnswer: (questionId: String, answer: String) -> Unit,
     onNotAPayment: (questionId: String) -> Unit,
+    skipped: List<CandidateTransaction> = emptyList(),
+    onMarkAsPayment: (messageId: String) -> Unit = {},
 ) {
     val palette = LocalHisaabPalette.current
+    var showSkipped by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize().background(palette.background)) {
         NeoTopBar(title = "Questions", onBack = onBack)
-        if (cards.isEmpty()) {
+        if (cards.isEmpty() && skipped.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(
@@ -93,7 +100,22 @@ fun QuestionsContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item { Spacer(Modifier.height(4.dp)) }
+            if (cards.isEmpty()) {
+                item { Text("No questions right now.", color = palette.muted, fontSize = 13.sp) }
+            }
             items(cards, key = { it.question.id }) { card -> QuestionCardView(card, onAnswer, onNotAPayment) }
+            if (skipped.isNotEmpty()) {
+                item {
+                    Text(
+                        if (showSkipped) "Hide what Hisaab skipped" else "Skipped by Hisaab (${skipped.size} recent)",
+                        color = palette.accent,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clickable { showSkipped = !showSkipped }.padding(vertical = 8.dp),
+                    )
+                }
+                if (showSkipped) items(skipped, key = { "skipped-" + it.id }) { m -> SkippedRow(m, onMarkAsPayment) }
+            }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
@@ -151,6 +173,35 @@ private fun QuestionCardView(
     }
 }
 
+/** A message the agent skipped, with why, and a way to hand a real payment back. */
+@Composable
+private fun SkippedRow(m: CandidateTransaction, onMarkAsPayment: (messageId: String) -> Unit) {
+    val palette = LocalHisaabPalette.current
+    SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+        Text("${m.sender} · ${shortTime(m.receivedAt)}", color = palette.muted, fontSize = 11.5.sp)
+        Text(m.rawBody, color = palette.onBackground, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(4.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Skipped: ${skipReason(m.parseError)}", color = palette.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Text(
+                "It's a payment",
+                color = palette.accent,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable { onMarkAsPayment(m.id) }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+            )
+        }
+    }
+}
+
+private fun skipReason(parseError: String?): String = when {
+    parseError == null -> "not a payment"
+    parseError.startsWith("same payment as") -> "copy of another message"
+    parseError.startsWith("user:") -> "you said it's not a payment"
+    else -> parseError
+}
+
+private const val SKIPPED_SHOWN = 50
 private const val MAX_MESSAGES_SHOWN = 3
 
 private fun shortTime(ms: Long): String {

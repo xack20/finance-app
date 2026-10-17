@@ -129,6 +129,7 @@ fun MainGraph() {
                             // M3-int Fix 3: master toggle gates the coordinator.
                             onStartCapture = { container.startCapture() },
                             onStopCapture = { container.stopCapture() },
+                            onAiSettingsChanged = { container.kickCaptureAgent() },
                         )
                     }
                     DisposableEffect(consentVm) { onDispose { consentVm.dispose() } }

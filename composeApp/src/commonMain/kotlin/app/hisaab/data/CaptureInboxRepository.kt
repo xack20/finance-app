@@ -121,8 +121,13 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
 
     // ---- capture agent ----
 
-    suspend fun nextQueued(limit: Int): List<CandidateTransaction> =
-        queries.nextQueued(limit.toLong()).executeAsList().map { it.toDomain() }
+    /** Oldest queued first, except that anything received since [recentSinceMs] goes ahead of the backlog. */
+    suspend fun nextQueued(limit: Int, recentSinceMs: Long = Long.MAX_VALUE): List<CandidateTransaction> =
+        queries.nextQueued(recentSinceMs, limit.toLong()).executeAsList().map { it.toDomain() }
+
+    fun observeRecentlySkipped(limit: Int): Flow<List<CandidateTransaction>> =
+        queries.observeRecentlySkipped(limit.toLong()).asFlow().mapToList(Dispatchers.Default)
+            .map { rows -> rows.map { it.toDomain() } }
 
     fun observeQueuedCount(): Flow<Long> = queries.observeQueuedCount().asFlow().mapToOne(Dispatchers.Default)
 

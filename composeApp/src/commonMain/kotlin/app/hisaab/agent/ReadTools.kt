@@ -137,24 +137,47 @@ class FindSimilarTransactionsTool(
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
 ) : ReadTool {
     override val name = "find_similar_transactions"
-    override val description = "Ledger entries with exactly this amount within 2 days of the date"
-    override val paramsDoc = "{ \"amount\": number, \"date\": \"YYYY-MM-DD\" }"
+    override val description =
+        "Ledger entries with exactly the amount within 2 days of the date — pass every candidate as items in one call"
+    override val paramsDoc = "{ \"items\": [ { \"amount\": number, \"date\": \"YYYY-MM-DD\" } ] }"
+
     override suspend fun execute(args: JsonObject): String {
-        val amount = argStr(args, "amount")?.toDoubleOrNull() ?: return "ERROR: amount is required"
-        val date = argStr(args, "date")?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-            ?: return "ERROR: date must be YYYY-MM-DD"
-        val from = date.minus(WINDOW_DAYS, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toEpochMilliseconds()
-        val to = date.plus(WINDOW_DAYS + 1, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toEpochMilliseconds()
-        val matches = repo.findSimilar(amount, from, to)
+        // One {amount, date} at the top level is accepted too.
+        val items = (args["items"] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: listOf(args)
+        if (items.size > MAX_ITEMS) return "ERROR: at most $MAX_ITEMS items per lookup"
+        // Query first: the JSON builders below can't suspend.
+        val results = items.map { item ->
+            val amount = argStr(item, "amount")?.toDoubleOrNull()
+            val date = argStr(item, "date")?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            val matches = if (amount == null || date == null) {
+                null
+            } else {
+                val from = date.minus(WINDOW_DAYS, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toEpochMilliseconds()
+                val to = date.plus(WINDOW_DAYS + 1, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toEpochMilliseconds()
+                repo.findSimilar(amount, from, to)
+            }
+            Triple(argStr(item, "amount"), argStr(item, "date"), matches)
+        }
         return jsonArray {
-            matches.forEach { t ->
+            results.forEach { (amount, date, matches) ->
                 addJsonObject {
-                    put("amount", t.amount)
-                    put("kind", t.kind.name)
-                    put("when", Instant.fromEpochMilliseconds(t.ts).toLocalDateTime(timeZone).toString().take(16))
-                    put("account", t.account)
-                    t.merchant?.let { put("merchant", it) }
-                    put("fromMessage", t.fromMessage)
+                    put("amount", amount)
+                    put("date", date)
+                    if (matches == null) {
+                        put("error", "amount and date (YYYY-MM-DD) are required")
+                    } else {
+                        put("matches", buildJsonArray {
+                            matches.forEach { t ->
+                                addJsonObject {
+                                    put("kind", t.kind.name)
+                                    put("when", Instant.fromEpochMilliseconds(t.ts).toLocalDateTime(timeZone).toString().take(16))
+                                    put("account", t.account)
+                                    t.merchant?.let { put("merchant", it) }
+                                    put("fromMessage", t.fromMessage)
+                                }
+                            }
+                        })
+                    }
                 }
             }
         }
@@ -162,6 +185,6 @@ class FindSimilarTransactionsTool(
 
     private companion object {
         const val WINDOW_DAYS = 2
+        const val MAX_ITEMS = 30
     }
 }
-

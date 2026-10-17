@@ -37,7 +37,12 @@ class CaptureAgentMigrationTest {
             0,
         )
 
+        CaptureConfigRepository(db).recordConsent(5L)
+
         HisaabDatabase.Schema.migrate(driver, 10, 11)
+
+        // Every message now goes to the AI, not just bank SMS: the old consent doesn't cover that.
+        assertEquals(null, CaptureConfigRepository(db).get().cloudConsentAt)
 
         assertEquals(CaptureStatus.QUEUED, inbox.getById("waiting")?.status)
         assertEquals(CaptureStatus.AUTO_POSTED, inbox.getById("posted")?.status)

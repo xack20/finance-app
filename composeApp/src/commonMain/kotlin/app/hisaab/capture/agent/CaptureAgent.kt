@@ -9,6 +9,9 @@ import app.hisaab.capture.CaptureEvent
 import app.hisaab.data.AgentQuestionRepository
 import app.hisaab.data.CaptureInboxRepository
 import app.hisaab.domain.CandidateTransaction
+import app.hisaab.llm.LlmError
+import app.hisaab.llm.LlmException
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import kotlinx.coroutines.CancellationException
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -33,6 +36,8 @@ class CaptureAgent(
     private val questions: AgentQuestionRepository,
     /** The message text as it may leave the phone (contacts added, codes masked, redacted when enabled). */
     private val prepare: suspend (CandidateTransaction) -> String = { it.rawBody },
+    /** The sender as it may leave the phone (a P2P sender is a phone number). */
+    private val prepareSender: suspend (String) -> String = { it },
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
     private val today: () -> String = { Clock.System.now().toLocalDateTime(timeZone).date.toString() },
     private val maxIterations: Int = 6,
@@ -49,12 +54,13 @@ class CaptureAgent(
         )
         val accountNames = ctx.accounts.map { it.name }.toSet()
 
-        val first = loop.run(emptyList(), renderBatch(byNumber))
+        val first = batchCall { loop.run(emptyList(), renderBatch(byNumber)) } ?: return giveUpOnce(batch)
         var result = parse(first, byNumber.keys, accountNames)
         if (result.errors.isNotEmpty()) {
             val repair = "Some decisions were rejected:\n" + result.errors.joinToString("\n") { "- $it" } +
                 "\nReply with a corrected final that contains ALL decisions for this batch."
-            result = parse(loop.run(first.updatedHistory.drop(1), repair), byNumber.keys, accountNames)
+            val second = batchCall { loop.run(first.updatedHistory.drop(1), repair) } ?: return giveUpOnce(batch)
+            result = parse(second, byNumber.keys, accountNames)
         }
 
         val decisions = result.decisions.map { d -> d.withMessageIds(d.messageIds.mapNotNull { byNumber[it]?.id }) }
@@ -65,6 +71,30 @@ class CaptureAgent(
         val undecided = if (events == null) batch else result.undecided.mapNotNull { byNumber[it] }
         settleUndecided(undecided)
         return BatchOutcome(events.orEmpty(), decided = batch.size - undecided.size, undecided = undecided.size)
+    }
+
+    /**
+     * Runs a model call; null when the failure is this batch's own (a reply cut off at max_tokens, a refusal, a
+     * rejected request, a timeout) — retrying the same batch unchanged would fail and pay again. Connection,
+     * rate-limit, outage and key errors are rethrown for the worker to retry later without blaming the batch.
+     */
+    private suspend fun <T> batchCall(call: suspend () -> T): T? = try {
+        call()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: LlmException) {
+        val error = e.error
+        val batchFault = error is LlmError.Decode || error is LlmError.Refused ||
+            (error is LlmError.ProviderError && !error.retryable)
+        if (batchFault) null else throw e
+    } catch (e: HttpRequestTimeoutException) {
+        null
+    }
+
+    /** The batch counts one attempt; after [MAX_ATTEMPTS] its messages become questions instead of being retried. */
+    private suspend fun giveUpOnce(batch: List<CandidateTransaction>): BatchOutcome {
+        settleUndecided(batch)
+        return BatchOutcome(emptyList(), decided = 0, undecided = batch.size)
     }
 
     private fun parse(turn: AgentTurnResult, numbers: Set<String>, accounts: Set<String>): DecisionResult =
@@ -88,7 +118,7 @@ class CaptureAgent(
         appendLine("Messages (oldest first):")
         byNumber.forEach { (number, m) ->
             appendLine()
-            appendLine("[$number] ${m.channel.name} · from ${m.sender} · ${formatTime(m.receivedAt)}")
+            appendLine("[$number] ${m.channel.name} · from ${prepareSender(m.sender)} · ${formatTime(m.receivedAt)}")
             appendLine(prepare(m).take(MAX_BODY_CHARS))
             m.questionId?.let { questions.getById(it) }?.takeIf { it.answer != null }?.let { q ->
                 appendLine("(You asked the user: \"${q.question}\" — they answered: \"${q.answer}\")")

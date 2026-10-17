@@ -181,4 +181,37 @@ class CaptureCommitterTest {
         assertTrue(s.memory.all().isEmpty())
         assertTrue(s.ledger().isEmpty())
     }
+
+    @Test
+    fun `an account that already exists is reused, not created twice`() = runTest {
+        val s = Store()
+        s.accounts.add("bKash", AccountKind.MFS, institution = null)
+        val batch = s.queue(msg("m1", at = 1_000))
+
+        s.committer.commit(
+            batch,
+            listOf(
+                CaptureDecision.CreateAccount("BKASH", AccountKind.MFS, null),
+                CaptureDecision.CreateAccount("bkash", AccountKind.MFS, null),
+                CaptureDecision.PostTransaction(listOf("m1"), "bKash", 50.0, TxnKind.EXPENSE),
+            ),
+        )
+
+        assertEquals(1, s.accounts.observeActive().first().count { it.name.equals("bkash", ignoreCase = true) })
+    }
+
+    @Test
+    fun `the merchant is saved with the payment`() = runTest {
+        val s = Store()
+        s.accounts.add("bKash", AccountKind.MFS, institution = null)
+        val batch = s.queue(msg("m1", at = 1_000))
+
+        s.committer.commit(
+            batch,
+            listOf(CaptureDecision.PostTransaction(listOf("m1"), "bKash", 120.0, TxnKind.EXPENSE, merchant = "Foodpanda")),
+        )
+
+        assertTrue(s.ledger().single().merchantId != null)
+    }
 }
+

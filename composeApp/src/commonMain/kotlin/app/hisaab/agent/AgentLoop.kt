@@ -57,7 +57,9 @@ class AgentLoop(
                         "ERROR: ${action.tool} is a write tool; do not call it as an action — put it in final.proposedWrites."
                     else -> "ERROR: unknown tool '${action.tool}'."
                 }
-                working += ChatMessage(Role.TOOL, toolMsg)
+                // Without this a model doing lookups runs out of turns and the whole turn is wasted.
+                val lastTurnNote = if (iterations == maxIterations - 1) "\n\nYour next reply is your last turn: reply with final now." else ""
+                working += ChatMessage(Role.TOOL, toolMsg + lastTurnNote)
                 continue
             }
             working += ChatMessage(Role.ASSISTANT, raw)

@@ -48,7 +48,8 @@ object Redactor {
     // One-time codes: only in messages that talk about a code, and never a number written as money.
     private val codeWordRegex =
         Regex("""(?i)\b(?:otp|code|pin|password|passcode|verification)\b|ওটিপি|কোড|পিন|পাসওয়ার্ড""")
-    private val digitRunRegex = Regex("""[0-9০-৯]{4,8}""")
+    // A run of 4-8 digits, or a code written in groups ("123-456", "456 789").
+    private val digitRunRegex = Regex("""[0-9০-৯]{3,4}(?:[- ][0-9০-৯]{3,4})+|[0-9০-৯]{4,8}""")
     private val currencyBeforeRegex = Regex("""(?i)(?:tk\.?|bdt|৳|taka|টাকা)\s*$""")
 
     /**

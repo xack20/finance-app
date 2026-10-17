@@ -393,7 +393,8 @@ actual class AppContainer {
         }
         if (!enabled) return
         val scope = kotlinx.coroutines.CoroutineScope(
-            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default +
+                kotlinx.coroutines.CoroutineExceptionHandler { _, e -> println("HisaabCapture: capture work failed: ${e.message}") },
         )
         captureScope = scope
         captureCoordinator.start(scope)

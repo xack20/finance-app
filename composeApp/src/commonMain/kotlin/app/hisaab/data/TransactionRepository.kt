@@ -155,13 +155,15 @@ class TransactionRepository(
      */
     fun addBlocking(input: NewTransaction): String {
         val id = randomId()
+        val merchantId = input.merchantName?.takeIf { it.isNotBlank() }
+            ?.let { merchantRepo.upsertByNameBlocking(it, defaultCategoryId = input.categoryId) }
         db.transactionQueriesQueries.insertTxn(
             id = id,
             account_id = input.accountId,
             amount = input.amount,
             currency = input.currency,
             ts = input.ts,
-            merchant_id = null, // merchant upsert happens outside the transaction
+            merchant_id = merchantId,
             category_id = input.categoryId,
             source = input.source.name,
             notes = input.notes,

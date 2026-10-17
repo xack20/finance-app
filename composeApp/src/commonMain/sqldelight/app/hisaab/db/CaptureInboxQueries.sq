@@ -28,8 +28,11 @@ purgeRaw:
 UPDATE capture_inbox SET raw_body = '' WHERE id = ?;
 
 -- ---- capture agent ----
+-- Messages received since :recentSince first (today's payment shouldn't wait behind a history import), then oldest.
 nextQueued:
-SELECT * FROM capture_inbox WHERE status = 'QUEUED' ORDER BY received_at ASC LIMIT ?;
+SELECT * FROM capture_inbox WHERE status = 'QUEUED'
+ORDER BY (received_at >= :recentSince) DESC, received_at ASC
+LIMIT :limit;
 
 observeQueuedCount:
 SELECT COUNT(*) FROM capture_inbox WHERE status = 'QUEUED';
@@ -61,3 +64,10 @@ WHERE id = ?;
 -- Open agent questions (each parks at least one message), for the Today banner.
 observeOpenQuestionCount:
 SELECT COUNT(DISTINCT question_id) FROM capture_inbox WHERE status = 'PENDING' AND question_id IS NOT NULL;
+
+-- "Skipped by Hisaab": what the agent (or a copy rule) dismissed, newest first.
+observeRecentlySkipped:
+SELECT * FROM capture_inbox WHERE status = 'DISMISSED' ORDER BY received_at DESC LIMIT ?;
+
+requeueWithQuestion:
+UPDATE capture_inbox SET status = 'QUEUED', attempts = 0, question_id = ? WHERE id = ?;

@@ -54,7 +54,7 @@ fun CloudConsentScreen(
         Column(Modifier.fillMaxSize().padding(horizontal = HisaabSpacing.gutter)) {
             Spacer(Modifier.height(12.dp))
             Text(
-                "Your bank SMS text will be sent to $providerName for parsing.",
+                "Every captured message — SMS, email and payment notifications — will be read by $providerName.",
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
@@ -64,7 +64,7 @@ fun CloudConsentScreen(
             )
             Spacer(Modifier.height(14.dp))
             Text(
-                "Hisaab's own servers never see this data — it goes directly from your device to $providerName using your API key. Redaction is on by default and masks account and phone numbers before sending.",
+                "Hisaab's agent sends them in batches so it can add payments to your books by itself. Hisaab's own servers never see this data — it goes from your device to $providerName. One-time codes are always masked; redaction (on by default) also masks account and phone numbers. Promos and other non-payments are read too, then skipped.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = palette.muted,
             )
@@ -95,7 +95,7 @@ fun CloudConsentScreen(
                 ) { Text("Revoke consent") }
             } else {
                 PrimaryButton(
-                    text = "I agree — use cloud parsing",
+                    text = "I agree — let the agent read my messages",
                     onClick = onGrant,
                     modifier = Modifier.fillMaxWidth(),
                 )

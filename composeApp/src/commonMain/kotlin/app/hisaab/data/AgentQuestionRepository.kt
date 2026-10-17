@@ -42,6 +42,19 @@ class AgentQuestionRepository(private val db: HisaabDatabase) {
         }
     }
 
+    /**
+     * The user says a message the agent skipped is a real payment: it goes back to the agent with that answer
+     * attached (as an already-answered question), so the next batch posts it.
+     */
+    suspend fun markAsPayment(messageId: String) {
+        db.transaction {
+            val id = randomId()
+            queries.insertQuestion(id, MARKED_PAYMENT_QUESTION, "[]", now())
+            queries.markAnswered(MARKED_PAYMENT_ANSWER, now(), id)
+            inbox.requeueWithQuestion(id, messageId)
+        }
+    }
+
     /** "Not a payment": closes the question and drops its messages. */
     suspend fun dismiss(id: String) {
         db.transaction {
@@ -67,5 +80,7 @@ class AgentQuestionRepository(private val db: HisaabDatabase) {
 
     companion object {
         const val DISMISSED_ANSWER = "Not a payment"
+        private const val MARKED_PAYMENT_QUESTION = "You skipped this message. Is it a real payment?"
+        private const val MARKED_PAYMENT_ANSWER = "Yes — it is a real payment. Post it."
     }
 }

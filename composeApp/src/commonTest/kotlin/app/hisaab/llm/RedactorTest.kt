@@ -80,4 +80,12 @@ class RedactorTest {
         assertEquals(payment, Redactor.maskSecrets(payment)) // no code word: nothing to hide
         assertTrue("Tk 1500" in Redactor.maskSecrets("Paid Tk 1500 at Shop. OTP 7788"))
     }
+
+    @Test
+    fun `codes written in groups are masked too`() {
+        val out = Redactor.maskSecrets("Your WhatsApp code: 123-456. Don't share this code.")
+        assertFalse("123-456" in out || "123" in out, out)
+        assertFalse("456" in Redactor.maskSecrets("Verification code 456 789"))
+    }
 }
+

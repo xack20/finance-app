@@ -40,4 +40,23 @@ class FindSimilarTransactionsToolTest {
         assertFalse("Shwapno" in out, out)
         assertFalse("Agora" in out, out)
     }
+
+    @Test
+    fun `several payments can be checked in one lookup`() = runTest {
+        val db = TestDatabase.create()
+        val txns = TransactionRepository(db, MerchantRepository(db), TagRepository(db))
+        val cash = AccountRepository(db).ensureDefaultCashAccount()
+        val ts = LocalDate(2025, 3, 4).atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()
+        txns.add(NewTransaction(cash, 1200.0, ts = ts, merchantName = "Daraz", categoryId = null, notes = null, kind = TxnKind.EXPENSE))
+        txns.add(NewTransaction(cash, 80.0, ts = ts, merchantName = "Pathao", categoryId = null, notes = null, kind = TxnKind.EXPENSE))
+
+        val out = FindSimilarTransactionsTool(txns, TimeZone.UTC).execute(
+            Json.parseToJsonElement(
+                """{"items":[{"amount":1200,"date":"2025-03-04"},{"amount":80,"date":"2025-03-05"},{"amount":5,"date":"2025-03-05"}]}""",
+            ).jsonObject,
+        )
+
+        assertTrue("Daraz" in out && "Pathao" in out, out)
+    }
 }
+
