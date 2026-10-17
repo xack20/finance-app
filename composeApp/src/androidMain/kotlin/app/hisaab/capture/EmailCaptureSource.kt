@@ -81,6 +81,9 @@ class EmailCaptureSource(
             return false
         }
         val cursor = runCatching { loadCursor() }.getOrDefault(0L)
+        // A history pass can take minutes before its first page lands (connect + search the whole mailbox): say
+        // so now, which also makes the service take its import wake lock before the CPU can sleep.
+        if (!caughtUp && status.status.value !is ChannelStatus.Importing) status.importing(readThisImport, 0)
         val page = runCatching { withContext(Dispatchers.IO) { fetchPage(cfg, cursor, recentOnly = caughtUp) } }
             .getOrElse { e ->
                 onError(e)

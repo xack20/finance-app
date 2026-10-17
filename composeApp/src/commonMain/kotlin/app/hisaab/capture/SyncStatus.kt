@@ -19,6 +19,8 @@ data class SyncStatuses(
     val sms: ChannelStatus = ChannelStatus.Off,
     val email: ChannelStatus = ChannelStatus.Off,
     val relay: ChannelStatus = ChannelStatus.Off,
+    /** Cloud LLM used to parse unknown messages: Error when the provider rejects the key, cleared by a success. */
+    val ai: ChannelStatus = ChannelStatus.Off,
 )
 
 /**
@@ -58,7 +60,7 @@ class ChannelStatusTracker(
 
 fun ChannelStatus.label(timeZone: TimeZone = TimeZone.currentSystemDefault()): String = when (this) {
     ChannelStatus.Off -> "Off"
-    is ChannelStatus.Importing -> "Importing $done of $total"
+    is ChannelStatus.Importing -> if (total == 0) "Importing…" else "Importing $done of $total"
     is ChannelStatus.UpToDate -> {
         val time = Instant.fromEpochMilliseconds(lastCheckedMs).toLocalDateTime(timeZone)
         "Up to date · last checked ${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}"
@@ -68,14 +70,16 @@ fun ChannelStatus.label(timeZone: TimeZone = TimeZone.currentSystemDefault()): S
 
 /** One line for the ongoing notification: the first error, else the first import, else the idle line. */
 fun notificationText(statuses: SyncStatuses): String {
-    val channels = listOf("SMS" to statuses.sms, "Email" to statuses.email, "Mac relay" to statuses.relay)
+    val channels = listOf(
+        "SMS" to statuses.sms, "Email" to statuses.email, "Mac relay" to statuses.relay, "Cloud AI" to statuses.ai,
+    )
     channels.firstOrNull { it.second is ChannelStatus.Error }?.let { (name, status) ->
         return "$name: ${(status as ChannelStatus.Error).reason}"
     }
     channels.firstOrNull { it.second is ChannelStatus.Importing }?.let { (name, status) ->
         val importing = status as ChannelStatus.Importing
         val lowered = if (name == "Email") "email" else name
-        return "Importing $lowered: ${importing.done} of ${importing.total}"
+        return if (importing.total == 0) "Importing $lowered…" else "Importing $lowered: ${importing.done} of ${importing.total}"
     }
     return "Watching SMS & email for transactions"
 }

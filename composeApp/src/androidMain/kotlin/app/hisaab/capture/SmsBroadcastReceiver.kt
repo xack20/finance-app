@@ -11,7 +11,7 @@ import android.telephony.SmsMessage
  * [Telephony.Sms.Intents.getMessagesFromIntent], reduces multipart parts to (sender, joined body,
  * earliest timestamp), and delegates the channel-agnostic mapping to the pure [smsPartsToRawCapture]
  * (commonMain, unit-tested). Publishes results on [CaptureBus]. It never touches the DB or the
- * ledger directly — the coordinator (only alive while unlocked) consumes the bus.
+ * ledger directly — the coordinator (running in the always-on CaptureForegroundService) consumes the bus.
  *
  * Declared in the manifest guarded by `android.permission.BROADCAST_SMS` so only the OS can
  * deliver to it. It does NOT abort the broadcast (non-default SMS app behavior).

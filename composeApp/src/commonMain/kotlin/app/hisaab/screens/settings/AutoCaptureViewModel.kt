@@ -162,13 +162,17 @@ class AutoCaptureViewModel(
             // No cursor is seeded: the email source starts from the oldest bank email (all-time history).
             configRepo.setEmailCaptureEnabled(true)
             onStartCapture()
+            _notificationsDenied.value = !requestNotificationPermission() // background sync reports in a notification
         }
     }
 
     fun setEmailCaptureEnabled(enabled: Boolean) {
         scope.launch {
             configRepo.setEmailCaptureEnabled(enabled)
-            if (enabled) onStartCapture()
+            if (enabled) {
+                onStartCapture()
+                _notificationsDenied.value = !requestNotificationPermission()
+            }
         }
     }
 

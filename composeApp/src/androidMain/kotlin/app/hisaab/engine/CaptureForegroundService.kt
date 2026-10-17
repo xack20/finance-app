@@ -33,7 +33,6 @@ import kotlinx.coroutines.withContext
 class CaptureForegroundService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val engine by lazy { HisaabEngine.get(applicationContext) }
     private var started = false
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -44,8 +43,7 @@ class CaptureForegroundService : Service() {
         // sticky restart from the background): stop quietly instead of crash-looping; the next trigger retries.
         val promoted = runCatching {
             ServiceCompat.startForeground(
-                this, NOTIFICATION_ID, notification(notificationText(engine.syncStatuses.value)),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+                this, NOTIFICATION_ID, notification(STARTING_TEXT), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
             )
         }
         if (promoted.isFailure) {
@@ -56,14 +54,21 @@ class CaptureForegroundService : Service() {
         if (!started) {
             started = true
             scope.launch {
+                // Engine construction (Keystore-backed prefs, model files) stays off the main thread.
+                val engine = withContext(Dispatchers.Default) { HisaabEngine.get(applicationContext) }
                 if (!withContext(Dispatchers.Default) { engine.startBackground() }) {
                     stopSelf()
                     return@launch
                 }
                 launch {
+                    var shown = STARTING_TEXT
                     engine.syncStatuses.collect { statuses ->
-                        getSystemService(NotificationManager::class.java)
-                            .notify(NOTIFICATION_ID, notification(notificationText(statuses)))
+                        val text = notificationText(statuses)
+                        if (text != shown) { // UpToDate(now) changes every poll; only re-post visible changes
+                            shown = text
+                            getSystemService(NotificationManager::class.java)
+                                .notify(NOTIFICATION_ID, notification(text))
+                        }
                         holdWakeLock(statuses.anyImporting())
                     }
                 }
@@ -112,6 +117,7 @@ class CaptureForegroundService : Service() {
 
     private companion object {
         const val CHANNEL_ID = "sync"
+        const val STARTING_TEXT = "Starting background sync…"
         const val NOTIFICATION_ID = 1
         const val WAKE_LOCK_TAG = "hisaab:import"
         const val WAKE_LOCK_TIMEOUT_MS = 2L * 60 * 60 * 1000

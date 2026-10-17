@@ -399,6 +399,7 @@ fun AutoCaptureScreen(
                 SyncStatusLine("SMS", sync.sms, palette)
                 SyncStatusLine("Email", sync.email, palette)
                 if (!smsSupported) SyncStatusLine("Mac relay", sync.relay, palette)
+                if (c.engineMode == EngineMode.CLOUD) SyncStatusLine("Cloud AI", sync.ai, palette)
             }
             if (!backgroundAllowed) {
                 Spacer(Modifier.height(8.dp))
@@ -427,6 +428,12 @@ fun AutoCaptureScreen(
                 text = if (smsImporting) "Importing SMS…" else "Import all SMS",
                 onClick = { viewModel.importAllHistory() },
                 enabled = c.captureEnabled && !smsImporting,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Email history imports by itself once a mailbox is connected — follow it on the Email line above.",
+                color = palette.muted,
+                fontSize = 12.sp,
             )
             Spacer(Modifier.height(40.dp))
         }

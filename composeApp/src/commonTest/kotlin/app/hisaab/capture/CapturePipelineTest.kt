@@ -78,6 +78,46 @@ class CapturePipelineTest {
         captureEvents = f.events,
     )
 
+    @Test
+    fun `a rejected LLM key is reported with the capture's channel`() = runTest {
+        val f = fixture()
+        val rejecting = object : app.hisaab.llm.LlmProvider {
+            override val id = app.hisaab.llm.ProviderId.CLOUD_CLAUDE
+            override suspend fun isAvailable() = true
+            override suspend fun parse(req: app.hisaab.llm.ParseRequest): app.hisaab.llm.LlmParseResult =
+                throw app.hisaab.llm.LlmException(app.hisaab.llm.LlmError.InvalidKey)
+            override suspend fun categorize(merchant: String, categories: List<app.hisaab.domain.Category>) = null
+        }
+        val reported = mutableListOf<Pair<CaptureChannel, app.hisaab.llm.LlmError>>()
+        CapturePipeline(
+            db = f.db, inboxRepo = f.inboxRepo, senderRepo = f.senderRepo,
+            accountMatcher = AccountMatcher(f.accountRepo, f.senderRepo, f.db), preFilter = SmsPreFilter(f.senderRepo),
+            llmRouter = FakeLlmRouter(rejecting), txnRepo = f.txnRepo, configRepo = f.configRepo,
+            captureEvents = f.events, onLlmError = { raw, error -> reported += raw.channel to error },
+        ).process(raw("NEWBANK", "Your A/C debited BDT 50.00 TxnID K1"))
+        // The capture still lands (PENDING, llm_failed); the key problem must reach the sync status.
+        assertEquals<List<Pair<CaptureChannel, app.hisaab.llm.LlmError>>>(listOf(CaptureChannel.SMS to app.hisaab.llm.LlmError.InvalidKey), reported)
+    }
+
+    @Test
+    fun `a successful LLM parse is reported so a stale key error can clear`() = runTest {
+        val f = fixture()
+        val provider = FakeLlmProvider(
+            result = app.hisaab.llm.LlmParseResult(
+                amount = 50.0, direction = app.hisaab.domain.Direction.DEBIT, merchant = "X", categoryId = null,
+                balanceAfter = null, refNo = "K2", confidence = 0.9, isFinancial = true,
+            ),
+        )
+        var successes = 0
+        CapturePipeline(
+            db = f.db, inboxRepo = f.inboxRepo, senderRepo = f.senderRepo,
+            accountMatcher = AccountMatcher(f.accountRepo, f.senderRepo, f.db), preFilter = SmsPreFilter(f.senderRepo),
+            llmRouter = FakeLlmRouter(provider), txnRepo = f.txnRepo, configRepo = f.configRepo,
+            captureEvents = f.events, onLlmSuccess = { successes++ },
+        ).process(raw("NEWBANK", "Your A/C debited BDT 50.00 TxnID K2"))
+        assertEquals(1, successes)
+    }
+
     private fun raw(sender: String, body: String, ts: Long = 1000L) =
         RawCapture(sender = sender, body = body, receivedAt = ts, channel = CaptureChannel.SMS)
 

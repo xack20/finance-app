@@ -49,6 +49,17 @@ class SyncStatusTest {
     }
 
     @Test
+    fun `a rejected cloud AI key reaches the notification`() {
+        assertEquals("Cloud AI: key rejected", notificationText(SyncStatuses(email = Importing(5, 9), ai = Error("key rejected"))))
+    }
+
+    @Test
+    fun `an import that hasn't counted its total yet reads as importing`() {
+        assertEquals("Importing…", Importing(0, 0).label())
+        assertEquals("Importing email…", notificationText(SyncStatuses(email = Importing(0, 0))))
+    }
+
+    @Test
     fun `notification prefers errors, then imports, then the idle line`() {
         assertEquals(
             "Email: bad password",

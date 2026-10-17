@@ -292,6 +292,25 @@ class AutoCaptureViewModelTest {
     }
 
     @Test
+    fun `turning on email capture also asks for notification permission`() = runTest {
+        var asks = 0
+        val v = vm(notificationPermission = { asks++; false })
+        v.setEmailCaptureEnabled(true)
+        advanceUntilIdle()
+        assertEquals(1, asks)
+        assertEquals(true, v.notificationsDenied.value)
+    }
+
+    @Test
+    fun `connecting a mailbox asks for notification permission`() = runTest {
+        var asks = 0
+        val v = vm(notificationPermission = { asks++; true })
+        v.configureEmail("me@gmail.com", "abcd efgh ijkl mnop")
+        advanceUntilIdle()
+        assertEquals(1, asks)
+    }
+
+    @Test
     fun `granting SMS capture also asks for notification permission`() = runTest {
         var asks = 0
         val v = vm(gateway = FakeCaptureGateway(permissionGranted = true), notificationPermission = { asks++; true })

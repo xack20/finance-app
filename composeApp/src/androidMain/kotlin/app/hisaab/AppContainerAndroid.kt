@@ -108,7 +108,7 @@ actual class AppContainer(
         engine.confirmCandidateWithEdits(newTxn, candidateId)
 
     actual fun startCapture() = engine.startCapture()
-    actual fun stopCapture() = engine.restartCapture()
+    actual fun stopCapture() = engine.restartCaptureAsync()
     actual fun masterSecretInMemory(): ByteArray? = engine.masterSecretInMemory()
     actual fun openDatabase(masterSecret: ByteArray): HisaabDatabase = engine.openDatabase(masterSecret)
     actual fun databaseOrNull(): HisaabDatabase? = engine.databaseOrNull()

@@ -17,7 +17,7 @@ Privacy-first AI financial guide. Bangladesh-first commercial SaaS.
 ./gradlew :composeApp:assembleDebug                              # Android APK
 ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode         # iOS framework (then build iosApp.xcodeproj)
 ./gradlew -Phisaab.enableWasm=true :composeApp:wasmJsBrowserDevelopmentRun   # Web dev (wasm gated off by default)
-./gradlew :composeApp:allTests                                   # All unit tests
+./gradlew :composeApp:testDebugUnitTest                          # Shared unit tests (JVM; iOS test targets can't compile commonTest yet — tech-debt M18)
 ```
 
 ## Stack

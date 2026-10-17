@@ -238,6 +238,13 @@ class HisaabEngine private constructor(
             txnRepo = transactionRepository,
             configRepo = captureConfigRepository,
             captureEvents = captureEventsFlow,
+            onLlmError = { _, error ->
+                // Only a rejected key needs the user; one-off failures leave the capture PENDING for review.
+                if (error == app.hisaab.llm.LlmError.InvalidKey) {
+                    aiStatus.failed("key rejected — update it in Auto-capture", persistent = true)
+                }
+            },
+            onLlmSuccess = { aiStatus.succeeded() },
         )
 
     val captureInboxRepository: CaptureInboxRepository
@@ -263,10 +270,17 @@ class HisaabEngine private constructor(
     private val smsStatus = ChannelStatusTracker(clock)
     private val emailStatus = ChannelStatusTracker(clock)
     private val relayStatus = ChannelStatusTracker(clock)
+    private val aiStatus = ChannelStatusTracker(clock)
 
     val syncStatuses: kotlinx.coroutines.flow.StateFlow<SyncStatuses> =
-        kotlinx.coroutines.flow.combine(smsStatus.status, emailStatus.status, relayStatus.status, ::SyncStatuses)
-            .stateIn(engineScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, SyncStatuses())
+        kotlinx.coroutines.flow.combine(
+            smsStatus.status, emailStatus.status, relayStatus.status, aiStatus.status, ::SyncStatuses,
+        ).stateIn(engineScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, SyncStatuses())
+
+    /** All channels Off — capture fully stopped, so no line keeps claiming "importing" or "up to date". */
+    private fun statusesOff() {
+        smsStatus.off(); emailStatus.off(); relayStatus.off(); aiStatus.off()
+    }
 
     /** SMS status outside an import: off, missing permission, or up to date as of now. */
     private suspend fun refreshSmsStatus() {
@@ -396,15 +410,24 @@ class HisaabEngine private constructor(
         return true
     }
 
-    @Synchronized // the service (background thread) and the UI (main) both drive the DB lifecycle
-    fun openDatabase(masterSecret: ByteArray): HisaabDatabase {
+    // The service (background thread) and the UI (main) both drive the DB lifecycle — see the synchronized overload.
+    fun openDatabase(masterSecret: ByteArray): HisaabDatabase = openDatabase(masterSecret, keepUiSecret = true)
+
+    /**
+     * [keepUiSecret] = false for the background service: only the derived DB key lives in SQLCipher; the raw
+     * master secret (used by UI features like attachments) isn't kept while nobody has unlocked the app.
+     */
+    @Synchronized
+    private fun openDatabase(masterSecret: ByteArray, keepUiSecret: Boolean): HisaabDatabase {
         cachedDatabase?.let { open ->
             // Still open because background capture kept it across the UI lock: just restore the UI's copy.
-            cachedMasterSecret?.fill(0)
-            cachedMasterSecret = masterSecret.copyOf()
+            if (keepUiSecret) {
+                cachedMasterSecret?.fill(0)
+                cachedMasterSecret = masterSecret.copyOf()
+            }
             return open
         }
-        cachedMasterSecret = masterSecret.copyOf()
+        if (keepUiSecret) cachedMasterSecret = masterSecret.copyOf()
         val keyCopy = cryptoService.deriveDbKey(masterSecret)
         val driver = databaseDriverFactory.createDriver(keyCopy)
         // DatabaseDriverFactory zeroes keyCopy after SQLCipher copies it (P0b T3 fix).
@@ -518,7 +541,7 @@ class HisaabEngine private constructor(
     suspend fun startBackground(): Boolean {
         val secret = secureStorage.loadMasterSecret() ?: return false
         try {
-            if (cachedDatabase == null) openDatabase(secret)
+            if (cachedDatabase == null) openDatabase(secret, keepUiSecret = false)
         } finally {
             secret.fill(0)
         }
@@ -572,7 +595,15 @@ class HisaabEngine private constructor(
     fun restartCapture() {
         stopCapture()
         startCapture()
-        if (captureScope == null) stopBackground()
+        if (captureScope == null) {
+            stopBackground()
+            statusesOff()
+        }
+    }
+
+    /** UI toggles call this: stopping capture joins in-flight work (an IMAP call can block ~20 s), so not on main. */
+    fun restartCaptureAsync() {
+        engineScope.launch { restartCapture() }
     }
 
     companion object {

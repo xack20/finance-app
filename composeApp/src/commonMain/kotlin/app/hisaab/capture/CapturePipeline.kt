@@ -51,6 +51,9 @@ class CapturePipeline(
     private val txnRepo: TransactionRepository,
     private val configRepo: CaptureConfigRepository,
     private val captureEvents: MutableSharedFlow<CaptureEvent>,
+    /** Reports LLM failures (e.g. a rejected API key) so the sync status can show them; the capture still saves. */
+    private val onLlmError: (RawCapture, app.hisaab.llm.LlmError) -> Unit = { _, _ -> },
+    private val onLlmSuccess: () -> Unit = {},
 ) {
 
     suspend fun process(raw: RawCapture) {
@@ -173,7 +176,9 @@ class CapturePipeline(
                 categories = defaultCategories(),
             ),
         )
-    }.getOrNull()
+    }.onSuccess { onLlmSuccess() }
+        .onFailure { e -> (e as? app.hisaab.llm.LlmException)?.let { onLlmError(raw, it.error) } }
+        .getOrNull()
 
     // ---- Shared finalize: resolve fields, score, route, post ----
 
