@@ -49,6 +49,8 @@ class RelayCaptureSource(
      */
     private val enabled: suspend () -> Boolean = { true },
     private val onError: (Throwable) -> Unit = {},
+    /** Optional sync status for the Auto-capture screen + notification (null in tests that don't care). */
+    private val status: ChannelStatusTracker? = null,
 ) : CaptureSource {
 
     override fun capabilities(): Set<CaptureChannel> = setOf(CaptureChannel.SMS)
@@ -62,8 +64,13 @@ class RelayCaptureSource(
     }
 
     private suspend fun FlowCollector<RawCapture>.drain() {
-        if (!runCatching { enabled() }.getOrDefault(false)) return // inert until enabled — no fetch
-        val rows = runCatching { transport.fetchPending() }.getOrElse { onError(it); return }
+        if (!runCatching { enabled() }.getOrDefault(false)) { status?.off(); return } // inert until enabled
+        val rows = runCatching { transport.fetchPending() }.getOrElse {
+            onError(it)
+            status?.failed(it.message ?: "Mac relay unreachable", persistent = false)
+            return
+        }
+        status?.succeeded()
         for (row in rows) {
             val capture = runCatching { decode(row) }.getOrElse { onError(it); null } ?: continue
             emit(capture) // suspends until the coordinator finishes processing this capture

@@ -49,6 +49,35 @@ class RelayCaptureSourceTest {
         assertTrue(src.backfillSince(0L).isEmpty())
     }
 
+    private fun tracker() = ChannelStatusTracker(now = { 42L })
+
+    @Test
+    fun `relay status is Off when disabled`() = runTest {
+        val status = tracker().apply { succeeded() }
+        RelayCaptureSource(FakeTransport(listOf(row("a"))), decode, enabled = { false }, status = status)
+            .observeIncoming().toList()
+        assertEquals(ChannelStatus.Off, status.status.value)
+    }
+
+    @Test
+    fun `a successful drain reports up to date`() = runTest {
+        val status = tracker()
+        RelayCaptureSource(FakeTransport(listOf(row("a"))), decode, status = status).observeIncoming().toList()
+        assertEquals(ChannelStatus.UpToDate(42L), status.status.value)
+    }
+
+    @Test
+    fun `three failed fetches in a row surface an error`() = runTest {
+        val failing = object : RelayTransport {
+            override suspend fun fetchPending(): List<RelayRow> = error("offline")
+            override suspend fun delete(id: String) {}
+            override fun changes(): Flow<Unit> = flowOf(Unit, Unit) // initial drain + 2 more = 3 failures
+        }
+        val status = tracker()
+        RelayCaptureSource(failing, decode, status = status).observeIncoming().toList()
+        assertEquals(ChannelStatus.Error("offline"), status.status.value)
+    }
+
     @Test
     fun undecodable_row_is_skipped_and_left_for_ttl() = runTest {
         val t = FakeTransport(listOf(row("good"), row("bad")))

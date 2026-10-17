@@ -100,6 +100,7 @@ actual class AppContainer(
     actual fun captureCoordinatorOrNull(): CaptureCoordinator? = engine.captureCoordinatorOrNull()
     actual fun startHistoryImport() = engine.startHistoryImport()
     actual val emailImportProgress: StateFlow<ImportProgress?> get() = engine.emailImportProgress
+    actual val syncStatuses: StateFlow<app.hisaab.capture.SyncStatuses> get() = engine.syncStatuses
 
     actual fun lastCrashReport(): String? = CrashLog.read(context)
     actual fun clearCrashReport() = CrashLog.clear(context)

@@ -11,6 +11,8 @@ import app.hisaab.auth.SupabaseAuthRepository
 import app.hisaab.capture.CaptureCoordinator
 import app.hisaab.capture.CaptureCursorStore
 import app.hisaab.capture.CaptureHandler
+import app.hisaab.capture.ChannelStatusTracker
+import app.hisaab.capture.SyncStatuses
 import app.hisaab.capture.CompositeCaptureSource
 import app.hisaab.capture.EmailCaptureSource
 import app.hisaab.capture.ImapConfig
@@ -56,6 +58,7 @@ import app.hisaab.platform.SecureStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -246,6 +249,30 @@ class HisaabEngine private constructor(
     /** SMS reading (inbox backfill + live bus) — no Activity; the permission request stays on CaptureService. */
     private val smsCaptureSource = SmsCaptureSource(context)
 
+    // Per-channel sync status (Auto-capture screen + background notification). Engine-lifetime scope: the
+    // combined flow outlives any one capture run.
+    private val engineScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+    )
+    private val clock: () -> Long = { System.currentTimeMillis() }
+    private val smsStatus = ChannelStatusTracker(clock)
+    private val emailStatus = ChannelStatusTracker(clock)
+    private val relayStatus = ChannelStatusTracker(clock)
+
+    val syncStatuses: kotlinx.coroutines.flow.StateFlow<SyncStatuses> =
+        kotlinx.coroutines.flow.combine(smsStatus.status, emailStatus.status, relayStatus.status, ::SyncStatuses)
+            .stateIn(engineScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, SyncStatuses())
+
+    /** SMS status outside an import: off, missing permission, or up to date as of now. */
+    private suspend fun refreshSmsStatus() {
+        when {
+            !captureConfigRepository.get().captureEnabled -> smsStatus.off()
+            !smsCaptureSource.hasSmsPermission() ->
+                smsStatus.failed("SMS permission is off — tap Grant", persistent = true)
+            else -> smsStatus.succeeded()
+        }
+    }
+
     val captureCoordinator: CaptureCoordinator by lazy {
         val cursorStore = object : CaptureCursorStore {
             // resolve the repo FRESH each call so it tracks close/open DB cycles
@@ -283,6 +310,7 @@ class HisaabEngine private constructor(
                     authRepository.isSignedIn()
             },
             onError = { e -> android.util.Log.w("HisaabRelay", "relay ingest: ${e.message}") },
+            status = relayStatus,
         )
     }
 
@@ -303,6 +331,7 @@ class HisaabEngine private constructor(
             loadCursor = { secureStorage.loadString("imap_email_uid_cursor")?.toLongOrNull() ?: 0L },
             saveCursor = { secureStorage.storeString("imap_email_uid_cursor", it.toString()) },
             onError = { e -> android.util.Log.w("HisaabEmail", "email capture: ${e.message}") },
+            status = emailStatus,
         )
     }
 
@@ -401,7 +430,25 @@ class HisaabEngine private constructor(
         captureScope = scope
         captureCoordinator.start(scope)
         // M3-int Fix 2: wire catch-up so SMS received while DB was locked are recovered.
-        scope.launch(kotlinx.coroutines.Dispatchers.Default) { captureCoordinator.catchUp() }
+        scope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            captureCoordinator.catchUp()
+            refreshSmsStatus()
+        }
+        // SMS import progress → status + a log line every 100 messages (adb-verifiable without the UI).
+        scope.launch {
+            var importing = false
+            captureCoordinator.importProgress.collect { p ->
+                if (p != null) {
+                    importing = true
+                    smsStatus.importing(p.done, p.total)
+                    if (p.done % 100 == 0) android.util.Log.i("HisaabCapture", "sms import ${p.done}/${p.total}")
+                } else {
+                    if (importing) android.util.Log.i("HisaabCapture", "sms import finished")
+                    importing = false
+                    refreshSmsStatus()
+                }
+            }
+        }
     }
 
     fun stopCapture() {

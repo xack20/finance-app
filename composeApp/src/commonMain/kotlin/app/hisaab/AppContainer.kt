@@ -100,6 +100,9 @@ expect class AppContainer {
 
     fun clearCrashReport()
 
+    /** Live per-channel sync status (SMS, email, Mac relay) for the Auto-capture screen; all Off on iOS. */
+    val syncStatuses: kotlinx.coroutines.flow.StateFlow<app.hisaab.capture.SyncStatuses>
+
     /** Progress of the in-app email history import (Android IMAP); always null on iOS. */
     val emailImportProgress: kotlinx.coroutines.flow.StateFlow<app.hisaab.capture.ImportProgress?>
 

@@ -2,9 +2,11 @@ package app.hisaab.capture
 
 import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.RawCapture
+import android.util.Log
 import com.sun.mail.imap.IMAPFolder
 import java.util.Date
 import java.util.Properties
+import javax.mail.AuthenticationFailedException
 import javax.mail.FetchProfile
 import javax.mail.Folder
 import javax.mail.Message
@@ -50,7 +52,10 @@ class EmailCaptureSource(
     private val pollIntervalMs: Long = 30_000L,
     private val pageSize: Int = 50,
     private val onError: (Throwable) -> Unit = {},
+    private val status: ChannelStatusTracker,
 ) : CaptureSource {
+
+    private val loginGuard = ImapLoginGuard()
 
     private val _progress = MutableStateFlow<ImportProgress?>(null)
 
@@ -75,16 +80,31 @@ class EmailCaptureSource(
 
     /** Reads, emits and commits one page; true while more matched mail is still waiting. */
     private suspend fun FlowCollector<RawCapture>.drainPage(): Boolean {
-        if (!runCatching { enabled() }.getOrDefault(false)) return false
-        val cfg = runCatching { credentials() }.getOrNull() ?: return false
+        val cfg = runCatching { credentials() }.getOrNull()
+        if (!runCatching { enabled() }.getOrDefault(false) || cfg == null) { status.off(); return false }
+        val credentialsKey = "${cfg.email}:${cfg.password}".hashCode().toString()
+        if (!loginGuard.shouldAttempt(credentialsKey)) return false // rejected before; wait for new credentials
         val cursor = runCatching { loadCursor() }.getOrDefault(0L)
         val page = runCatching { withContext(Dispatchers.IO) { fetchPage(cfg, cursor, recentOnly = caughtUp) } }
-            .getOrElse { onError(it); _progress.value = null; return false }
+            .getOrElse { e ->
+                onError(e)
+                _progress.value = null
+                if (e is AuthenticationFailedException) {
+                    loginGuard.recordAuthFailure(credentialsKey)
+                    status.failed("Email login rejected — check the app password", persistent = true)
+                } else {
+                    status.failed(e.message ?: "Email check failed", persistent = false)
+                }
+                return false
+            }
+        loginGuard.recordSuccess()
         for (c in page.captures) emit(c) // suspends until the coordinator has processed each one
         runCatching { saveCursor(page.newCursor) }.onFailure { onError(it); return false }
         caughtUp = page.remaining == 0
         readThisImport = if (caughtUp) 0 else readThisImport + page.read
         _progress.value = if (caughtUp) null else ImportProgress(readThisImport, readThisImport + page.remaining)
+        if (caughtUp) status.succeeded() else status.importing(readThisImport, readThisImport + page.remaining)
+        Log.i("HisaabEmail", "page read=${page.read} captured=${page.captures.size} remaining=${page.remaining}")
         return !caughtUp
     }
 
