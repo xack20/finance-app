@@ -75,12 +75,14 @@ the latter the app crashes on missing font resources). Device setup/signing: `do
   `commonMain/sqldelight/migrations/N.sqm`; the `.sq` files under `sqldelight/app/hisaab/db/` hold queries only.
   Schema changes = a new numbered `.sqm` (never edit an existing one). Repositories in `data/` wrap the queries;
   multi-write operations use `db.transaction { }`.
-- **Capture pipeline** (`capture/`): platform `CaptureSource`s (Android SMS receiver, notification listener, in-app
-  IMAP; iOS relay) → `CaptureCoordinator` (runs only while the DB is open and capture is enabled) →
-  `CapturePipeline.process`: dedup hash → `SmsPreFilter` → `BankTemplate` regex extraction, LLM fallback →
-  account/merchant/category resolution → `ConfidenceScorer` → either auto-post (txn insert + mark candidate
-  `AUTO_POSTED` in one transaction, txn linked via `NewTransaction.captureId`) or leave `PENDING` in the inbox for
-  user confirmation (`AppContainer.confirmCandidate*`).
+- **Capture agent** (`capture/`, `capture/agent/`; spec `2026-10-17-agentic-hisaab-design.md`): platform
+  `CaptureSource`s (Android SMS receiver, notification listener, in-app IMAP; iOS relay) → `CaptureCoordinator` →
+  `CaptureQueue` stores each message `QUEUED` (dedup hash only) → `CaptureAgentWorker` (debounce 5 s, batches of 25,
+  daily cap of 600 AI calls) → `CaptureAgent` (prompt + read tools on the chat agent's `AgentLoop`, one repair round)
+  → `parseDecisions` validates → `CaptureCommitter` writes the batch in one transaction. The agent decides; code owns
+  arithmetic, validation, the txn date (message time) and security (`Redactor.maskSecrets` hides OTPs before any
+  cloud call). Statuses: `QUEUED` → `AUTO_POSTED` / `DISMISSED` / `PENDING` (parked on an `agent_question`; the
+  Questions screen answers re-queue it). Memories (`agent_memory`) go into every prompt. No cloud AI = messages wait.
 - **LLM layer** (`llm/`): `LlmRouter`/`DefaultLlmRouter` picks on-device (MediaPipe on Android; iOS bridge via
   `iosApp/OnDeviceAgentBridge.swift`) or a BYO-key cloud provider (`llm/cloud/`: Claude, Gemini, OpenAI). Cloud
   requires recorded consent **and** a key in `SecureStorage` (`llm_api_key_<PROVIDER>`); otherwise returns null and
