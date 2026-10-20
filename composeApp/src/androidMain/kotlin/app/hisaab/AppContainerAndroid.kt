@@ -57,6 +57,7 @@ import kotlinx.coroutines.launch
 actual class AppContainer(
     private val context: Context,
     activity: FragmentActivity,
+    authRepository: AuthRepository = SupabaseAuthRepository(),
 ) {
     init {
         AndroidLlmContext.appContext = context.applicationContext
@@ -74,9 +75,10 @@ actual class AppContainer(
     actual val mnemonicService: MnemonicService = MnemonicService()
     actual val blobCrypto: BlobCrypto = BlobCrypto()
 
-    // Real Supabase phone-OTP auth on all build types. Dev sign-in uses the Supabase project's
-    // test-OTP (visible in the dashboard) — the former DEBUG-only BypassAuthRepository was removed.
-    actual val authRepository: AuthRepository = SupabaseAuthRepository()
+    // Real Supabase phone-OTP auth by default (dev sign-in uses the Supabase project's dashboard
+    // test-OTP; the former DEBUG-only BypassAuthRepository was removed). Injectable via the optional
+    // constructor param so instrumented E2E tests can drive onboarding with a fake OTP.
+    actual val authRepository: AuthRepository = authRepository
     actual val databaseDriverFactory: DatabaseDriverFactory = DatabaseDriverFactory(context)
 
     private var cachedDriver: SqlDriver? = null

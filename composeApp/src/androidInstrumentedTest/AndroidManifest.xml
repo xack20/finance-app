@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!--
-      No custom entries needed. The fake SMS provider used by CaptureServiceBackfillInstrumentedTest
-      is now registered in-process via MockContentResolver (a manifest-declared provider is hosted in
-      the test APK's own process, which lacks the Kotlin stdlib and crashes when queried).
+      The fake SMS provider used by CaptureServiceBackfillInstrumentedTest is registered in-process
+      via MockContentResolver (a manifest-declared provider is hosted in the test APK's own process,
+      which lacks the Kotlin stdlib and crashes when queried) — so no provider entry is needed.
+
+      ScreenshotHostActivity (FragmentActivity host for the data-driven screenshot tour,
+      ScreenshotVmTest) lives in the APP package and is declared in src/debug/AndroidManifest.xml —
+      an instrumented test cannot launch an activity that lives in the test APK.
     -->
 </manifest>

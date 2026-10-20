@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only manifest. Registers ScreenshotHostActivity (a bare FragmentActivity in androidMain)
+  used by the instrumented screenshot tour (ScreenshotVmTest). Declared here so it exists in the
+  app package for the debug build the tests run against, and is NOT present in the release APK.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name="app.hisaab.ui.ScreenshotHostActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+    </application>
+</manifest>
