@@ -17,7 +17,11 @@ class MerchantRepository(private val db: HisaabDatabase) {
             .mapToList(Dispatchers.Default)
             .map { rows -> rows.map { it.toDomain() } }
 
-    suspend fun upsertByName(name: String, defaultCategoryId: String? = null): String {
+    suspend fun upsertByName(name: String, defaultCategoryId: String? = null): String =
+        upsertByNameBlocking(name, defaultCategoryId)
+
+    /** Non-suspending variant for callers inside a db.transaction (agent committers). */
+    fun upsertByNameBlocking(name: String, defaultCategoryId: String? = null): String {
         val normalized = normalizeMerchantName(name)
         val existing = db.transactionQueriesQueries.findMerchantByNormalizedName(normalized).executeAsOneOrNull()
         if (existing != null) return existing.id

@@ -5,13 +5,16 @@ import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
 object HisaabShapes {
-    val card  = RoundedCornerShape(10.dp)
-    val sheet = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
+    val field = RoundedCornerShape(16.dp)
+    val card  = RoundedCornerShape(22.dp)
+    val cardCompact = RoundedCornerShape(18.dp) // accounts/budgets list cards (neo-settings.jsx:52,105)
+    val bar = RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp, bottomStart = 3.dp, bottomEnd = 3.dp) // per-day chart bars (neo.jsx:320)
+    val sheet = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
     val pill  = RoundedCornerShape(999.dp)
 
     fun material3(): Shapes = Shapes(
-        small  = RoundedCornerShape(6.dp),
-        medium = RoundedCornerShape(10.dp),
-        large  = RoundedCornerShape(18.dp),
+        small  = field,
+        medium = card,
+        large  = RoundedCornerShape(26.dp),
     )
 }

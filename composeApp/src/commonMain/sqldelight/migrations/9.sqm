@@ -1,0 +1,4 @@
+-- Notification capture: per-channel toggle for the Android NotificationListener fallback path.
+-- 0 = off (default). When on (and notification access is granted), HisaabNotificationListenerService
+-- forwards posted notifications into the existing pipeline; off keeps the listener inert.
+ALTER TABLE capture_config ADD COLUMN notification_capture_enabled INTEGER NOT NULL DEFAULT 0;

@@ -1,11 +1,11 @@
 package app.hisaab.screens.month
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -16,18 +16,22 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.LocalAppContainer
-import app.hisaab.design.HisaabColors
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.LocalHisaabPalette
-import app.hisaab.domain.YearMonth
+import app.hisaab.design.components.Eyebrow
+import app.hisaab.design.components.HisaabIcon
 import kotlin.math.abs
+import app.hisaab.design.components.MoneyText
+import app.hisaab.design.components.MoneyTone
+import app.hisaab.design.components.SurfaceCard
+import app.hisaab.domain.YearMonth
 
 @Composable
 fun MonthScreen() {
@@ -39,6 +43,7 @@ fun MonthScreen() {
             budgetRepo = container.budgetRepository,
         )
     }
+    DisposableEffect(viewModel) { onDispose { viewModel.dispose() } }
     val ym by viewModel.yearMonth.collectAsState()
     val totals by viewModel.totals.collectAsState()
     val categories by viewModel.categoryBreakdown.collectAsState()
@@ -51,13 +56,17 @@ fun MonthScreen() {
             .fillMaxSize()
             .background(palette.background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 22.dp),
+            .padding(horizontal = 20.dp),
     ) {
         Spacer(Modifier.height(16.dp))
-        // Month switcher header
-        Row(verticalAlignment = Alignment.CenterVertically) {
+
+        // Month switcher
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             IconButton(onClick = { viewModel.previousMonth() }) {
-                Text("‹", fontSize = 32.sp, color = palette.accent)
+                HisaabIcon("chevron-left", tint = palette.muted, size = 22.dp, strokeWidth = 2f)
             }
             Text(
                 formatYearMonth(ym),
@@ -66,71 +75,82 @@ fun MonthScreen() {
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = { viewModel.nextMonth() }) {
-                Text("›", fontSize = 32.sp, color = palette.accent)
+                HisaabIcon("chevron-right", tint = palette.muted, size = 22.dp, strokeWidth = 2f)
             }
         }
-        Spacer(Modifier.height(20.dp))
 
-        // Totals row
-        Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            NetCell("In", totals.income, palette.positive)
-            NetCell("Out", totals.expense, palette.negative)
-            NetCell("Net", totals.net, palette.onBackground)
+        Spacer(Modifier.height(16.dp))
+
+        // Net card
+        SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+            Eyebrow("Net this month")
+            Spacer(Modifier.height(8.dp))
+            // Net renders plain white and unsigned (no +/−, no red/green), per neo.jsx Money default.
+            MoneyText(
+                amount = totals.net,
+                signed = false,
+                tone = MoneyTone.Plain,
+                style = MaterialTheme.typography.displayLarge.copy(color = palette.onBackground),
+            )
+            Spacer(Modifier.height(12.dp))
+            // Delta pill vs last month (neo.jsx:317): pos/neg-soft bg, semantic text + direction arrow.
+            val delta = totals.net - totals.previousMonthNet
+            val deltaUp = delta >= 0.0
+            val deltaColor = if (deltaUp) palette.positive else palette.negative
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .background(if (deltaUp) palette.positiveSoft else palette.negativeSoft, HisaabShapes.pill)
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            ) {
+                HisaabIcon(if (deltaUp) "arrow-up" else "arrow-down", tint = deltaColor, size = 13.dp)
+                MoneyText(
+                    amount = abs(delta),
+                    signed = false,
+                    color = deltaColor,
+                    modifier = Modifier.padding(start = 5.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Text(
+                    " vs last month",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = deltaColor,
+                )
+            }
+            // Per-day bars live INSIDE the Net card, under the delta pill (neo.jsx:318-322).
+            Spacer(Modifier.height(22.dp))
+            PerDayBarChart(buckets = perDay, palette = palette)
         }
-        Spacer(Modifier.height(8.dp))
-        val deltaNet = totals.net - totals.previousMonthNet
-        val deltaArrow = if (deltaNet >= 0) "↑" else "↓"
-        val deltaColor = if (deltaNet >= 0) palette.positive else palette.negative
-        Text(
-            "$deltaArrow ৳${abs(deltaNet).toInt()} vs last month",
-            color = deltaColor,
-            fontSize = 13.sp,
-        )
 
-        Spacer(Modifier.height(32.dp))
-        SectionLabel("Categories", palette)
-        CategoryBarChart(slices = categories.take(5), palette = palette)
+        Spacer(Modifier.height(24.dp))
 
-        Spacer(Modifier.height(32.dp))
-        SectionLabel("Per-day spending", palette)
-        PerDayLineChart(buckets = perDay, palette = palette)
+        // Spending by category
+        Eyebrow("Spending by category")
+        Spacer(Modifier.height(10.dp))
+        SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+            CategoryBarChart(slices = categories.take(5), palette = palette)
+        }
 
-        Spacer(Modifier.height(32.dp))
-        SectionLabel("Budgets", palette)
-        BudgetProgressList(budgets = budgets, palette = palette)
+        Spacer(Modifier.height(24.dp))
 
-        Spacer(Modifier.height(32.dp))
-        SectionLabel("Recurring", palette)
-        RecurringList(items = recurring, palette = palette)
+        // Budgets
+        Eyebrow("Budgets")
+        Spacer(Modifier.height(10.dp))
+        SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+            BudgetProgressList(budgets = budgets, palette = palette)
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        // Recurring
+        Eyebrow("Recurring")
+        Spacer(Modifier.height(10.dp))
+        SurfaceCard(modifier = Modifier.fillMaxWidth()) {
+            RecurringList(items = recurring, palette = palette)
+        }
 
         Spacer(Modifier.height(40.dp))
     }
-}
-
-@Composable
-private fun NetCell(label: String, amount: Double, color: Color) {
-    val palette = LocalHisaabPalette.current
-    Column {
-        Text(label.uppercase(), color = palette.muted, fontSize = 11.sp, letterSpacing = 1.sp)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "৳${amount.toInt()}",
-            color = color,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
-
-@Composable
-private fun SectionLabel(text: String, palette: HisaabColors.Palette) {
-    Text(
-        text.uppercase(),
-        color = palette.accent,
-        letterSpacing = 2.sp,
-        fontSize = 11.sp,
-    )
-    Spacer(Modifier.height(10.dp))
 }
 
 private fun formatYearMonth(ym: YearMonth): String {

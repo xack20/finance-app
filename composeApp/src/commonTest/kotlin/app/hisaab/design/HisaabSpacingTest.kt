@@ -11,7 +11,7 @@ class HisaabSpacingTest {
         assertEquals(8.dp,  HisaabSpacing.sm)
         assertEquals(12.dp, HisaabSpacing.md)
         assertEquals(16.dp, HisaabSpacing.lg)
-        assertEquals(22.dp, HisaabSpacing.gutter)
+        assertEquals(20.dp, HisaabSpacing.gutter)
         assertEquals(32.dp, HisaabSpacing.xl)
         assertEquals(48.dp, HisaabSpacing.xxl)
     }

@@ -23,5 +23,7 @@ sealed interface CaptureEvent {
         val amount: Double,
         val sender: String,
         val direction: Direction,
+        /** When the message arrived — history imports post old payments that shouldn't pop a snackbar. */
+        val receivedAt: Long = 0L,
     ) : CaptureEvent
 }

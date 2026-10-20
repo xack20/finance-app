@@ -12,6 +12,9 @@ DELETE FROM txn WHERE id = ?;
 getTxn:
 SELECT * FROM txn WHERE id = ?;
 
+findTxnIdsByCaptureId:
+SELECT id FROM txn WHERE capture_id = ?;
+
 observeTxnById:
 SELECT * FROM txn WHERE id = ?;
 
@@ -85,3 +88,13 @@ SELECT * FROM attachment WHERE id = ?;
 
 deleteAttachment:
 DELETE FROM attachment WHERE id = ?;
+
+-- Capture agent duplicate check: same amount in a time window.
+findSimilar:
+SELECT txn.id, txn.amount, txn.kind, txn.ts, txn.capture_id, account.name AS account_name, merchant.name AS merchant_name
+FROM txn
+JOIN account ON account.id = txn.account_id
+LEFT JOIN merchant ON merchant.id = txn.merchant_id
+WHERE txn.parent_txn_id IS NULL AND txn.amount = ? AND txn.ts >= ? AND txn.ts < ?
+ORDER BY txn.ts ASC
+LIMIT 20;

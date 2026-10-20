@@ -1,18 +1,37 @@
 package app.hisaab.capture
 
+import app.hisaab.domain.CaptureChannel
 import app.hisaab.domain.RawCapture
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** Default historical import window applied on first permission grant (spec §2, §6). */
-const val DEFAULT_BACKFILL_DAYS: Int = 90
+/** How far a running history import has got ([done] of [total] messages); null when none is running. */
+data class ImportProgress(val done: Int, val total: Int)
 
-/** Milliseconds in one day. */
-private const val MILLIS_PER_DAY: Long = 24L * 60L * 60L * 1000L
+/** Catch-up re-reads this far before the cursor: dedup makes the overlap free, and it recovers an SMS that
+ *  missed the best-effort live bus while a later one had already moved the cursor past it. */
+const val CATCH_UP_OVERLAP_MS: Long = 24L * 60 * 60 * 1000
+
+/** Persists "an all-history import was started but hasn't finished", so a killed process resumes it. */
+interface ImportStateStore {
+    suspend fun isImportPending(): Boolean
+    suspend fun setImportPending(pending: Boolean)
+}
+
+/** Default for callers that don't resume imports (tests, iOS): remembers nothing. */
+private object NoImportState : ImportStateStore {
+    override suspend fun isImportPending() = false
+    override suspend fun setImportPending(pending: Boolean) {}
+}
 
 /**
  * Narrow cursor seam. M3-1's [app.hisaab.data.CaptureConfigRepository] is adapted to this in
@@ -37,6 +56,7 @@ class CaptureCoordinator(
     private val handler: CaptureHandler,
     private val cursorStore: CaptureCursorStore,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val importState: ImportStateStore = NoImportState,
     /**
      * Observability hook for per-item handler failures. Default no-op preserves the existing
      * fail-isolation behaviour; AppContainer wires this to a log so a persistently-failing item
@@ -45,6 +65,10 @@ class CaptureCoordinator(
     private val onItemError: (RawCapture, Throwable) -> Unit = { _, _ -> },
 ) {
     private val mutex = Mutex()
+    private val importLock = Mutex()
+
+    private val _importProgress = MutableStateFlow<ImportProgress?>(null)
+    val importProgress: StateFlow<ImportProgress?> = _importProgress.asStateFlow()
 
     /**
      * Starts collecting the live stream on [scope] using [dispatcher] (default: [Dispatchers.Default]
@@ -68,31 +92,45 @@ class CaptureCoordinator(
         }
     }
 
-    /** Drains everything newer than the stored cursor (oldest-first) and advances the cursor. */
+    /** Drains everything from [CATCH_UP_OVERLAP_MS] before the stored cursor (oldest-first); dedup skips repeats. */
     suspend fun catchUp() {
-        val since = cursorStore.currentCursor()
-        drainSince(since)
+        drainSince(maxOf(0L, cursorStore.currentCursor() - CATCH_UP_OVERLAP_MS))
     }
 
     /**
-     * One-time historical import on first permission grant. Computes a cursor of
-     * `nowMs - DEFAULT_BACKFILL_DAYS days`, imports every SMS newer than that, and advances the
-     * stored cursor through the same monotonic, mutex-serialized path as live/catch-up.
-     *
-     * M3-5's Settings master toggle invokes this together with `setCaptureEnabled(true)` the moment
-     * SMS permission is granted; this slice ships the seam (the UX wiring lands in M3-5). Because the
-     * cursor only moves forward, re-invoking this after the first run is a no-op for already-imported
-     * messages (the floor is `nowMs - 90d`, but [process] never moves the cursor backward).
+     * Re-runs [importAllHistory] if a previous one was interrupted (app locked, process killed) — but not while
+     * the user has SMS capture off; the flag stays set so it resumes once they turn it back on.
      */
-    suspend fun runInitialBackfill(nowMs: Long) {
-        val floor = nowMs - DEFAULT_BACKFILL_DAYS * MILLIS_PER_DAY
-        val since = maxOf(floor, cursorStore.currentCursor())
-        drainSince(since)
+    suspend fun resumePendingImport(smsCaptureEnabled: Boolean = true) {
+        if (smsCaptureEnabled && importState.isImportPending()) importAllHistory()
     }
 
-    private suspend fun drainSince(sinceMs: Long) {
+    /**
+     * Imports every message the source holds, all time, oldest-first, publishing [importProgress].
+     *
+     * Deliberately ignores the live cursor (which may already sit at "now"): the pipeline dedups by
+     * `dedup_hash`, so re-running — e.g. after the app locked mid-import and closed the DB — skips what's
+     * done and resumes cheaply. [process] still never moves the live cursor backward.
+     */
+    suspend fun importAllHistory() {
+        if (!importLock.tryLock()) return // one already running (e.g. a double tap) — don't queue a second pass
+        try {
+            importState.setImportPending(true)
+            drainSince(0L) { done, total -> _importProgress.value = ImportProgress(done, total) }
+            importState.setImportPending(false) // not in finally: an interrupted import stays owed
+        } finally {
+            _importProgress.value = null
+            importLock.unlock()
+        }
+    }
+
+    private suspend fun drainSince(sinceMs: Long, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }) {
         val rows = source.backfillSince(sinceMs).sortedBy { it.receivedAt }
-        for (raw in rows) {
+        rows.forEachIndexed { index, raw ->
+            // Duplicates are skipped without suspending, so check explicitly — otherwise a cancelled import runs
+            // to the end and gets recorded as complete.
+            currentCoroutineContext().ensureActive()
+            onProgress(index, rows.size)
             process(raw)
         }
     }
@@ -116,7 +154,11 @@ class CaptureCoordinator(
                 onItemError(raw, e) // surface the failure (no-op by default) before isolating it
                 return@withLock // isolate the failed item; leave the cursor where it is for retry
             }
-            if (raw.receivedAt > cursorStore.currentCursor()) {
+            // Only SMS move the SMS cursor: email/relay have their own cursors, and a newer email advancing it
+            // would make catch-up skip an SMS that missed the live bus.
+            // shortcut: relay-forwarded SMS also carry channel SMS; harmless on Android where the Mac relay
+            // isn't used — tag captures by source if that changes.
+            if (raw.channel == CaptureChannel.SMS && raw.receivedAt > cursorStore.currentCursor()) {
                 cursorStore.advanceCursor(raw.receivedAt)
             }
         }

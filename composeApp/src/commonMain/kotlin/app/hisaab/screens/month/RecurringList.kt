@@ -7,14 +7,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.hisaab.design.HisaabColors
 import app.hisaab.domain.RecurringHit
+import app.hisaab.util.toTaka
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -30,23 +33,28 @@ fun RecurringList(items: List<RecurringHit>, palette: HisaabColors.Palette) {
         return
     }
     Column {
-        items.forEach { hit ->
+        items.forEachIndexed { index, hit ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 15.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(hit.merchantName, color = palette.onBackground)
+                    Text(hit.merchantName, color = palette.onBackground, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "${hit.occurrenceCount} times · avg ৳${hit.avgAmount.toInt()}",
+                        "${hit.occurrenceCount}× · avg ${hit.avgAmount.toTaka()}",
                         color = palette.muted,
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp, fontWeight = FontWeight.Normal),
                     )
                 }
-                Text(formatLastSeen(hit.lastSeenTs), color = palette.muted, fontSize = 11.sp)
+                Text(
+                    formatLastSeen(hit.lastSeenTs),
+                    color = palette.faint,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Normal),
+                )
             }
-            HorizontalDivider(color = palette.rule)
+            // Hairline on every row except the last; fainter --hair-2 (neo.jsx:342).
+            if (index < items.lastIndex) HorizontalDivider(color = palette.hair2)
         }
     }
 }

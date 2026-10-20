@@ -1,29 +1,27 @@
 package app.hisaab.screens.agent
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.hisaab.agent.ProposedWrite
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.HCheck
+import app.hisaab.design.components.MoneyText
+import app.hisaab.design.components.PrimaryButton
+import app.hisaab.design.components.SurfaceCard
 import app.hisaab.screens.entry.AmountField
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -32,7 +30,7 @@ import kotlinx.serialization.json.put
 
 /**
  * ReviewCard — displays one row per [ProposedWrite] with:
- *  - an include Checkbox (checked = index in [included]) → [onToggle]
+ *  - an include HCheck (checked = index in [included]) → [onToggle]
  *  - a human-readable label from [summarize]
  *  - an editable AmountField for writes that carry an "amount" arg → [onEdit]
  *  - a single Apply button → [onApply], disabled when [included] is empty
@@ -48,19 +46,13 @@ fun ReviewCard(
 ) {
     val palette = LocalHisaabPalette.current
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(palette.surface)
-            .border(1.dp, palette.rule, RoundedCornerShape(14.dp))
-            .padding(14.dp),
-    ) {
+    SurfaceCard(modifier = modifier.fillMaxWidth()) {
+        // Plain 16/700 heading (not an eyebrow), per neo-detail.jsx:81.
         Text(
-            text = "Review & apply",
+            "Review & apply",
             color = palette.onBackground,
-            fontWeight = FontWeight.SemiBold,
-            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
         )
 
         Spacer(Modifier.height(10.dp))
@@ -69,25 +61,24 @@ fun ReviewCard(
             val isIncluded = index in included
             val hasAmount = argStr(write, "amount") != null
             val amountStr = argStr(write, "amount") ?: ""
+            val amountDouble = amountStr.toDoubleOrNull() ?: 0.0
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
             ) {
+                // Checkbox + label stay fully legible; only the amount line dims by include state.
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Checkbox(
+                    HCheck(
                         checked = isIncluded,
                         onCheckedChange = { onToggle(index) },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = palette.accent,
-                            uncheckedColor = palette.muted,
-                            checkmarkColor = palette.background,
-                        ),
-                        modifier = Modifier.testTag("review_toggle_$index"),
+                        modifier = Modifier
+                            .testTag("review_toggle_$index")
+                            .padding(end = 10.dp),
                     )
                     Text(
                         text = summarize(write),
@@ -98,12 +89,24 @@ fun ReviewCard(
                 }
 
                 if (hasAmount) {
+                    // Big display-mono amount, indented under the label, dimmed when excluded.
+                    // Design (neo-detail.jsx:88) renders this in --text (near-white), not sign-colored.
+                    MoneyText(
+                        amount = amountDouble,
+                        signed = false,
+                        decimals = 0,
+                        color = palette.onBackground,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 34.sp, fontWeight = FontWeight.SemiBold),
+                        modifier = Modifier
+                            .padding(start = 38.dp, top = 2.dp)
+                            .alpha(if (isIncluded) 1f else 0.4f),
+                    )
                     AmountField(
                         value = amountStr,
                         onChange = { newAmt -> onEdit(index, write.withAmount(newAmt)) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 48.dp, end = 4.dp)
+                            .padding(start = 36.dp, end = 4.dp, top = 4.dp)
                             .testTag("review_amount_$index"),
                     )
                 }
@@ -112,22 +115,14 @@ fun ReviewCard(
 
         Spacer(Modifier.height(10.dp))
 
-        Button(
+        PrimaryButton(
+            text = "Apply",
             onClick = onApply,
             enabled = included.isNotEmpty(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = palette.accent,
-                disabledContainerColor = palette.rule,
-            ),
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("review_apply"),
-        ) {
-            Text(
-                text = "Apply",
-                color = if (included.isNotEmpty()) palette.background else palette.muted,
-            )
-        }
+        )
     }
 }
 
@@ -149,7 +144,7 @@ private fun argStr(w: ProposedWrite, key: String): String? =
  * create_account      → "New account: VISA (CARD)"
  * create_category     → "New category: Food"
  */
-private fun summarize(w: ProposedWrite): String = when (w.tool) {
+internal fun summarize(w: ProposedWrite): String = when (w.tool) {
     "add_transaction" -> {
         val kind = argStr(w, "kind")?.lowercase() ?: "transaction"
         val label = when (kind) {

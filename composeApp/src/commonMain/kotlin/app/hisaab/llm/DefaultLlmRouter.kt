@@ -6,7 +6,7 @@ import app.hisaab.domain.CloudProvider
 import app.hisaab.domain.EngineMode
 import app.hisaab.platform.SecureStorage
 
-/** SecureStorage key prefix for BYO cloud API keys: "llm_api_key_<PROVIDER>". */
+/** SecureStorage key prefix for BYO cloud API keys: "llm_api_key_<PROVIDER>" (for CLAUDE_MAC: the Mac's address). */
 fun secureKeyFor(provider: CloudProvider): String = "llm_api_key_${provider.name}"
 
 /**
@@ -26,6 +26,7 @@ class DefaultLlmRouter internal constructor(
     private val claude: LlmProvider,
     private val gemini: LlmProvider,
     private val openai: LlmProvider,
+    private val claudeMac: LlmProvider? = null,
 ) : LlmRouter {
 
     constructor(
@@ -35,6 +36,7 @@ class DefaultLlmRouter internal constructor(
         claude: LlmProvider,
         gemini: LlmProvider,
         openai: LlmProvider,
+        claudeMac: LlmProvider? = null,
     ) : this(
         configSource = { configRepo.get() },
         keyLoader = { provider -> secureStorage.loadString(secureKeyFor(provider)) },
@@ -42,6 +44,7 @@ class DefaultLlmRouter internal constructor(
         claude = claude,
         gemini = gemini,
         openai = openai,
+        claudeMac = claudeMac,
     )
 
     override suspend fun active(): LlmProvider? {
@@ -60,7 +63,8 @@ class DefaultLlmRouter internal constructor(
             CloudProvider.CLAUDE -> claude
             CloudProvider.GEMINI -> gemini
             CloudProvider.OPENAI -> openai
+            CloudProvider.CLAUDE_MAC -> claudeMac
         }
-        return adapter.takeIf { it.isAvailable() }
+        return adapter?.takeIf { it.isAvailable() }
     }
 }

@@ -45,7 +45,6 @@ class AccountRepository(private val db: HisaabDatabase) {
     /**
      * Non-suspending variant for use inside a [app.hisaab.db.HisaabDatabase.transaction] block.
      * Identical to [add] but callable synchronously from within a DB transaction.
-     * Called by AccountMatcher's atomic auto-create path.
      */
     fun addBlocking(
         name: String,
@@ -90,6 +89,12 @@ class AccountRepository(private val db: HisaabDatabase) {
     suspend fun accountBalances(): Map<String, Double> =
         db.accountQueriesQueries.accountBalances().executeAsList()
             .associate { it.account_id to it.balance }
+
+    /** Reactive per-account net balance — reuses [accountBalances] query, re-emits when `txn` changes. */
+    fun observeAccountBalances(): Flow<Map<String, Double>> =
+        db.accountQueriesQueries.accountBalances().asFlow()
+            .mapToList(Dispatchers.Default)
+            .map { rows -> rows.associate { it.account_id to it.balance } }
 
     /** Signed card debt: purchases (EXPENSE) raise it; refunds (INCOME) and payments (TRANSFER) lower it. */
     suspend fun cardOutstanding(accountId: String): Double =

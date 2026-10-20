@@ -13,4 +13,6 @@ actual class CaptureService : CaptureSource {
     actual override fun observeIncoming(): Flow<RawCapture> = emptyFlow()
     actual override suspend fun backfillSince(cursorMs: Long): List<RawCapture> = emptyList()
     actual fun openNotificationAccessSettings() { /* no-op on wasm */ }
+    actual fun hasNotificationAccess(): Boolean = false // no notification-listener API on wasm
+    actual fun setNotificationListenerEnabled(enabled: Boolean) { /* no-op on wasm */ }
 }

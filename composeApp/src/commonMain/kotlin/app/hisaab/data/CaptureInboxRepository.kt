@@ -119,6 +119,32 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
         queries.purgeRaw(id)
     }
 
+    // ---- capture agent ----
+
+    /** Oldest queued first, except that anything received since [recentSinceMs] goes ahead of the backlog. */
+    suspend fun nextQueued(limit: Int, recentSinceMs: Long = Long.MAX_VALUE): List<CandidateTransaction> =
+        queries.nextQueued(recentSinceMs, limit.toLong()).executeAsList().map { it.toDomain() }
+
+    fun observeRecentlySkipped(limit: Int): Flow<List<CandidateTransaction>> =
+        queries.observeRecentlySkipped(limit.toLong()).asFlow().mapToList(Dispatchers.Default)
+            .map { rows -> rows.map { it.toDomain() } }
+
+    fun observeQueuedCount(): Flow<Long> = queries.observeQueuedCount().asFlow().mapToOne(Dispatchers.Default)
+
+    /** Questions the capture agent is waiting on the user for. */
+    fun observeOpenQuestionCount(): Flow<Long> =
+        queries.observeOpenQuestionCount().asFlow().mapToOne(Dispatchers.Default)
+
+    suspend fun queuedCount(): Int = queries.observeQueuedCount().executeAsOne().toInt()
+
+    suspend fun messagesFor(questionId: String): List<CandidateTransaction> =
+        queries.forQuestion(questionId).executeAsList().map { it.toDomain() }
+
+    /** An agent run that left this message undecided. */
+    suspend fun bumpAttempts(id: String) {
+        queries.bumpAttempts(id)
+    }
+
     private fun migrations.Capture_inbox.toDomain(): CandidateTransaction = CandidateTransaction(
         id = id,
         receivedAt = received_at,
@@ -140,5 +166,7 @@ class CaptureInboxRepository(private val db: HisaabDatabase) {
         proposedCategoryId = proposed_category_id,
         proposedMerchant = proposed_merchant,
         createdAt = created_at,
+        questionId = question_id,
+        attempts = attempts.toInt(),
     )
 }

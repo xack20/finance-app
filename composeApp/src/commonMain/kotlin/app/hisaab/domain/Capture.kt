@@ -1,18 +1,13 @@
 package app.hisaab.domain
 
-/** A raw captured message before any parsing. Produced by CaptureService (M3-2). */
-data class RawCapture(
-    val sender: String,
-    val body: String,
-    val receivedAt: Long,
-    val channel: CaptureChannel,
-)
+// RawCapture + CaptureChannel moved to :sharedCore (app.hisaab.domain.RawCapture) so the macOS
+// relay helper reuses the exact serializable type. Still referenced here via the same package.
 
-/** How a capture entered the app. */
-enum class CaptureChannel { SMS, NOTIFICATION, PASTE }
-
-/** Lifecycle of a capture candidate. */
-enum class CaptureStatus { PENDING, AUTO_POSTED, CONFIRMED, DISMISSED }
+/**
+ * Lifecycle of a capture: QUEUED (waiting for the capture agent) → AUTO_POSTED (agent added it) / DISMISSED
+ * (not a payment, or another copy of one) / PENDING (parked on an agent question). CONFIRMED = added by the user.
+ */
+enum class CaptureStatus { QUEUED, PENDING, AUTO_POSTED, CONFIRMED, DISMISSED }
 
 /** Which engine produced the parse. */
 enum class ParsedBy { TEMPLATE, ON_DEVICE, CLOUD_CLAUDE, CLOUD_GEMINI, CLOUD_OPENAI }
@@ -20,14 +15,15 @@ enum class ParsedBy { TEMPLATE, ON_DEVICE, CLOUD_CLAUDE, CLOUD_GEMINI, CLOUD_OPE
 /** Money flow direction extracted from a capture. */
 enum class Direction { DEBIT, CREDIT }
 
-/** Classification of a known sender. */
-enum class BankType { BKASH, NAGAD, ROCKET, BANK, CARD, OTHER }
-
 /** User-selected parsing engine. */
 enum class EngineMode { ON_DEVICE, CLOUD }
 
 /** Selected cloud LLM vendor (when EngineMode.CLOUD). */
-enum class CloudProvider { CLAUDE, GEMINI, OPENAI }
+enum class CloudProvider {
+    CLAUDE, GEMINI, OPENAI,
+    /** Claude Code on the user's Mac, on their Claude subscription, through the Hisaab Companion (no API key). */
+    CLAUDE_MAC,
+}
 
 /**
  * A parsed capture candidate: the raw message plus extracted fields, status,
@@ -54,18 +50,10 @@ data class CandidateTransaction(
     val proposedCategoryId: String?,
     val proposedMerchant: String?,
     val createdAt: Long,
-)
-
-/** A known/learned sender → account mapping + pre-filter allowlist entry. */
-data class SenderMapping(
-    val id: String,
-    val senderId: String,
-    val displayName: String,
-    val bankType: BankType,
-    val isFinancial: Boolean,
-    val templateKey: String?,
-    val accountId: String?,
-    val createdAt: Long,
+    /** The agent question this message is parked on (or was, once answered). */
+    val questionId: String? = null,
+    /** Agent runs that left this message undecided. */
+    val attempts: Int = 0,
 )
 
 /** Single-row capture/engine configuration. API key stays in SecureStorage. */
@@ -81,5 +69,14 @@ data class CaptureConfig(
     val cloudConsentAt: Long?,
     val retainRawBody: Boolean,
     val lastSmsCursor: Long,
+    /** P2: when true, pull encrypted captures from the Mac→phone relay (see RelayCaptureSource). */
+    val relayCaptureEnabled: Boolean = false,
+    /** EP3: when true, poll the user's mailbox in-app (Android) for bank emails. */
+    val emailCaptureEnabled: Boolean = false,
+    /** When true, the Android NotificationListener fallback forwards posted notifications. */
+    val notificationCaptureEnabled: Boolean = false,
     val updatedAt: Long,
+    /** Capture agent's AI calls on [agentCallsDay] (local YYYY-MM-DD) — the daily cap. */
+    val agentCallsDay: String? = null,
+    val agentCallsCount: Int = 0,
 )

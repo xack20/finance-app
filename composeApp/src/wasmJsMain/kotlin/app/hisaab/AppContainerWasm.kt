@@ -40,6 +40,10 @@ import app.hisaab.llm.LlmRouter
 import app.hisaab.llm.cloud.ClaudeProvider
 import app.hisaab.llm.cloud.GeminiProvider
 import app.hisaab.llm.cloud.OpenAiProvider
+import app.hisaab.platform.AudioRecorder
+import app.hisaab.platform.CloudTranscriber
+import app.hisaab.platform.NoAudioRecorder
+import app.hisaab.platform.NoCloudTranscriber
 import app.hisaab.platform.NoSpeechToText
 import app.hisaab.platform.SpeechToText
 import io.ktor.client.HttpClient
@@ -104,6 +108,9 @@ actual class AppContainer {
         get() = ConversationRepository(requireDb())
 
     actual val speechToText: SpeechToText = NoSpeechToText
+    // No browser mic capture on this path yet — voice falls back to typing on web.
+    actual val audioRecorder: AudioRecorder = NoAudioRecorder
+    actual val cloudTranscriber: CloudTranscriber = NoCloudTranscriber
 
     actual fun agentRuntime(): AgentRuntime {
         val db = requireDb()

@@ -10,6 +10,7 @@ import app.hisaab.domain.PersonWithBalance
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -57,5 +58,10 @@ class PeopleViewModel(
             val id = personRepo.upsertFromContact(name, phone)
             onAdded(id)
         }
+    }
+
+    /** Cancel background work when the screen is disposed (wired from People list / detail screens). */
+    fun dispose() {
+        scope.cancel()
     }
 }

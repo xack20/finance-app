@@ -1,18 +1,51 @@
 package app.hisaab.screens.onboarding
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.hisaab.design.HisaabShapes
 import app.hisaab.design.HisaabSpacing
+import app.hisaab.design.HisaabTypography
 import app.hisaab.design.LocalHisaabPalette
+import app.hisaab.design.components.HisaabIcon
+import app.hisaab.design.components.MidnightTextField
+import app.hisaab.design.components.PrimaryButton
+
+/** Bangladesh numbers are 10 local digits, but the design enables Continue at ≥9 (neo-onboarding.jsx:25). */
+private const val MIN_PHONE_DIGITS = 9
+
+/**
+ * The local part sent after the fixed "+880" prefix: digits only, without a pasted 880 country code or
+ * the trunk 0 people habitually type ("017…" would otherwise become the invalid "+880017…").
+ * A BD local mobile number never starts with 880, so stripping that prefix is safe.
+ */
+internal fun bdLocalDigits(input: String): String =
+    input.filter(Char::isDigit).removePrefix("880").trimStart('0')
 
 @Composable
 fun WelcomeScreen(
@@ -22,61 +55,100 @@ fun WelcomeScreen(
 ) {
     val palette = LocalHisaabPalette.current
     var phone by remember { mutableStateOf("") }
+    val valid = phone.length >= MIN_PHONE_DIGITS && !isLoading
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(palette.background)
+            .imePadding()
             .padding(HisaabSpacing.gutter),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            Text("হিসাব · Hisaab", color = palette.accent, fontSize = 12.sp, letterSpacing = 3.sp)
-            Spacer(Modifier.height(16.dp))
+            // Two-tone wordmark eyebrow: হিসাব (lime display 26) + "HISAAB" tracked eyebrow (.28em).
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = "হিসাব",
+                    color = palette.accent,
+                    maxLines = 1,
+                    softWrap = false,
+                    style = MaterialTheme.typography.displayLarge.copy(
+                        fontFamily = HisaabTypography.wordmarkFamily(),
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 28.sp,
+                    ),
+                )
+                Text(
+                    text = "HISAAB",
+                    color = palette.faint,
+                    style = MaterialTheme.typography.labelLarge,
+                    letterSpacing = 3.08.sp, // .28em × 11sp (neo-onboarding.jsx:36)
+                )
+            }
+            Spacer(Modifier.height(30.dp))
             Text(
-                "Your money,\nonly yours.",
+                text = "Your money,\nonly yours.",
                 color = palette.onBackground,
-                style = MaterialTheme.typography.displaySmall,
+                style = MaterialTheme.typography.displayLarge.copy(
+                    fontSize = 46.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = 48.sp,
+                ),
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(18.dp))
             Text(
-                "Privacy-first finance for Bangladesh. Everything stays on your device.",
+                text = "Privacy-first finance for Bangladesh. Everything stays on your device.",
                 color = palette.muted,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 17.sp, lineHeight = 26.sp),
+                modifier = Modifier.widthIn(max = 300.dp),
             )
+            Spacer(Modifier.height(22.dp))
+            // Privacy chip: lime-soft pill + shield icon + lime label (neo-onboarding.jsx:40-42).
+            Row(
+                modifier = Modifier
+                    .clip(HisaabShapes.pill)
+                    .background(palette.accentSoft)
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                HisaabIcon("shield", tint = palette.accent, size = 15.dp)
+                Text(
+                    text = "End-to-end private, on-device",
+                    color = palette.accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
         Column {
             error?.let {
                 Text(it, color = palette.negative, style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.height(8.dp))
             }
-            Text("Phone number", color = palette.muted, style = MaterialTheme.typography.labelSmall)
-            Spacer(Modifier.height(6.dp))
-            OutlinedTextField(
+            MidnightTextField(
                 value = phone,
-                onValueChange = { phone = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("1X XXXX XXXX", color = palette.muted) },
-                prefix = { Text("+880 ", color = palette.accent) },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Phone,
-                    imeAction = ImeAction.Done,
-                ),
-                keyboardActions = KeyboardActions(onDone = {
-                    if (phone.length >= 10) onSendOtp("+880$phone")
-                }),
-                singleLine = true,
+                onValueChange = { phone = bdLocalDigits(it) },
+                label = "Phone number",
+                placeholder = "1X XXXX XXXX",
+                prefix = "+880",
+                keyboardType = KeyboardType.Phone,
+                imeAction = ImeAction.Done,
+                onImeAction = { if (valid) onSendOtp("+880$phone") },
+                big = true,
             )
-            Spacer(Modifier.height(12.dp))
-            Button(
+            Spacer(Modifier.height(14.dp))
+            PrimaryButton(
+                text = "Continue",
                 onClick = { onSendOtp("+880$phone") },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                enabled = phone.length >= 10 && !isLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = palette.accent),
-            ) {
-                if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), color = palette.background)
-                else Text("Continue", color = palette.background)
-            }
+                enabled = valid,
+                loading = isLoading,
+            )
             Spacer(Modifier.height(24.dp))
         }
     }

@@ -1,0 +1,11 @@
+insertMemory:
+INSERT INTO agent_memory(id, fact, created_at) VALUES (?, ?, ?);
+
+observeAll:
+SELECT * FROM agent_memory ORDER BY created_at ASC;
+
+deleteMemory:
+DELETE FROM agent_memory WHERE id = ?;
+
+findMemory:
+SELECT id FROM agent_memory WHERE lower(trim(fact)) = lower(trim(?)) LIMIT 1;

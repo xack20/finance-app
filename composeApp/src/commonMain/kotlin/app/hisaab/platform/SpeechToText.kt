@@ -12,6 +12,13 @@ interface SpeechToText {
     suspend fun isAvailable(): Boolean
 
     /**
+     * Requests microphone (+ speech-recognition, where the platform separates them) permission up
+     * front and returns true if granted. Call when the voice UI opens so the user isn't prompted
+     * mid-capture. Safe to call when already granted (no prompt). Default = [isAvailable] (no prompt).
+     */
+    suspend fun requestPermission(): Boolean = isAvailable()
+
+    /**
      * Listens on the mic and emits [SpeechEvent]s until the collecting coroutine is cancelled
      * (push-to-talk: collect while the mic is held, cancel on release / on [SpeechEvent.Final]).
      * Emits [SpeechEvent.PermissionDenied] when mic/speech permission is missing, or

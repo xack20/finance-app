@@ -86,4 +86,23 @@ class AgentLoopTest {
         assertEquals("recovered", r.finalMessage)
         assertTrue(p.calls[1].any { it.role == Role.TOOL && "write tool" in it.content })
     }
+
+    @Test
+    fun `the model is told when its next turn is the last`() = kotlinx.coroutines.test.runTest {
+        val action = """{"thought":"t","action":{"tool":"list_accounts","args":{}}}"""
+        val final = """{"thought":"t","final":{"message":"ok","proposedWrites":[]}}"""
+        val provider = app.hisaab.agent.support.FakeAgentProvider(listOf(action, final))
+        val registry = ToolRegistry(
+            listOf(object : ReadTool {
+                override val name = "list_accounts"; override val description = "d"; override val paramsDoc = "{}"
+                override suspend fun execute(args: kotlinx.serialization.json.JsonObject) = "[]"
+            }),
+            emptyList(),
+        )
+
+        AgentLoop(provider, registry, "sys", maxIterations = 2).run(emptyList(), "hi")
+
+        kotlin.test.assertTrue(provider.calls[1].any { "last turn" in it.content.lowercase() })
+    }
 }
+

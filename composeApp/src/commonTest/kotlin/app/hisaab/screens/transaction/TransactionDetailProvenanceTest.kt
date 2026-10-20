@@ -18,6 +18,7 @@ import app.hisaab.domain.TxnKind
 import app.hisaab.domain.TxnSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -50,6 +51,29 @@ class TransactionDetailProvenanceTest {
         val vm = TransactionDetailViewModel(id, txn, account, CategoryRepository(db), merchant, inbox)
         advanceUntilIdle()
         assertNull(vm.provenance.value)
+    }
+
+    @Test
+    fun `delete then dispose removes the txn without crashing`() = runTest {
+        val db = TestDatabase.create()
+        val merchant = MerchantRepository(db)
+        val txn = TransactionRepository(db, merchant, TagRepository(db))
+        val account = AccountRepository(db)
+        val inbox = CaptureInboxRepository(db)
+        val accountId = account.add("Cash", AccountKind.CASH, null)
+        val id = txn.add(
+            NewTransaction(accountId, 100.0, "BDT", 1L, null, null, TxnSource.MANUAL, null, TxnKind.EXPENSE),
+        )
+        val vm = TransactionDetailViewModel(id, txn, account, CategoryRepository(db), merchant, inbox)
+        // Activate the WhileSubscribed sharing (mirror the screen's collectAsState on `row`).
+        val collector = backgroundScope.launch { vm.row.collect {} }
+        advanceUntilIdle()
+        // Mirror the screen: delete → onDone() navigates → DisposableEffect disposes the VM, which
+        // cancels its scope from within the delete coroutine that is still on the stack.
+        vm.delete(onDone = { vm.dispose() })
+        advanceUntilIdle()
+        collector.cancel()
+        assertNull(txn.getById(id))
     }
 
     @Test

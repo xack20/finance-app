@@ -7,3 +7,15 @@ target 'iosApp' do
   use_frameworks! :linkage => :static
   pod 'SQLCipher', '~> 4.5'
 end
+
+# SQLCipher's CocoaPods umbrella header uses `#include "sqlite3.h"` (double-quoted). Under Xcode's
+# framework-header module verification this is promoted to an error
+# (-Wquoted-include-in-framework-header), failing the build. Disable that one pedantic check on the
+# generated pod targets — it does not affect linkage or the actual SQLCipher sources.
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+    end
+  end
+end

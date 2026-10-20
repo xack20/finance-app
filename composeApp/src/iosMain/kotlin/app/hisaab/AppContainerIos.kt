@@ -1,5 +1,8 @@
 package app.hisaab
 
+import kotlinx.datetime.toLocalDateTime
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import app.cash.sqldelight.db.SqlDriver
 import app.hisaab.auth.AuthRepository
 import app.hisaab.auth.SupabaseAuthRepository
@@ -16,12 +19,16 @@ import app.hisaab.data.InsightRepository
 import app.hisaab.data.LendBorrowRepository
 import app.hisaab.data.MerchantRepository
 import app.hisaab.data.PersonRepository
-import app.hisaab.data.SenderRepository
 import app.hisaab.data.TagRepository
 import app.hisaab.data.TransactionRepository
 import app.hisaab.capture.CaptureCoordinator
 import app.hisaab.capture.CaptureCursorStore
 import app.hisaab.capture.CaptureHandler
+import app.hisaab.capture.CompositeCaptureSource
+import app.hisaab.capture.RelayCaptureCrypto
+import app.hisaab.capture.RelayCaptureSource
+import app.hisaab.capture.SealedCapture
+import app.hisaab.capture.SupabaseRelayTransport
 import app.hisaab.db.DatabaseDriverFactory
 import app.hisaab.db.HisaabDatabase
 import app.hisaab.platform.AppLifecycle
@@ -32,6 +39,9 @@ import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
 import app.hisaab.platform.SecureStorage
 import app.hisaab.agent.AgentProvider
+import app.hisaab.agent.NativeAgentRegistry
+import app.hisaab.agent.OnDeviceAgentProvider
+import platform.Foundation.NSBundle
 import app.hisaab.agent.AgentRuntime
 import app.hisaab.agent.WriteBatchCommitter
 import app.hisaab.agent.buildAgentToolRegistry
@@ -42,7 +52,11 @@ import app.hisaab.llm.LlmProvider
 import app.hisaab.llm.LlmRouter
 import app.hisaab.llm.cloud.ClaudeProvider
 import app.hisaab.llm.cloud.GeminiProvider
+import app.hisaab.llm.cloud.GeminiTranscriber
 import app.hisaab.llm.cloud.OpenAiProvider
+import app.hisaab.platform.AudioRecorder
+import app.hisaab.platform.CloudTranscriber
+import app.hisaab.platform.IosAudioRecorder
 import app.hisaab.platform.IosSpeechToText
 import app.hisaab.platform.SpeechToText
 import io.ktor.client.HttpClient
@@ -108,6 +122,35 @@ actual class AppContainer {
         get() = ConversationRepository(requireDb())
 
     actual val speechToText: SpeechToText = IosSpeechToText()
+    actual val audioRecorder: AudioRecorder = IosAudioRecorder()
+
+    /**
+     * Build-config Gemini key (Secrets.xcconfig -> Info.plist) — a DEBUG/dev convenience that pre-enables
+     * the cloud assistant with no in-app setup. It is intentionally BLANK in Release builds
+     * (Config-Release.xcconfig overrides it to empty), so on a release build this returns null and the
+     * dependent provider-default, apiKey fallback, and consent bypass are all inert: users must bring
+     * their own key in-app (-> Keychain) and pass the explicit cloud-consent flow.
+     */
+    private fun geminiApiKeyFromConfig(): String? =
+        (NSBundle.mainBundle.objectForInfoDictionaryKey("GEMINI_API_KEY") as? String)?.takeIf { it.isNotBlank() }
+
+    /** The selected cloud provider (or the build-config Gemini default), if its API key is present. */
+    private suspend fun cloudAgentProvider(): AgentProvider? {
+        val provider = captureConfigRepository.get().cloudProvider
+            ?: if (geminiApiKeyFromConfig() != null) CloudProvider.GEMINI else null
+        val adapter: LlmProvider? = when (provider) {
+            CloudProvider.CLAUDE -> claudeProvider
+            CloudProvider.GEMINI -> geminiProvider
+            CloudProvider.OPENAI -> openAiProvider
+            CloudProvider.CLAUDE_MAC -> macBridgeProvider
+            null -> null
+        }
+        return if (adapter != null && adapter.isAvailable()) adapter as? AgentProvider else null
+    }
+
+    /** Apple's on-device model, if the Swift FoundationModels bridge reports it available. */
+    private fun onDeviceAgentProvider(): AgentProvider? =
+        NativeAgentRegistry.bridge?.takeIf { it.isAvailable() }?.let { OnDeviceAgentProvider(it) }
 
     actual fun agentRuntime(): AgentRuntime {
         val db = requireDb()
@@ -119,22 +162,25 @@ actual class AppContainer {
             ),
             // Resolve the user's SELECTED cloud provider at call time (agent consent is separate,
             // checked via isConsented — independent of the SMS-capture cloud consent).
-            agentProvider = {
-                val adapter: LlmProvider? = when (captureConfigRepository.get().cloudProvider) {
-                    CloudProvider.CLAUDE -> claudeProvider
-                    CloudProvider.GEMINI -> geminiProvider
-                    CloudProvider.OPENAI -> openAiProvider
-                    null -> null
-                }
-                if (adapter != null && adapter.isAvailable()) adapter as? AgentProvider else null
-            },
+            // A configured cloud provider (the user brought a key) takes priority — it's the more capable
+            // model for the tool-calling agent. The on-device model (Apple Intelligence) is the private
+            // default + fallback when no cloud key is set.
+            agentProvider = { cloudAgentProvider() ?: onDeviceAgentProvider() },
             unavailableReason = {
                 if (captureConfigRepository.get().cloudProvider == null)
-                    "Pick a cloud model in Settings to use the assistant."
+                    "Add a cloud model + API key in Settings (Auto-capture → Engine → Cloud), or enable Apple Intelligence."
                 else
-                    "Add your cloud model's API key in Settings to use the assistant."
+                    "Add your cloud model's API key in Settings (Auto-capture → Engine → Cloud)."
             },
-            isConsented = { secureStorage.loadString("agent_consent_at") != null },
+            // Cloud requires explicit consent; the on-device model does not (nothing leaves the device).
+            // A build-config Gemini key (provided deliberately by the developer) is implicitly consented.
+            isConsented = {
+                when {
+                    geminiApiKeyFromConfig() != null -> true
+                    cloudAgentProvider() != null -> secureStorage.loadString("agent_consent_at") != null
+                    else -> true
+                }
+            },
             accountNames = { accountRepository.observeActive().first().joinToString(", ") { it.name } },
             categoryNames = { categoryRepository.observeAll().first().joinToString(", ") { it.name } },
             committer = WriteBatchCommitter(
@@ -156,13 +202,34 @@ actual class AppContainer {
     )
     private val geminiProvider: GeminiProvider = GeminiProvider(
         httpClient = llmHttpClient,
-        apiKey = { secureStorage.loadString("llm_api_key_GEMINI") },
+        apiKey = { secureStorage.loadString("llm_api_key_GEMINI") ?: geminiApiKeyFromConfig() },
         redact = { captureConfigRepository.get().redactionEnabled },
+    )
+    // Cloud STT shares the Gemini key + HTTP client — used for Bangla voice (Apple STT can't).
+    actual val cloudTranscriber: CloudTranscriber = GeminiTranscriber(
+        httpClient = llmHttpClient,
+        apiKey = { secureStorage.loadString("llm_api_key_GEMINI") ?: geminiApiKeyFromConfig() },
     )
     private val openAiProvider: OpenAiProvider = OpenAiProvider(
         httpClient = llmHttpClient,
         apiKey = { secureStorage.loadString("llm_api_key_OPENAI") },
         redact = { captureConfigRepository.get().redactionEnabled },
+    )
+    // "Claude via my Mac": Claude Code on the user's subscription, through the Hisaab Companion (no API key).
+    private val macBridgeProvider = app.hisaab.llm.cloud.MacBridgeProvider(
+        httpClient = llmHttpClient,
+        address = { secureStorage.loadString(app.hisaab.llm.secureKeyFor(CloudProvider.CLAUDE_MAC)) },
+        codec = {
+            secureStorage.loadMasterSecret()?.let { master ->
+                try {
+                    app.hisaab.llm.cloud.CryptoBridgeCodec(
+                        app.hisaab.bridge.AgentBridgeCrypto().bridgeKey(RelayCaptureCrypto().relayKey(master)),
+                    )
+                } finally {
+                    master.fill(0)
+                }
+            }
+        },
     )
     // iOS/wasm: createOnDeviceProvider() returns null; no on-device engine on these platforms.
 
@@ -176,6 +243,7 @@ actual class AppContainer {
             claude = claudeProvider,
             gemini = geminiProvider,
             openai = openAiProvider,
+            claudeMac = macBridgeProvider,
         )
 
     // M3-3: backing flow the pipeline emits AutoPosted into; M3-5 collects captureEvents.
@@ -185,25 +253,40 @@ actual class AppContainer {
     actual val captureEvents: kotlinx.coroutines.flow.SharedFlow<app.hisaab.capture.CaptureEvent> =
         captureEventsFlow
 
-    // M3-3: fresh CapturePipeline built on every access so it always binds the current open DB
-    // (fresh-DB resolution pattern per lock/unlock lifecycle requirement).
-    actual val capturePipeline: app.hisaab.capture.CapturePipeline
-        get() = app.hisaab.capture.CapturePipeline(
-            db = requireDb(),
-            inboxRepo = captureInboxRepository,
-            senderRepo = senderRepository,
-            accountMatcher = app.hisaab.capture.AccountMatcher(accountRepository, senderRepository, requireDb()),
-            preFilter = app.hisaab.capture.SmsPreFilter(senderRepository),
-            llmRouter = llmRouter,
-            txnRepo = transactionRepository,
-            configRepo = captureConfigRepository,
-            captureEvents = captureEventsFlow,
+    // Capture agent: relay captures are queued; this worker drains the queue through the agent while capture runs.
+    private var captureWorker: app.hisaab.capture.agent.CaptureAgentWorker? = null
+    private val aiStatus = app.hisaab.capture.ChannelStatusTracker(now = {
+        kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+    })
+
+    actual fun kickCaptureAgent() {
+        captureWorker?.kick()
+    }
+
+    private fun newCaptureWorker(): app.hisaab.capture.agent.CaptureAgentWorker {
+        val budget = app.hisaab.capture.agent.ConfigCallBudget(captureConfigRepository) {
+            kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault()).date.toString()
+        }
+        return app.hisaab.capture.agent.CaptureAgentWorker(
+            inbox = captureInboxRepository,
+            processor = {
+                cachedDatabase?.let { db ->
+                    app.hisaab.capture.agent.buildCaptureAgent(
+                        db, llmRouter, budget, redact = { captureConfigRepository.get().redactionEnabled },
+                    )
+                }
+            },
+            budget = budget,
+            status = aiStatus,
         )
+    }
 
     actual val captureInboxRepository: CaptureInboxRepository
         get() = CaptureInboxRepository(requireDb())
-    actual val senderRepository: SenderRepository
-        get() = SenderRepository(requireDb())
+    actual val agentQuestionRepository: app.hisaab.data.AgentQuestionRepository
+        get() = app.hisaab.data.AgentQuestionRepository(requireDb())
+    actual val agentMemoryRepository: app.hisaab.data.AgentMemoryRepository
+        get() = app.hisaab.data.AgentMemoryRepository(requireDb())
     actual val captureConfigRepository: CaptureConfigRepository
         get() = CaptureConfigRepository(requireDb())
 
@@ -213,10 +296,32 @@ actual class AppContainer {
             override suspend fun currentCursor(): Long = captureConfigRepository.get().lastSmsCursor
             override suspend fun advanceCursor(toMs: Long) { captureConfigRepository.setCursor(toMs) }
         }
-        // M3-3: reference capturePipeline inside the lambda so it resolves FRESH on each invocation
-        // (ensures the pipeline always binds the current open DB after a lock/unlock cycle).
-        val handler = CaptureHandler { capturePipeline.process(it) }
-        CaptureCoordinator(captureService, handler, cursorStore)
+        // Resolve the inbox FRESH per message so it always binds the current open DB after a lock/unlock cycle.
+        val handler = CaptureHandler { raw ->
+            app.hisaab.capture.CaptureQueue(captureInboxRepository) { kickCaptureAgent() }.handle(raw)
+        }
+        // P2: platform source (PASTE-only on iOS) PLUS the Mac→phone relay — the relay is the path
+        // that actually delivers SMS to iPhone (iOS can't read SMS natively). Inert until enabled.
+        val source = CompositeCaptureSource(listOf(captureService, relayCaptureSource))
+        CaptureCoordinator(source, handler, cursorStore)
+    }
+
+    // P2: Mac→phone capture relay source (see AppContainerAndroid for the symmetric wiring).
+    private val relayCrypto = RelayCaptureCrypto()
+    private val relayCaptureSource: RelayCaptureSource by lazy {
+        RelayCaptureSource(
+            transport = SupabaseRelayTransport(),
+            decode = { row ->
+                secureStorage.loadMasterSecret()?.let { master ->
+                    relayCrypto.open(SealedCapture(row.nonce, row.ciphertext), relayCrypto.relayKey(master))
+                }
+            },
+            enabled = {
+                captureConfigRepository.get().relayCaptureEnabled &&
+                    secureStorage.loadMasterSecret() != null &&
+                    authRepository.isSignedIn()
+            },
+        )
     }
 
     // M3-5: coordinator scope — created on DB open, cancelled on DB close.
@@ -224,6 +329,24 @@ actual class AppContainer {
 
     actual fun captureCoordinatorOrNull(): CaptureCoordinator? =
         if (cachedDatabase != null) captureCoordinator else null
+
+    actual fun startHistoryImport() {
+        captureScope?.launch(kotlinx.coroutines.Dispatchers.Default) { captureCoordinator.importAllHistory() }
+    }
+
+    // shortcut: no crash capture on iOS yet (Xcode's device logs cover it); add one if iPhone testers need it.
+    actual fun lastCrashReport(): String? = null
+
+    actual fun clearCrashReport() {}
+
+    // shortcut: iOS doesn't publish relay status yet (Off); wire RelayCaptureSource(status = …) if iPhone needs it.
+    actual val syncStatuses: kotlinx.coroutines.flow.StateFlow<app.hisaab.capture.SyncStatuses> =
+        aiStatus.status.map { app.hisaab.capture.SyncStatuses(ai = it) }.stateIn(
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default),
+            kotlinx.coroutines.flow.SharingStarted.Eagerly,
+            app.hisaab.capture.SyncStatuses(),
+        )
+
 
     actual suspend fun confirmCandidate(candidateId: String): Boolean {
         val db = cachedDatabase ?: return false
@@ -271,7 +394,6 @@ actual class AppContainer {
         kotlinx.coroutines.runBlocking {
             categoryRepository.ensureDefaults()
             accountRepository.ensureDefaultCashAccount()
-            senderRepository.seedKnownSenders()
         }
         // M3-int Fix 3: start capture only when captureEnabled is true.
         startCapture()
@@ -283,13 +405,18 @@ actual class AppContainer {
     actual fun startCapture() {
         if (captureScope != null) return
         if (cachedDatabase == null) return
-        val enabled = kotlinx.coroutines.runBlocking { captureConfigRepository.get().captureEnabled }
+        val enabled = kotlinx.coroutines.runBlocking {
+            val cfg = captureConfigRepository.get()
+            cfg.captureEnabled || cfg.relayCaptureEnabled
+        }
         if (!enabled) return
         val scope = kotlinx.coroutines.CoroutineScope(
-            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default +
+                kotlinx.coroutines.CoroutineExceptionHandler { _, e -> println("HisaabCapture: capture work failed: ${e.message}") },
         )
         captureScope = scope
         captureCoordinator.start(scope)
+        captureWorker = newCaptureWorker().also { it.start(scope) }
         // M3-int Fix 2: recover SMS received while DB was locked (no-op on iOS — CaptureService
         // yields nothing, but the call is symmetric and harmless).
         scope.launch(kotlinx.coroutines.Dispatchers.Default) { captureCoordinator.catchUp() }
@@ -298,10 +425,14 @@ actual class AppContainer {
     actual fun stopCapture() {
         val scope = captureScope ?: return
         captureScope = null
+        captureWorker = null
         kotlinx.coroutines.runBlocking {
             (scope.coroutineContext[kotlinx.coroutines.Job])?.let { j -> j.cancel(); j.join() }
         }
     }
+
+    // iOS has no background capture service, so locking always closes the DB.
+    actual fun lockUi() = closeDatabase()
 
     actual fun closeDatabase() {
         // Drain in-flight coroutines before closing the driver.

@@ -33,3 +33,15 @@ UPDATE capture_config SET cloud_consent_at = NULL, updated_at = ? WHERE id = 'si
 
 setCursor:
 UPDATE capture_config SET last_sms_cursor = ?, updated_at = ? WHERE id = 'singleton';
+
+setRelayCaptureEnabled:
+UPDATE capture_config SET relay_capture_enabled = ?, updated_at = ? WHERE id = 'singleton';
+
+setEmailCaptureEnabled:
+UPDATE capture_config SET email_capture_enabled = ?, updated_at = ? WHERE id = 'singleton';
+
+setNotificationCaptureEnabled:
+UPDATE capture_config SET notification_capture_enabled = ?, updated_at = ? WHERE id = 'singleton';
+
+setAgentCalls:
+UPDATE capture_config SET agent_calls_day = ?, agent_calls_count = ?, updated_at = ? WHERE id = 'singleton';

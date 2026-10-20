@@ -46,6 +46,13 @@ class TransactionRepository(
             .mapToOneOrNull(Dispatchers.Default)
             .map { row -> row?.toFullDomain() }
 
+    /** Top-level transactions of exactly [amount] in [fromMs, toMs) — the capture agent's duplicate check. */
+    suspend fun findSimilar(amount: Double, fromMs: Long, toMs: Long): List<SimilarTransaction> =
+        db.transactionQueriesQueries.findSimilar(amount, fromMs, toMs).executeAsList().map {
+            SimilarTransaction(it.id, it.amount, TxnKind.valueOf(it.kind), it.ts, it.account_name, it.merchant_name,
+                fromMessage = it.capture_id != null)
+        }
+
     fun observeForDay(epochDayMs: Long): Flow<List<TransactionRow>> {
         val (start, end) = dayRangeMs(epochDayMs)
         return db.transactionQueriesQueries.observeTxnsForDayRange(start, end).asFlow()
@@ -98,9 +105,12 @@ class TransactionRepository(
         ts: Long,
         notes: String?,
         currency: String = "BDT",
+        source: TxnSource = TxnSource.CHAT,
+        /** The captured message this transfer came from; linked on the outgoing leg. */
+        captureId: String? = null,
     ): String {
         val groupId = randomId()
-        fun leg(accountId: String) = db.transactionQueriesQueries.insertTxn(
+        fun leg(accountId: String, linkedCapture: String?) = db.transactionQueriesQueries.insertTxn(
             id = randomId(),
             account_id = accountId,
             amount = amount,
@@ -108,15 +118,15 @@ class TransactionRepository(
             ts = ts,
             merchant_id = null,
             category_id = "transfer",
-            source = TxnSource.CHAT.name,
+            source = source.name,
             notes = notes,
             kind = TxnKind.TRANSFER.name,
             parent_txn_id = null,
-            capture_id = null,
+            capture_id = linkedCapture,
             transfer_group_id = groupId,
         )
-        leg(fromAccountId)
-        leg(toAccountId)
+        leg(fromAccountId, captureId)
+        leg(toAccountId, null)
         return groupId
     }
 
@@ -145,13 +155,15 @@ class TransactionRepository(
      */
     fun addBlocking(input: NewTransaction): String {
         val id = randomId()
+        val merchantId = input.merchantName?.takeIf { it.isNotBlank() }
+            ?.let { merchantRepo.upsertByNameBlocking(it, defaultCategoryId = input.categoryId) }
         db.transactionQueriesQueries.insertTxn(
             id = id,
             account_id = input.accountId,
             amount = input.amount,
             currency = input.currency,
             ts = input.ts,
-            merchant_id = null, // merchant upsert happens outside the transaction
+            merchant_id = merchantId,
             category_id = input.categoryId,
             source = input.source.name,
             notes = input.notes,
@@ -299,3 +311,15 @@ class TransactionRepository(
         return bytes.joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
     }
 }
+
+/** A ledger entry shown to the capture agent when it checks for duplicates. */
+data class SimilarTransaction(
+    val id: String,
+    val amount: Double,
+    val kind: TxnKind,
+    val ts: Long,
+    val account: String,
+    val merchant: String?,
+    /** Added from a captured message (vs. typed by the user). */
+    val fromMessage: Boolean,
+)

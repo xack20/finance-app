@@ -1,27 +1,23 @@
 package app.hisaab.screens.main
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
+import app.hisaab.design.components.DockTab
+import app.hisaab.design.components.FloatingDock
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -35,7 +31,7 @@ import app.hisaab.domain.CloudProvider
 import app.hisaab.screens.agent.AgentScreen
 import app.hisaab.screens.agent.AgentViewModel
 import app.hisaab.screens.capture.AutoPostSnackbarHost
-import app.hisaab.screens.capture.ReviewInboxScreen
+import app.hisaab.screens.capture.QuestionsScreen
 import app.hisaab.screens.entry.EntryScreen
 import app.hisaab.screens.month.MonthScreen
 import app.hisaab.screens.people.PeopleListScreen
@@ -50,9 +46,11 @@ import app.hisaab.screens.settings.RecoveryPhraseRevealScreen
 import app.hisaab.screens.settings.SettingsScreen
 import app.hisaab.screens.today.TodayScreen
 import app.hisaab.screens.transaction.TransactionDetailScreen
+import app.hisaab.screens.voice.VoiceScreen
 import kotlinx.datetime.Clock
 
 private const val AGENT_ROUTE = "agent"
+private const val VOICE_ROUTE = "voice"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,84 +65,20 @@ fun MainGraph() {
     )
 
     Scaffold(
-        bottomBar = {
-            if (showNavAndFab) {
-                NavigationBar(containerColor = palette.surface) {
-                    MainTab.entries.forEach { tab ->
-                        NavigationBarItem(
-                            selected = currentRoute == tab.name,
-                            onClick = {
-                                navController.navigate(tab.name) {
-                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = {
-                                Text(
-                                    tab.iconChar(),
-                                    fontSize = 18.sp,
-                                    color = if (currentRoute == tab.name) palette.accent else palette.muted,
-                                )
-                            },
-                            label = { Text(tab.label()) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = palette.accent,
-                                selectedTextColor = palette.accent,
-                                indicatorColor = palette.background,
-                                unselectedIconColor = palette.muted,
-                                unselectedTextColor = palette.muted,
-                            ),
-                        )
-                    }
-                }
-            }
-        },
-        floatingActionButton = {
-            if (currentRoute in setOf(MainTab.TODAY.name, MainTab.MONTH.name, MainTab.PEOPLE.name)) {
-                var showChooser by remember { mutableStateOf(false) }
-                Box {
-                    FloatingActionButton(
-                        onClick = { showChooser = true },
-                        containerColor = palette.accent,
-                    ) {
-                        Text("+", color = palette.background, fontSize = 28.sp)
-                    }
-                    DropdownMenu(
-                        expanded = showChooser,
-                        onDismissRequest = { showChooser = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Add manually", color = palette.onBackground) },
-                            onClick = {
-                                showChooser = false
-                                navController.navigate("entry")
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Ask the assistant", color = palette.accent) },
-                            onClick = {
-                                showChooser = false
-                                navController.navigate(AGENT_ROUTE)
-                            },
-                        )
-                    }
-                }
-            }
-        },
         containerColor = palette.background,
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             NavHost(
                 navController = navController,
                 startDestination = MainTab.TODAY.name,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().padding(bottom = if (showNavAndFab) 106.dp else 0.dp),
             ) {
                 composable(MainTab.TODAY.name) {
                     TodayScreen(
                         onTxnClick = { id -> navController.navigate("txn/$id") },
                         onReview = { navController.navigate("review") },
                         onAutoCapture = { navController.navigate("settings/auto-capture") },
+                        onSpeak = { navController.navigate(VOICE_ROUTE) },
                     )
                 }
                 composable(MainTab.MONTH.name) { MonthScreen() }
@@ -185,12 +119,9 @@ fun MainGraph() {
                         val service = container.captureService
                         AutoCaptureViewModel(
                             configRepo = container.captureConfigRepository,
-                            senderRepo = container.senderRepository,
-                            accountRepo = container.accountRepository,
                             hasSmsPermission = { service.hasSmsPermission() },
                             requestSmsPermission = { service.requestSmsPermission() },
-                            // M3-int Fix 4: route backfill through coordinator.
-                            runBackfill = { nowMs -> container.captureCoordinator.runInitialBackfill(nowMs) },
+                            startHistoryImport = { container.startHistoryImport() },
                             loadApiKey = { key -> container.secureStorage.loadString(key) },
                             storeApiKey = { key, value -> container.secureStorage.storeString(key, value) },
                             clearApiKey = { key -> container.secureStorage.storeString(key, "") },
@@ -198,8 +129,10 @@ fun MainGraph() {
                             // M3-int Fix 3: master toggle gates the coordinator.
                             onStartCapture = { container.startCapture() },
                             onStopCapture = { container.stopCapture() },
+                            onAiSettingsChanged = { container.kickCaptureAgent() },
                         )
                     }
+                    DisposableEffect(consentVm) { onDispose { consentVm.dispose() } }
                     val cfg by consentVm.config.collectAsState()
                     val providerName = cfg?.cloudProvider?.name?.lowercase()
                         ?.replaceFirstChar { it.uppercase() }
@@ -208,18 +141,13 @@ fun MainGraph() {
                     CloudConsentScreen(
                         providerName = providerName,
                         consentGranted = consentGranted,
-                        onGrant = { consentVm.recordConsent() },
+                        onGrant = { consentVm.recordConsent { navController.popBackStack() } },
                         onRevoke = { consentVm.revokeConsent() },
                         onBack = { navController.popBackStack() },
                     )
                 }
                 composable("review") {
-                    ReviewInboxScreen(
-                        onBack = { navController.popBackStack() },
-                        onEdit = { candidateId ->
-                            navController.navigate("entry?candidateId=$candidateId")
-                        },
-                    )
+                    QuestionsScreen(onBack = { navController.popBackStack() })
                 }
                 // Single composable handles both "entry" (no candidateId) and
                 // "entry?candidateId={candidateId}" via a nullable argument with a default of null.
@@ -251,13 +179,52 @@ fun MainGraph() {
                                 )
                             },
                             speechToText = container.speechToText,
+                            audioRecorder = container.audioRecorder,
+                            cloudTranscriber = container.cloudTranscriber,
                         )
                     }
                     AgentScreen(vm = vm, onClose = { navController.popBackStack() })
                 }
+                composable(VOICE_ROUTE) {
+                    VoiceScreen(
+                        onClose = { navController.popBackStack() },
+                        // "Type instead" → manual entry (neo-voice.jsx:180).
+                        onTypeInstead = {
+                            navController.popBackStack()
+                            navController.navigate("entry")
+                        },
+                        onChat = {
+                            navController.popBackStack()
+                            navController.navigate(AGENT_ROUTE)
+                        },
+                    )
+                }
             }
             // Mount the auto-post snackbar host once; it collects captureEvents and shows Undo snackbars.
-            AutoPostSnackbarHost(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth())
+            AutoPostSnackbarHost(
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .padding(bottom = if (showNavAndFab) 106.dp else 0.dp),
+            )
+            // Midnight dock: always shows all 4 tabs + the center add-FAB (incl. Settings).
+            // Intentional change from the old NavigationBar, where the FAB was hidden on Settings.
+            if (showNavAndFab) {
+                val tabs = MainTab.entries.map { DockTab(it.name, it.iconChar(), it.label()) }
+                FloatingDock(
+                    tabs = tabs,
+                    selectedKey = currentRoute,
+                    onTabSelect = { tab ->
+                        navController.navigate(tab.key) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    // Center button is a mic opening voice-first capture (neo-app.jsx onAdd → go('voice')).
+                    onFabClick = { navController.navigate(VOICE_ROUTE) },
+                    fabIcon = "mic",
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp),
+                )
+            }
         }
     }
 }
@@ -269,9 +236,10 @@ private fun MainTab.label(): String = when (this) {
     MainTab.SETTINGS -> "Settings"
 }
 
+/** HisaabIcon name for each tab (today/month/people/gear), per neo.jsx:52. */
 private fun MainTab.iconChar(): String = when (this) {
-    MainTab.TODAY -> "•"
-    MainTab.MONTH -> "☷"
-    MainTab.PEOPLE -> "○"
-    MainTab.SETTINGS -> "⚙"
+    MainTab.TODAY -> "today"
+    MainTab.MONTH -> "month"
+    MainTab.PEOPLE -> "people"
+    MainTab.SETTINGS -> "gear"
 }

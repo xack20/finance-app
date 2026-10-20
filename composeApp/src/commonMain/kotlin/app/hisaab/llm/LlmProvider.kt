@@ -14,6 +14,12 @@ interface LlmProvider {
     /** True when the engine can actually run (model downloaded / API key present). */
     suspend fun isAvailable(): Boolean
 
+    /**
+     * Confirms the stored credentials with the vendor; throws [LlmException] if they're rejected.
+     * shortcut: only Claude makes a real call — the rest trust key presence; add theirs if users hit bad keys.
+     */
+    suspend fun verifyKey() {}
+
     /** Parse an SMS body into structured fields. Never throws for a "can't parse"; returns low-confidence/empty. */
     suspend fun parse(req: ParseRequest): LlmParseResult
 

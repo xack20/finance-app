@@ -10,6 +10,12 @@ import app.hisaab.domain.YearMonth
 import app.hisaab.llm.LlmJson
 import kotlinx.coroutines.flow.first
 import kotlinx.datetime.Clock
+import kotlinx.datetime.plus
+import kotlinx.datetime.minus
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.Instant
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.JsonArray
@@ -122,5 +128,63 @@ class PersonBalanceTool(private val repo: PersonRepository) : ReadTool {
         return LlmJson.json.encodeToString(JsonObject.serializer(), buildJsonObject {
             put("name", match?.person?.name ?: name); put("balance", match?.balance ?: 0.0)
         })
+    }
+}
+
+/** Capture agent's duplicate check: same amount within two days of a date, so a payment isn't posted twice. */
+class FindSimilarTransactionsTool(
+    private val repo: TransactionRepository,
+    private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
+) : ReadTool {
+    override val name = "find_similar_transactions"
+    override val description =
+        "Ledger entries with exactly the amount within 2 days of the date — pass every candidate as items in one call"
+    override val paramsDoc = "{ \"items\": [ { \"amount\": number, \"date\": \"YYYY-MM-DD\" } ] }"
+
+    override suspend fun execute(args: JsonObject): String {
+        // One {amount, date} at the top level is accepted too.
+        val items = (args["items"] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: listOf(args)
+        if (items.size > MAX_ITEMS) return "ERROR: at most $MAX_ITEMS items per lookup"
+        // Query first: the JSON builders below can't suspend.
+        val results = items.map { item ->
+            val amount = argStr(item, "amount")?.toDoubleOrNull()
+            val date = argStr(item, "date")?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            val matches = if (amount == null || date == null) {
+                null
+            } else {
+                val from = date.minus(WINDOW_DAYS, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toEpochMilliseconds()
+                val to = date.plus(WINDOW_DAYS + 1, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toEpochMilliseconds()
+                repo.findSimilar(amount, from, to)
+            }
+            Triple(argStr(item, "amount"), argStr(item, "date"), matches)
+        }
+        return jsonArray {
+            results.forEach { (amount, date, matches) ->
+                addJsonObject {
+                    put("amount", amount)
+                    put("date", date)
+                    if (matches == null) {
+                        put("error", "amount and date (YYYY-MM-DD) are required")
+                    } else {
+                        put("matches", buildJsonArray {
+                            matches.forEach { t ->
+                                addJsonObject {
+                                    put("kind", t.kind.name)
+                                    put("when", Instant.fromEpochMilliseconds(t.ts).toLocalDateTime(timeZone).toString().take(16))
+                                    put("account", t.account)
+                                    t.merchant?.let { put("merchant", it) }
+                                    put("fromMessage", t.fromMessage)
+                                }
+                            }
+                        })
+                    }
+                }
+            }
+        }
+    }
+
+    private companion object {
+        const val WINDOW_DAYS = 2
+        const val MAX_ITEMS = 30
     }
 }

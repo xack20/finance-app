@@ -32,3 +32,5 @@ dependencyResolutionManagement {
 }
 
 include(":composeApp")
+include(":sharedCore")
+include(":macHelper")

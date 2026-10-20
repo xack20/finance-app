@@ -6,13 +6,23 @@
     <uses-permission android:name="android.permission.READ_SMS" />
     <!-- M4-5: on-device speech-to-text for the assistant mic (runtime-granted). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- EP3: in-app IMAP email capture + cloud LLM calls. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Always-on background capture (CaptureForegroundService). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:name=".HisaabApplication"
         android:label="Hisaab"
-        android:icon="@android:drawable/sym_def_app_icon"
-        android:roundIcon="@android:drawable/sym_def_app_icon"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <activity
@@ -32,6 +42,25 @@
             android:permission="android.permission.BROADCAST_SMS">
             <intent-filter android:priority="999">
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Always-on capture: imports, live SMS, email + relay polling while minimized or locked. -->
+        <service
+            android:name=".engine.CaptureForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Continuously syncs the user's bank SMS and email into their private, encrypted ledger" />
+        </service>
+
+        <receiver
+            android:name=".engine.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

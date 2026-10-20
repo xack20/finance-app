@@ -15,15 +15,16 @@ import app.hisaab.data.InsightRepository
 import app.hisaab.data.LendBorrowRepository
 import app.hisaab.data.MerchantRepository
 import app.hisaab.data.PersonRepository
-import app.hisaab.data.SenderRepository
 import app.hisaab.data.TagRepository
 import app.hisaab.data.TransactionRepository
 import app.hisaab.db.DatabaseDriverFactory
 import app.hisaab.db.HisaabDatabase
 import app.hisaab.capture.CaptureCoordinator
 import app.hisaab.platform.AppLifecycle
+import app.hisaab.platform.AudioRecorder
 import app.hisaab.platform.BiometricAuth
 import app.hisaab.platform.CaptureService
+import app.hisaab.platform.CloudTranscriber
 import app.hisaab.platform.ContactPicker
 import app.hisaab.platform.ImagePicker
 import app.hisaab.platform.PlatformFileStore
@@ -66,7 +67,9 @@ expect class AppContainer {
     val attachmentRepository: AttachmentRepository
     val insightRepository: InsightRepository
     val captureInboxRepository: CaptureInboxRepository
-    val senderRepository: SenderRepository
+    /** Capture agent: what it asked the user, and what it learned. */
+    val agentQuestionRepository: app.hisaab.data.AgentQuestionRepository
+    val agentMemoryRepository: app.hisaab.data.AgentMemoryRepository
     val captureConfigRepository: CaptureConfigRepository
     val captureService: CaptureService
     val captureCoordinator: CaptureCoordinator
@@ -74,15 +77,35 @@ expect class AppContainer {
     // M4-6: agent DI members — conversation store, speech stub, and runtime factory.
     val conversationRepository: app.hisaab.data.ConversationRepository
     val speechToText: SpeechToText
+    // Cloud voice capture: record mic audio, transcribe via Gemini (Bangla-capable, unlike on-device STT).
+    val audioRecorder: AudioRecorder
+    val cloudTranscriber: CloudTranscriber
     fun agentRuntime(): app.hisaab.agent.AgentRuntime
 
-    // M3-3: tiered parsing pipeline + LLM router contract + auto-post event stream.
+    // LLM router contract + auto-post event stream (the capture agent posts; the snackbar listens).
     val llmRouter: app.hisaab.llm.LlmRouter
-    val capturePipeline: app.hisaab.capture.CapturePipeline
     val captureEvents: kotlinx.coroutines.flow.SharedFlow<app.hisaab.capture.CaptureEvent>
 
     /** Null until the DB is open; started by openDatabase, cancelled by closeDatabase. */
     fun captureCoordinatorOrNull(): CaptureCoordinator?
+
+    /**
+     * Starts an all-time SMS history import in the capture scope — it survives leaving a screen and stops
+     * when the DB locks (re-running resumes: done messages dedup). No-op while capture isn't running.
+     */
+    fun startHistoryImport()
+
+    /** Wakes the capture agent (e.g. after the user answered one of its questions). No-op while capture is off. */
+    fun kickCaptureAgent()
+
+    /** Stack trace saved by the last uncaught crash (Android), shown once on the next launch; null if none. */
+    fun lastCrashReport(): String?
+
+    fun clearCrashReport()
+
+    /** Live per-channel sync status (SMS, email, Mac relay) for the Auto-capture screen; all Off on iOS. */
+    val syncStatuses: kotlinx.coroutines.flow.StateFlow<app.hisaab.capture.SyncStatuses>
+
 
     /**
      * Posts a pending candidate to the ledger and marks it CONFIRMED in ONE db transaction
@@ -122,6 +145,12 @@ expect class AppContainer {
 
     /** Closes the driver and zeroes the in-memory master_secret. */
     fun closeDatabase()
+
+    /**
+     * App lock after the background timeout. Android keeps the DB open while background capture runs (only the
+     * UI's secret copy is dropped; viewing still needs unlock); otherwise this is [closeDatabase].
+     */
+    fun lockUi()
 }
 
 val LocalAppContainer = staticCompositionLocalOf<AppContainer> {

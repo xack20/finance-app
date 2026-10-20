@@ -12,6 +12,8 @@ sealed class LlmError(val message: String, val retryable: Boolean) {
     data class ProviderError(val status: Int, val detail: String) :
         LlmError("Provider error ($status): $detail", retryable = status >= 500)
     data class Decode(val detail: String) : LlmError("Failed to decode response: $detail", retryable = false)
+    /** The model's safety classifier declined (Claude `stop_reason: "refusal"`); [category] may be null. */
+    data class Refused(val category: String?) : LlmError("Model declined the request", retryable = false)
 }
 
 /** Thrown by providers on failure; [error] holds the typed cause. */

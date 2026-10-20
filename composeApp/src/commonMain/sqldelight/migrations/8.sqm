@@ -1,0 +1,4 @@
+-- EP3 (email capture): per-channel toggle for in-app Android IMAP email capture.
+-- 0 = off (default). When on (and IMAP credentials are saved), the Android EmailCaptureSource
+-- polls the user's mailbox and feeds bank emails into the existing pipeline.
+ALTER TABLE capture_config ADD COLUMN email_capture_enabled INTEGER NOT NULL DEFAULT 0;

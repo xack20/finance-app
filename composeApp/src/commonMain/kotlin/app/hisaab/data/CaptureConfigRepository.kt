@@ -83,6 +83,32 @@ class CaptureConfigRepository(
         queries.setCursor(ts, now())
     }
 
+    suspend fun setRelayCaptureEnabled(enabled: Boolean) {
+        ensure()
+        queries.setRelayCaptureEnabled(if (enabled) 1L else 0L, now())
+    }
+
+    suspend fun setEmailCaptureEnabled(enabled: Boolean) {
+        ensure()
+        queries.setEmailCaptureEnabled(if (enabled) 1L else 0L, now())
+    }
+
+    suspend fun setNotificationCaptureEnabled(enabled: Boolean) {
+        ensure()
+        queries.setNotificationCaptureEnabled(if (enabled) 1L else 0L, now())
+    }
+
+    /** AI calls the capture agent made on [today] (local YYYY-MM-DD); 0 once the day has changed. */
+    suspend fun agentCallsToday(today: String): Int {
+        val row = withContext(dispatcher) { ensure(); queries.getConfig().executeAsOne() }
+        return if (row.agent_calls_day == today) row.agent_calls_count.toInt() else 0
+    }
+
+    suspend fun recordAgentCall(today: String) {
+        val count = agentCallsToday(today) + 1
+        withContext(dispatcher) { queries.setAgentCalls(today, count.toLong(), now()) }
+    }
+
     private fun migrations.Capture_config.toDomain(): CaptureConfig = CaptureConfig(
         captureEnabled = capture_enabled == 1L,
         engineMode = EngineMode.valueOf(engine_mode),
@@ -95,6 +121,11 @@ class CaptureConfigRepository(
         cloudConsentAt = cloud_consent_at,
         retainRawBody = retain_raw_body == 1L,
         lastSmsCursor = last_sms_cursor,
+        relayCaptureEnabled = relay_capture_enabled == 1L,
+        emailCaptureEnabled = email_capture_enabled == 1L,
+        notificationCaptureEnabled = notification_capture_enabled == 1L,
+        agentCallsDay = agent_calls_day,
+        agentCallsCount = agent_calls_count.toInt(),
         updatedAt = updated_at,
     )
 }

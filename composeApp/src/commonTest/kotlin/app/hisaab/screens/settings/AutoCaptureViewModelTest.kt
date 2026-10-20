@@ -1,13 +1,9 @@
 package app.hisaab.screens.settings
 
-import app.hisaab.data.AccountRepository
 import app.hisaab.data.CaptureConfigRepository
-import app.hisaab.data.SenderRepository
 import app.hisaab.data.support.TestDatabase
-import app.hisaab.domain.BankType
 import app.hisaab.domain.CloudProvider
 import app.hisaab.domain.EngineMode
-import app.hisaab.domain.SenderMapping
 import app.hisaab.llm.ProviderId
 import app.hisaab.screens.capture.FakeCaptureGateway
 import app.hisaab.screens.capture.FakeLlmProvider
@@ -15,6 +11,7 @@ import app.hisaab.screens.capture.FakeLlmRouter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -46,22 +43,26 @@ class AutoCaptureViewModelTest {
         gateway: FakeCaptureGateway = FakeCaptureGateway(),
         router: FakeLlmRouter = FakeLlmRouter(),
         keys: FakeKeyStore = FakeKeyStore(),
+        onImport: () -> Unit = {},
+        notificationPermission: suspend () -> Boolean = { true },
+        memory: app.hisaab.data.AgentMemoryRepository = app.hisaab.data.AgentMemoryRepository(db),
+        requestContacts: suspend () -> Boolean = { false },
+        today: String = "2026-10-17",
+        onAiSettingsChanged: () -> Unit = {},
     ): AutoCaptureViewModel {
         val config = CaptureConfigRepository(db, dispatcher)
-        val senders = SenderRepository(db)
-        val accounts = AccountRepository(db)
         return AutoCaptureViewModel(
             configRepo = config,
-            senderRepo = senders,
-            accountRepo = accounts,
+            memories = memory.observeAll(),
+            forgetMemoryById = memory::delete,
+            hasContactsPermission = { false },
+            requestContactsPermission = requestContacts,
+            today = { today },
+            onAiSettingsChanged = onAiSettingsChanged,
             hasSmsPermission = { gateway.hasSmsPermission() },
             requestSmsPermission = { gateway.requestSmsPermission() },
-            // M3-int Fix 4: runBackfill receives nowMs; test shim derives the 90-day cursor so
-            // the `backfill calls gateway with the configured cursor` assertion still passes.
-            runBackfill = { nowMs ->
-                val cursor = (nowMs - 90L * 24L * 60L * 60L * 1000L).coerceAtLeast(0L)
-                gateway.backfillSince(cursor); Unit
-            },
+            startHistoryImport = onImport,
+            requestNotificationPermission = notificationPermission,
             loadApiKey = keys::load,
             storeApiKey = keys::store,
             clearApiKey = keys::clear,
@@ -101,6 +102,20 @@ class AutoCaptureViewModelTest {
     }
 
     @Test
+    fun `savedKeys reflects stored keys and updates on save and clear`() = runTest {
+        val keys = FakeKeyStore().apply { store("llm_api_key_GEMINI", "g-key") }
+        val v = vm(keys = keys)
+        assertEquals(setOf(CloudProvider.GEMINI), v.savedKeys.value)
+
+        // The Validate button reads this — it must flip the moment a key is saved, not on screen reopen.
+        v.setApiKey(CloudProvider.CLAUDE, "sk-ant-test")
+        assertEquals(setOf(CloudProvider.GEMINI, CloudProvider.CLAUDE), v.savedKeys.value)
+
+        v.clearApiKeyFor(CloudProvider.GEMINI)
+        assertEquals(setOf(CloudProvider.CLAUDE), v.savedKeys.value)
+    }
+
+    @Test
     fun `setApiKey stores under provider-scoped key`() = runTest {
         val keys = FakeKeyStore()
         val v = vm(keys = keys)
@@ -110,48 +125,112 @@ class AutoCaptureViewModelTest {
     }
 
     @Test
-    fun `validateApiKey reports valid when provider is available`() = runTest {
+    fun `validateApiKey reports valid when the provider accepts the key`() = runTest {
+        val router = FakeLlmRouter(provider = FakeLlmProvider(ProviderId.CLOUD_CLAUDE, available = true))
+        val v = vm(router = router)
+        v.recordConsent(1L)
+        advanceUntilIdle()
+        v.validateApiKey()
+        advanceUntilIdle()
+        assertEquals(KeyValidation.Valid, v.keyValidation.value)
+    }
+
+    @Test
+    fun `validateApiKey asks for consent before checking the key`() = runTest {
         val router = FakeLlmRouter(provider = FakeLlmProvider(ProviderId.CLOUD_CLAUDE, available = true))
         val v = vm(router = router)
         v.validateApiKey()
         advanceUntilIdle()
-        assertEquals(KeyValidation.VALID, v.keyValidation.value)
+        val state = v.keyValidation.value
+        assertTrue(state is KeyValidation.Invalid && state.reason.contains("consent", ignoreCase = true), "$state")
     }
 
     @Test
-    fun `validateApiKey reports invalid when provider unavailable`() = runTest {
-        val router = FakeLlmRouter(provider = FakeLlmProvider(ProviderId.CLOUD_CLAUDE, available = false))
-        val v = vm(router = router)
+    fun `validateApiKey asks for a key when none is saved`() = runTest {
+        val v = vm(router = FakeLlmRouter(provider = null))
+        v.recordConsent(1L)
+        advanceUntilIdle()
         v.validateApiKey()
         advanceUntilIdle()
-        assertEquals(KeyValidation.INVALID, v.keyValidation.value)
+        val state = v.keyValidation.value
+        assertTrue(state is KeyValidation.Invalid && state.reason.contains("key", ignoreCase = true), "$state")
     }
 
     @Test
-    fun `setRedaction setAlwaysReview setThreshold persist`() = runTest {
+    fun `validateApiKey shows the provider's own rejection reason`() = runTest {
+        val rejection = app.hisaab.llm.LlmError.ProviderError(400, "This API key is not scoped to a workspace")
+        val router = FakeLlmRouter(FakeLlmProvider(ProviderId.CLOUD_CLAUDE, available = true, verifyError = rejection))
+        val v = vm(router = router)
+        v.recordConsent(1L)
+        advanceUntilIdle()
+        v.validateApiKey()
+        advanceUntilIdle()
+        assertEquals(KeyValidation.Invalid("This API key is not scoped to a workspace"), v.keyValidation.value)
+    }
+
+    @Test
+    fun `setRedaction persists`() = runTest {
         val db = TestDatabase.create()
         val v = vm(db)
         v.setRedaction(false)
-        v.setAlwaysReview(true)
-        v.setAutoPostThreshold(0.7)
         advanceUntilIdle()
-        val cfg = CaptureConfigRepository(db, dispatcher).get()
-        assertEquals(false, cfg.redactionEnabled)
-        assertEquals(true, cfg.alwaysReview)
-        assertEquals(0.7, cfg.autoPostThreshold)
+        assertEquals(false, CaptureConfigRepository(db, dispatcher).get().redactionEnabled)
     }
 
     @Test
-    fun `resetThresholdToDefault restores 0_85`() = runTest {
+    fun `forgetting a memory deletes it`() = runTest {
+        val db = TestDatabase.create()
+        val memory = app.hisaab.data.AgentMemoryRepository(db)
+        db.transaction { memory.addBlocking("16216 is bKash") }
+        val v = vm(db, memory = memory)
+        val fact = memory.all().single()
+
+        v.forgetMemory(fact.id)
+        advanceUntilIdle()
+
+        assertTrue(memory.all().isEmpty())
+    }
+
+    @Test
+    fun `allowing contacts asks the system once and remembers the answer`() = runTest {
+        var asked = 0
+        val v = vm(requestContacts = { asked++; true })
+        assertEquals(false, v.contactsAllowed.value)
+
+        v.allowContacts()
+        advanceUntilIdle()
+
+        assertEquals(1, asked)
+        assertEquals(true, v.contactsAllowed.value)
+    }
+
+    @Test
+    fun `AI calls today counts only today's calls`() = runTest {
+        val db = TestDatabase.create()
+        val config = CaptureConfigRepository(db, dispatcher)
+        config.recordAgentCall("2026-10-16")
+        val v = vm(db, today = "2026-10-17")
+        val collected = backgroundScope.launch(dispatcher) { v.aiCallsToday.collect {} }
+        advanceUntilIdle()
+        assertEquals(0, v.aiCallsToday.value)
+
+        config.recordAgentCall("2026-10-17")
+        config.recordAgentCall("2026-10-17")
+        advanceUntilIdle()
+        assertEquals(2, v.aiCallsToday.value)
+        collected.cancel()
+    }
+
+    @Test
+    fun `consent survives leaving the screen because navigation waits for the save`() = runTest {
         val db = TestDatabase.create()
         val v = vm(db)
-        v.setAutoPostThreshold(0.55)
+        var navigated = false
+        // Leaving the consent screen disposes its VM (cancelling its scope) — it must happen after the write.
+        v.recordConsent(nowMs = 42L) { navigated = true; v.dispose() }
         advanceUntilIdle()
-        assertEquals(0.55, CaptureConfigRepository(db, dispatcher).get().autoPostThreshold)
-        v.resetThresholdToDefault()
-        advanceUntilIdle()
-        assertEquals(DEFAULT_AUTO_POST_THRESHOLD, CaptureConfigRepository(db, dispatcher).get().autoPostThreshold)
-        assertEquals(0.85, DEFAULT_AUTO_POST_THRESHOLD)
+        assertTrue(navigated)
+        assertEquals(42L, CaptureConfigRepository(db, dispatcher).get().cloudConsentAt)
     }
 
     @Test
@@ -167,77 +246,70 @@ class AutoCaptureViewModelTest {
     }
 
     @Test
-    fun `addSender and setSenderAccount persist`() = runTest {
-        val db = TestDatabase.create()
-        val accounts = AccountRepository(db)
-        val accountId = accounts.add("bKash", app.hisaab.domain.AccountKind.MFS, null)
-        val v = vm(db)
-        v.addSender(senderId = "MYBANK", displayName = "My Bank", bankType = BankType.BANK)
+    fun `configureEmail strips app-password spaces and imports email history from the beginning`() = runTest {
+        val keys = FakeKeyStore()
+        val v = vm(keys = keys)
+        v.configureEmail(" me@gmail.com ", "abcd efgh ijkl mnop") // Gmail shows app passwords in groups of 4
         advanceUntilIdle()
-        v.setSenderAccount("MYBANK", accountId)
-        advanceUntilIdle()
-        val mapping = SenderRepository(db).findBySenderId("MYBANK")
-        assertEquals("My Bank", mapping?.displayName)
-        assertEquals(accountId, mapping?.accountId)
+        assertEquals("me@gmail.com", keys.map["imap_email"])
+        assertEquals("abcdefghijklmnop", keys.map["imap_password"])
+        assertNull(keys.map["imap_email_cursor"]) // no "from now on" cursor: all-time history
     }
 
     @Test
-    fun `setSenderEnabled toggles isFinancial via upsert`() = runTest {
-        val db = TestDatabase.create()
-        val senders = SenderRepository(db)
-        senders.upsert(
-            SenderMapping(
-                id = "s1", senderId = "PROMO", displayName = "Promo", bankType = BankType.OTHER,
-                isFinancial = true, templateKey = null, accountId = null, createdAt = 1L,
-            ),
-        )
-        val v = vm(db)
-        v.setSenderEnabled("PROMO", false)
+    fun `turning on email capture also asks for notification permission`() = runTest {
+        var asks = 0
+        val v = vm(notificationPermission = { asks++; false })
+        v.setEmailCaptureEnabled(true)
         advanceUntilIdle()
-        assertEquals(false, SenderRepository(db).findBySenderId("PROMO")?.isFinancial)
+        assertEquals(1, asks)
+        assertEquals(true, v.notificationsDenied.value)
     }
 
     @Test
-    fun `unmappedSenders surfaces only financial senders without an account`() = runTest {
-        val db = TestDatabase.create()
-        val senders = SenderRepository(db)
-        val accounts = AccountRepository(db)
-        val mappedAccount = accounts.add("Mapped", app.hisaab.domain.AccountKind.MFS, null)
-        // financial + unmapped → should surface as a "new sender detected" prompt
-        senders.upsert(
-            SenderMapping(
-                id = "u1", senderId = "NEWBANK", displayName = "New Bank", bankType = BankType.BANK,
-                isFinancial = true, templateKey = null, accountId = null, createdAt = 1L,
-            ),
-        )
-        // financial + mapped → should NOT surface
-        senders.upsert(
-            SenderMapping(
-                id = "m1", senderId = "OLDBANK", displayName = "Old Bank", bankType = BankType.BANK,
-                isFinancial = true, templateKey = null, accountId = mappedAccount, createdAt = 1L,
-            ),
-        )
-        // non-financial + unmapped → should NOT surface
-        senders.upsert(
-            SenderMapping(
-                id = "p1", senderId = "PROMO", displayName = "Promo", bankType = BankType.OTHER,
-                isFinancial = false, templateKey = null, accountId = null, createdAt = 1L,
-            ),
-        )
-        val v = vm(db)
+    fun `connecting a mailbox asks for notification permission`() = runTest {
+        var asks = 0
+        val v = vm(notificationPermission = { asks++; true })
+        v.configureEmail("me@gmail.com", "abcd efgh ijkl mnop")
         advanceUntilIdle()
-        val unmapped = v.unmappedSenders.first { it.isNotEmpty() }
-        assertEquals(listOf("NEWBANK"), unmapped.map { it.senderId })
+        assertEquals(1, asks)
     }
 
     @Test
-    fun `backfill calls gateway with the configured cursor`() = runTest {
-        val db = TestDatabase.create()
-        val gateway = FakeCaptureGateway()
-        val v = vm(db, gateway)
-        v.backfillLast90Days(nowMs = 90L * 24 * 60 * 60 * 1000)
+    fun `granting SMS capture also asks for notification permission`() = runTest {
+        var asks = 0
+        val v = vm(gateway = FakeCaptureGateway(permissionGranted = true), notificationPermission = { asks++; true })
+        v.setCaptureEnabled(true)
         advanceUntilIdle()
-        assertEquals(0L, gateway.lastBackfillCursor) // 90 days before "now=90d" == 0
+        assertEquals(1, asks) // background sync shows its status in a notification
+        assertEquals(false, v.notificationsDenied.value)
+    }
+
+    @Test
+    fun `denied notification permission raises the warning but keeps capture on`() = runTest {
+        val db = TestDatabase.create()
+        val v = vm(db, FakeCaptureGateway(permissionGranted = true), notificationPermission = { false })
+        v.setCaptureEnabled(true)
+        advanceUntilIdle()
+        assertEquals(true, v.notificationsDenied.value)
+        assertTrue(CaptureConfigRepository(db, dispatcher).get().captureEnabled)
+    }
+
+    @Test
+    fun `granting SMS permission starts the all-time history import`() = runTest {
+        var imports = 0
+        val v = vm(gateway = FakeCaptureGateway(permissionGranted = true), onImport = { imports++ })
+        v.setCaptureEnabled(true)
+        advanceUntilIdle()
+        assertEquals(1, imports)
+    }
+
+    @Test
+    fun `importAllHistory hands off to the app-scoped import`() = runTest {
+        var imports = 0
+        val v = vm(onImport = { imports++ })
+        v.importAllHistory()
+        assertEquals(1, imports)
     }
 
     // M3-int Fix 3: captureEnabled gates coordinator start/stop via onStartCapture/onStopCapture.
@@ -249,15 +321,11 @@ class AutoCaptureViewModelTest {
         val gateway = FakeCaptureGateway(permissionGranted = true)
         val config = CaptureConfigRepository(db, dispatcher)
         config.setCaptureEnabled(true) // already enabled
-        val senders = SenderRepository(db)
-        val accounts = AccountRepository(db)
         val v = AutoCaptureViewModel(
             configRepo = config,
-            senderRepo = senders,
-            accountRepo = accounts,
             hasSmsPermission = { gateway.hasSmsPermission() },
             requestSmsPermission = { gateway.requestSmsPermission() },
-            runBackfill = { _ -> },
+            startHistoryImport = {},
             loadApiKey = { null },
             storeApiKey = { _, _ -> },
             clearApiKey = { _ -> },
@@ -279,11 +347,9 @@ class AutoCaptureViewModelTest {
         val gateway = FakeCaptureGateway(permissionGranted = true)
         val v = AutoCaptureViewModel(
             configRepo = CaptureConfigRepository(db, dispatcher),
-            senderRepo = SenderRepository(db),
-            accountRepo = AccountRepository(db),
             hasSmsPermission = { gateway.hasSmsPermission() },
             requestSmsPermission = { gateway.requestSmsPermission() },
-            runBackfill = { _ -> },
+            startHistoryImport = {},
             loadApiKey = { null },
             storeApiKey = { _, _ -> },
             clearApiKey = { _ -> },
@@ -296,4 +362,49 @@ class AutoCaptureViewModelTest {
         assertEquals(1, startCount, "onStartCapture must be called when enabling")
         assertEquals(0, stopCount, "onStopCapture must NOT be called when enabling")
     }
+
+    @Test
+    fun `setNotificationCaptureEnabled persists flag flips gate and starts only on enable`() = runTest {
+        val db = TestDatabase.create()
+        var gate: Boolean? = null
+        var startCount = 0
+        val v = AutoCaptureViewModel(
+            configRepo = CaptureConfigRepository(db, dispatcher),
+            hasSmsPermission = { false },
+            requestSmsPermission = { false },
+            startHistoryImport = {},
+            loadApiKey = { null },
+            storeApiKey = { _, _ -> },
+            clearApiKey = { _ -> },
+            router = FakeLlmRouter(),
+            onStartCapture = { startCount++ },
+            onSetNotificationGate = { gate = it },
+        )
+        v.setNotificationCaptureEnabled(true)
+        advanceUntilIdle()
+        assertEquals(true, CaptureConfigRepository(db, dispatcher).get().notificationCaptureEnabled)
+        assertEquals(true, gate, "gate must arm when enabling")
+        assertEquals(1, startCount, "onStartCapture must run when enabling")
+
+        v.setNotificationCaptureEnabled(false)
+        advanceUntilIdle()
+        assertEquals(false, CaptureConfigRepository(db, dispatcher).get().notificationCaptureEnabled)
+        assertEquals(false, gate, "gate must disarm when disabling")
+        assertEquals(1, startCount, "disabling must NOT start capture again")
+    }
+
+    @Test
+    fun `fixing the AI settings wakes the agent`() = runTest {
+        var kicks = 0
+        val v = vm(onAiSettingsChanged = { kicks++ })
+
+        v.setApiKey(CloudProvider.CLAUDE, "sk-ant-x")
+        v.setCloudProvider(CloudProvider.CLAUDE, null)
+        v.setEngineMode(EngineMode.CLOUD)
+        v.recordConsent()
+        advanceUntilIdle()
+
+        assertEquals(4, kicks)
+    }
 }
+
